@@ -1,0 +1,383 @@
+// Lucuma CRM Inmobiliario — esquema Fase 1
+// Motor: MariaDB 10.6 (provider mysql). En MariaDB el tipo Json se almacena como
+// LONGTEXT con CHECK(JSON_VALID(...)). Los campos que se filtran u ordenan SIEMPRE
+// van como columnas reales; el JSON es solo para lo que se guarda y se lee entero.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- multi-tenant
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  users     User[]
+  sites     Site[]
+  projects  Project[]
+  contacts  Contact[]
+  leads     Lead[]
+  stages    Stage[]
+  forms     Form[]
+  settings  Json?
+
+  @@map("organizations")
+}
+
+enum Role {
+  admin_lucuma
+  gerente
+  asesor
+  solo_lectura
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  name           String
+  role           Role         @default(asesor)
+  active         Boolean      @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime     @default(now())
+
+  assignedLeads  Lead[]       @relation("LeadOwner")
+  activities     Activity[]
+  assignments    Assignment[]
+  loginTokens    LoginToken[]
+  auditEntries   AuditLog[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, role])
+  @@map("users")
+}
+
+model LoginToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("login_tokens")
+}
+
+// ------------------------------------------------------------------ sitios web
+
+model Site {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  publicKey      String       @unique
+  secretKeyHash  String
+  // Dominios autorizados para la public key (lista blanca de CORS).
+  allowedOrigins Json
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  forms          Form[]
+  submissions    FormSubmission[]
+
+  @@index([organizationId])
+  @@map("sites")
+}
+
+// -------------------------------------------------------- proyectos y unidades
+
+model Project {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  code           String?
+  address        String?
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  units          Unit[]
+  leads          Lead[]
+  forms          Form[]
+
+  @@unique([organizationId, slug])
+  @@map("projects")
+}
+
+enum UnitKind {
+  departamento
+  estacionamiento
+  deposito
+  lote
+  oficina
+  otro
+}
+
+enum UnitStatus {
+  disponible
+  reservado
+  vendido
+  no_disponible
+}
+
+model Unit {
+  id         String     @id @default(cuid())
+  projectId  String
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code       String     // "601"
+  typology   String?    // "603"
+  kind       UnitKind   @default(departamento)
+  status     UnitStatus @default(disponible)
+  bedrooms   Int?
+  areaM2     Decimal?   @db.Decimal(10, 2)
+  price      Decimal?   @db.Decimal(12, 2)
+  currency   String     @default("PEN")
+  floor      Int?
+  extra      Json?
+  updatedAt  DateTime   @updatedAt
+
+  leads      Lead[]
+
+  @@unique([projectId, code])
+  @@index([projectId, status])
+  @@map("units")
+}
+
+// ------------------------------------------------------------ contactos y leads
+
+model Contact {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fname          String
+  lname          String?
+  email          String?
+  // Teléfono normalizado a E.164. Es la clave de dedup más usada en Perú.
+  phone          String?
+  document       String?
+  documentType   String?      @default("DNI")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  leads          Lead[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+  @@index([organizationId, document])
+  @@map("contacts")
+}
+
+model Stage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Slug legible. Nunca se referencia una etapa por su posición ni por un id opaco.
+  slug           String
+  name           String
+  position       Int
+  isWon          Boolean      @default(false)
+  isLost         Boolean      @default(false)
+  color          String?
+
+  leads          Lead[]
+
+  @@unique([organizationId, slug])
+  @@map("stages")
+}
+
+enum LeadStatus {
+  activo
+  ganado
+  perdido
+  spam
+}
+
+model Lead {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId      String
+  contact        Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  unitId         String?
+  unit           Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  stageId        String?
+  stage          Stage?       @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  ownerId        String?
+  owner          User?        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  status         LeadStatus   @default(activo)
+  source         String       @default("web_form") // web_form | whatsapp | meta_ads | manual | import
+  message        String?      @db.Text
+
+  // JSON: se guardan y se leen enteros, no se filtran.
+  attribution    Json?        // utm primera visita + último clic, gclid, fbclid, referrer, landing
+  consent        Json?        // texto aceptado, versión, fecha, IP  (Ley 29733)
+
+  firstContactAt DateTime?    // para el SLA de primer contacto
+  lastActivityAt DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  activities     Activity[]
+  assignments    Assignment[]
+  submissions    FormSubmission[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, stageId])
+  @@map("leads")
+}
+
+enum ActivityType {
+  nota
+  llamada
+  whatsapp
+  email
+  visita
+  cambio_etapa
+  asignacion
+  sistema
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  leadId    String
+  lead      Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      ActivityType
+  body      String?      @db.Text
+  meta      Json?
+  // Regla del diseño: no se cierra una actividad sin agendar la siguiente.
+  dueAt     DateTime?
+  doneAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([userId, dueAt])
+  @@map("activities")
+}
+
+model Assignment {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason     String?  // round_robin | manual | rebote | regla_formulario
+  assignedAt DateTime @default(now())
+  endedAt    DateTime?
+
+  @@index([leadId])
+  @@index([userId, assignedAt])
+  @@map("assignments")
+}
+
+// ------------------------------------------------------------------ formularios
+
+model Form {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId         String?
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name           String
+  // Definición completa del formulario. Ver packages/shared/src/form-schema.ts
+  schema         Json
+  version        Int          @default(1)
+  active         Boolean      @default(true)
+  notifyEmails   Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  submissions    FormSubmission[]
+
+  @@index([organizationId])
+  @@map("forms")
+}
+
+model FormSubmission {
+  id             String   @id @default(cuid())
+  formId         String
+  form           Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  siteId         String?
+  site           Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  // Idempotencia: el mismo submit reintentado por la cola del plugin no duplica el lead.
+  idempotencyKey String   @unique
+  formVersion    Int
+  // Lo que llegó tal cual. Si el mapeo cambia o falla, el original sobrevive.
+  rawPayload     Json
+  ip             String?
+  userAgent      String?  @db.Text
+  isSpam         Boolean  @default(false)
+  spamReason     String?
+  createdAt      DateTime @default(now())
+
+  @@index([formId, createdAt])
+  @@map("form_submissions")
+}
+
+// ------------------------------------------------------------- jobs y webhooks
+
+enum JobStatus {
+  pending
+  running
+  done
+  failed
+}
+
+// Cola de trabajos. La procesa packages/api/src/worker.ts, invocado por una tarea
+// programada de Plesk cada minuto: Passenger duerme la app sin tráfico, así que un
+// setInterval dentro del proceso no es confiable.
+model Job {
+  id         String    @id @default(cuid())
+  type       String    // email.send | webhook.deliver | sla.check | conversion.push | retention.purge
+  payload    Json
+  status     JobStatus @default(pending)
+  attempts   Int       @default(0)
+  maxAttempts Int      @default(6)
+  lastError  String?   @db.Text
+  runAt      DateTime  @default(now())
+  lockedAt   DateTime?
+  lockedBy   String?
+  createdAt  DateTime  @default(now())
+
+  @@index([status, runAt])
+  @@map("jobs")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String   // lead.view | lead.export | user.login | keys.rotate
+  entity         String?
+  entityId       String?
+  meta           Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_log")
+}

@@ -1,0 +1,295 @@
+import { Prisma } from '@prisma/client';
+import {
+  normalizeDocument,
+  normalizeEmail,
+  normalizePhonePE,
+  type FormSchema,
+  type SubmissionInput,
+} from '@lucuma-crm/shared';
+import { prisma } from '../db.js';
+import { enqueue } from '../lib/jobs.js';
+import { assignLead, pickOwner } from './assign.js';
+import { env } from '../env.js';
+
+const VENTANA_DEDUP_DIAS = 30;
+
+export interface CaptureContext {
+  organizationId: string;
+  siteId?: string | null;
+  formId?: string | null;
+  formVersion?: number;
+  source?: string;
+  ip?: string;
+  userAgent?: string;
+  notifyEmails?: string[];
+  projectId?: string | null;
+}
+
+export interface CaptureResult {
+  leadId: string;
+  duplicated: boolean;
+  isSpam: boolean;
+}
+
+/**
+ * Puerta única de entrada de leads. Toda fuente (formulario web, WhatsApp, Meta Ads,
+ * importación, alta manual) termina aquí.
+ */
+export async function captureLead(
+  input: SubmissionInput,
+  schema: FormSchema | null,
+  ctx: CaptureContext
+): Promise<CaptureResult> {
+  // 1) Idempotencia. El reintento de la cola del plugin trae la misma clave.
+  if (ctx.formId) {
+    const previa = await prisma.formSubmission.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { leadId: true, isSpam: true },
+    });
+    if (previa) {
+      return { leadId: previa.leadId ?? '', duplicated: true, isSpam: previa.isSpam };
+    }
+  }
+
+  // 2) Interpretar los valores usando el "semantic" de cada campo. Aquí no hay mapeo
+  //    manual: el CRM definió el formulario, así que sabe qué es cada cosa.
+  const campos = interpretar(input.values, schema);
+  const spam = detectarSpam(input, schema);
+
+  const email = normalizeEmail(campos.email);
+  const phone = normalizePhonePE(campos.phone);
+  const document = normalizeDocument(campos.document);
+
+  // 3) Contacto: identidad por documento → email → teléfono.
+  const contacto = await upsertContacto(ctx.organizationId, {
+    fname: campos.fname || 'Sin nombre',
+    lname: campos.lname,
+    email,
+    phone,
+    document,
+  });
+
+  // 4) Lead: ¿ya existe uno abierto del mismo contacto en el mismo proyecto?
+  const projectId = ctx.projectId ?? campos.projectId ?? null;
+  const desde = new Date(Date.now() - VENTANA_DEDUP_DIAS * 24 * 60 * 60 * 1000);
+  const existente = await prisma.lead.findFirst({
+    where: {
+      organizationId: ctx.organizationId,
+      contactId: contacto.id,
+      projectId,
+      status: 'activo',
+      createdAt: { gte: desde },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const unitId = await resolverUnidad(campos.unitInterest, projectId);
+  const ahora = new Date();
+
+  let leadId: string;
+  let duplicado = false;
+
+  if (existente) {
+    // Mismo contacto + mismo proyecto dentro de la ventana: es una actividad nueva
+    // sobre el lead existente, no un lead nuevo. No se pisa el historial.
+    duplicado = true;
+    leadId = existente.id;
+    await prisma.$transaction([
+      prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          lastActivityAt: ahora,
+          unitId: unitId ?? existente.unitId,
+          message: campos.message ?? existente.message,
+        },
+      }),
+      prisma.activity.create({
+        data: {
+          leadId,
+          type: 'sistema',
+          body: `Volvió a escribir desde el formulario${campos.message ? `: ${campos.message}` : ''}`,
+          meta: { source: ctx.source ?? 'web_form' } as never,
+        },
+      }),
+    ]);
+  } else {
+    const etapaInicial = await prisma.stage.findFirst({
+      where: { organizationId: ctx.organizationId },
+      orderBy: { position: 'asc' },
+    });
+    const lead = await prisma.lead.create({
+      data: {
+        organizationId: ctx.organizationId,
+        contactId: contacto.id,
+        projectId,
+        unitId,
+        stageId: etapaInicial?.id,
+        status: spam ? 'spam' : 'activo',
+        source: ctx.source ?? 'web_form',
+        message: campos.message,
+        attribution: (input.attribution ?? {}) as never,
+        consent: (input.consent ?? {}) as never,
+        lastActivityAt: ahora,
+      },
+    });
+    leadId = lead.id;
+
+    if (!spam) {
+      const owner = await pickOwner(ctx.organizationId);
+      if (owner) await assignLead(leadId, owner, 'round_robin');
+      // SLA de primer contacto: se revisa a los 15 minutos.
+      await enqueue('sla.check', { leadId }, new Date(Date.now() + 15 * 60 * 1000));
+    }
+  }
+
+  // 5) Guardar el envío crudo. Si el mapeo cambia o falla, el original sobrevive.
+  if (ctx.formId) {
+    await prisma.formSubmission.create({
+      data: {
+        formId: ctx.formId,
+        siteId: ctx.siteId ?? undefined,
+        leadId,
+        idempotencyKey: input.idempotencyKey,
+        formVersion: ctx.formVersion ?? 1,
+        rawPayload: input as never,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        isSpam: Boolean(spam),
+        spamReason: spam || undefined,
+      },
+    });
+  }
+
+  // 6) Notificar. El email va siempre; el plugin además manda el suyo de respaldo.
+  if (!spam) {
+    await enqueue('email.send', {
+      kind: 'new_lead',
+      leadId,
+      to: ctx.notifyEmails ?? [],
+    });
+  }
+
+  return { leadId, duplicated: duplicado, isSpam: Boolean(spam) };
+}
+
+// ---------------------------------------------------------------------------
+
+interface CamposInterpretados {
+  fname?: string;
+  lname?: string;
+  email?: string;
+  phone?: string;
+  document?: string;
+  message?: string;
+  unitInterest?: string;
+  projectId?: string;
+  custom: Record<string, string>;
+}
+
+function interpretar(values: SubmissionInput['values'], schema: FormSchema | null): CamposInterpretados {
+  const out: CamposInterpretados = { custom: {} };
+  const texto = (v: unknown) => (v === null || v === undefined ? undefined : String(v).trim() || undefined);
+
+  if (!schema) {
+    // Alta manual o importación: las claves ya vienen con nombre semántico.
+    out.fname = texto(values.fname);
+    out.lname = texto(values.lname);
+    out.email = texto(values.email);
+    out.phone = texto(values.phone);
+    out.document = texto(values.document);
+    out.message = texto(values.message);
+    out.unitInterest = texto(values.unit_interest);
+    return out;
+  }
+
+  for (const field of schema.fields) {
+    const valor = texto(values[field.key]);
+    if (valor === undefined) continue;
+    switch (field.semantic) {
+      case 'fname': out.fname = valor; break;
+      case 'lname': out.lname = valor; break;
+      case 'email': out.email = valor; break;
+      case 'phone': out.phone = valor; break;
+      case 'document': out.document = valor; break;
+      case 'message': out.message = valor; break;
+      case 'unit_interest': out.unitInterest = valor; break;
+      case 'project_interest': out.projectId = valor; break;
+      default: out.custom[field.key] = valor;
+    }
+  }
+
+  // Los campos personalizados se anexan al mensaje para que el asesor los vea sin
+  // tener que abrir el payload crudo.
+  const extras = Object.entries(out.custom);
+  if (extras.length) {
+    const linea = extras.map(([k, v]) => `${etiqueta(schema, k)}: ${v}`).join(' | ');
+    out.message = out.message ? `${out.message}\n\n${linea}` : linea;
+  }
+  return out;
+}
+
+function etiqueta(schema: FormSchema, key: string) {
+  return schema.fields.find((f) => f.key === key)?.label ?? key;
+}
+
+/** Devuelve el motivo del spam, o null si parece legítimo. Se marca, no se descarta. */
+function detectarSpam(input: SubmissionInput, schema: FormSchema | null): string | null {
+  const a = input.antispam;
+  if (a?.honeypot) return 'honeypot';
+  const min = schema?.antispam?.minSeconds ?? 3;
+  if (a?.elapsedSeconds !== undefined && a.elapsedSeconds < min) return 'time_trap';
+  return null;
+}
+
+async function upsertContacto(
+  organizationId: string,
+  d: { fname: string; lname?: string; email: string | null; phone: string | null; document: string | null }
+) {
+  const claves: Prisma.ContactWhereInput[] = [];
+  if (d.document) claves.push({ document: d.document });
+  if (d.email) claves.push({ email: d.email });
+  if (d.phone) claves.push({ phone: d.phone });
+
+  const existente = claves.length
+    ? await prisma.contact.findFirst({ where: { organizationId, OR: claves } })
+    : null;
+
+  if (existente) {
+    // Completa lo que falte, sin pisar lo que ya había.
+    return prisma.contact.update({
+      where: { id: existente.id },
+      data: {
+        fname: existente.fname === 'Sin nombre' ? d.fname : existente.fname,
+        lname: existente.lname ?? d.lname,
+        email: existente.email ?? d.email,
+        phone: existente.phone ?? d.phone,
+        document: existente.document ?? d.document,
+      },
+    });
+  }
+
+  return prisma.contact.create({
+    data: {
+      organizationId,
+      fname: d.fname,
+      lname: d.lname,
+      email: d.email,
+      phone: d.phone,
+      document: d.document,
+    },
+  });
+}
+
+/** El value del select puede ser el id de la unidad o su código ("601"). */
+async function resolverUnidad(valor: string | undefined, projectId: string | null) {
+  if (!valor || !projectId) return null;
+  const unidad = await prisma.unit.findFirst({
+    where: { projectId, OR: [{ id: valor }, { code: valor }] },
+    select: { id: true },
+  });
+  return unidad?.id ?? null;
+}
+
+export function leadUrl(leadId: string) {
+  return `${env.appUrl.replace(/\/$/, '')}/leads/${leadId}`;
+}
