@@ -27,7 +27,14 @@ export async function sendMail(opts: { to: string | string[]; subject: string; h
     html: opts.html,
     text: opts.text,
   });
-  if (!env.smtp.host) console.log('[mail:dev]', opts.subject, '→', opts.to);
+  if (!env.smtp.host) {
+    // Sin SMTP no hay forma de recibir el correo, así que el cuerpo se vuelca en consola:
+    // de otro modo el magic link es inalcanzable y no se puede entrar al CRM en local.
+    const enlaces = [...opts.html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    console.log('[mail:dev]', opts.subject, '→', opts.to);
+    for (const enlace of enlaces) console.log('[mail:dev] enlace:', enlace);
+    if (opts.text) console.log('[mail:dev] texto:', opts.text);
+  }
   return info;
 }
 

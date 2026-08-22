@@ -173,9 +173,16 @@ model Contact {
 
   leads          Lead[]
 
-  @@index([organizationId, email])
-  @@index([organizationId, phone])
-  @@index([organizationId, document])
+  // Claves de identidad. Únicas a nivel de motor, no solo por convención del código:
+  // dos submits simultáneos de la misma persona son una condición de carrera que debe
+  // resolver MariaDB, no un findFirst seguido de un create (ver services/capture.ts).
+  // Las columnas admiten NULL y en MySQL/MariaDB los NULL no colisionan entre sí, así que
+  // pueden convivir muchos contactos sin email (WhatsApp, alta manual, importación).
+  // Condición: guardar siempre NULL y nunca cadena vacía; de eso se encargan los
+  // normalizadores de @lucuma-crm/shared.
+  @@unique([organizationId, email], name: "uq_contact_email")
+  @@unique([organizationId, phone], name: "uq_contact_phone")
+  @@unique([organizationId, document], name: "uq_contact_document")
   @@map("contacts")
 }
 

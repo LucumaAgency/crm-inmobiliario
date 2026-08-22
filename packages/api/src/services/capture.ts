@@ -83,7 +83,8 @@ export async function captureLead(
     orderBy: { createdAt: 'desc' },
   });
 
-  const unitId = await resolverUnidad(campos.unitInterest, projectId);
+  const unidad = await resolverUnidad(campos.unitInterest, projectId);
+  const unitId = unidad?.id ?? null;
   const ahora = new Date();
 
   let leadId: string;
@@ -94,6 +95,16 @@ export async function captureLead(
     // sobre el lead existente, no un lead nuevo. No se pisa el historial.
     duplicado = true;
     leadId = existente.id;
+
+    // `lead.unitId` guarda la última unidad consultada, así que la anterior se pierde de
+    // la ficha. Quien pregunta por dos unidades del mismo proyecto está comparando, y
+    // cuáles son es justamente el insumo de la llamada del asesor: queda en el historial.
+    const cambioDeUnidad = Boolean(unidad && existente.unitId && unidad.id !== existente.unitId);
+    const detalle = [
+      unidad ? `unidad ${unidad.code}` : null,
+      campos.message ? `«${campos.message}»` : null,
+    ].filter(Boolean).join(' · ');
+
     await prisma.$transaction([
       prisma.lead.update({
         where: { id: leadId },
@@ -107,8 +118,14 @@ export async function captureLead(
         data: {
           leadId,
           type: 'sistema',
-          body: `Volvió a escribir desde el formulario${campos.message ? `: ${campos.message}` : ''}`,
-          meta: { source: ctx.source ?? 'web_form' } as never,
+          body: `Volvió a escribir desde el formulario${detalle ? `: ${detalle}` : ''}`,
+          meta: {
+            source: ctx.source ?? 'web_form',
+            unitId: unidad?.id ?? null,
+            unitCode: unidad?.code ?? null,
+            // Marca para la ficha: consultó por una unidad distinta a la que ya tenía.
+            unitChangedFrom: cambioDeUnidad ? existente.unitId : null,
+          } as never,
         },
       }),
     ]);
@@ -241,18 +258,36 @@ function detectarSpam(input: SubmissionInput, schema: FormSchema | null): string
   return null;
 }
 
-async function upsertContacto(
-  organizationId: string,
-  d: { fname: string; lname?: string; email: string | null; phone: string | null; document: string | null }
-) {
+type DatosContacto = {
+  fname: string;
+  lname?: string;
+  email: string | null;
+  phone: string | null;
+  document: string | null;
+};
+
+/** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
+async function buscarContacto(organizationId: string, d: DatosContacto) {
   const claves: Prisma.ContactWhereInput[] = [];
   if (d.document) claves.push({ document: d.document });
   if (d.email) claves.push({ email: d.email });
   if (d.phone) claves.push({ phone: d.phone });
+  if (!claves.length) return null;
+  return prisma.contact.findFirst({ where: { organizationId, OR: claves } });
+}
 
-  const existente = claves.length
-    ? await prisma.contact.findFirst({ where: { organizationId, OR: claves } })
-    : null;
+/**
+ * Identidad del contacto.
+ *
+ * El `findFirst` seguido de `create` es una condición de carrera: dos envíos simultáneos
+ * de la misma persona (doble clic con conexión lenta) buscan a la vez, ninguno encuentra
+ * nada y ambos crean. Los índices únicos de `Contact` hacen que MariaDB rechace el segundo
+ * con P2002; aquí se traduce esa colisión en "otro proceso ya lo creó" y se reintenta la
+ * búsqueda, que es el resultado correcto. La idempotencia no cubre este caso: son dos
+ * envíos distintos, con claves distintas.
+ */
+async function upsertContacto(organizationId: string, d: DatosContacto) {
+  const existente = await buscarContacto(organizationId, d);
 
   if (existente) {
     // Completa lo que falte, sin pisar lo que ya había.
@@ -268,26 +303,33 @@ async function upsertContacto(
     });
   }
 
-  return prisma.contact.create({
-    data: {
-      organizationId,
-      fname: d.fname,
-      lname: d.lname,
-      email: d.email,
-      phone: d.phone,
-      document: d.document,
-    },
-  });
+  try {
+    return await prisma.contact.create({
+      data: {
+        organizationId,
+        fname: d.fname,
+        lname: d.lname,
+        email: d.email,
+        phone: d.phone,
+        document: d.document,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const ganador = await buscarContacto(organizationId, d);
+      if (ganador) return ganador;
+    }
+    throw err;
+  }
 }
 
 /** El value del select puede ser el id de la unidad o su código ("601"). */
 async function resolverUnidad(valor: string | undefined, projectId: string | null) {
   if (!valor || !projectId) return null;
-  const unidad = await prisma.unit.findFirst({
+  return prisma.unit.findFirst({
     where: { projectId, OR: [{ id: valor }, { code: valor }] },
-    select: { id: true },
+    select: { id: true, code: true },
   });
-  return unidad?.id ?? null;
 }
 
 export function leadUrl(leadId: string) {
