@@ -7,7 +7,7 @@ Servidor de referencia: **MariaDB 10.6.22 (Ubuntu 22.04)**.
 - El CRM va en su **propia suscripción de Plesk**, con su propio usuario de MySQL y su propio
   backup. No comparte espacio con los sitios de clientes: si una web se rompe, no puede caer
   con ella la captación de leads de todos.
-- **Node 20 LTS.** Si la suscripción trae 21.7.3, cámbiala: la 21 es una versión impar ya sin
+- **Node 20 LTS.** Hoy la suscripción trae 21.7.3, cámbiala: la 21 es una versión impar ya sin
   soporte de seguridad. Extensión Node.js → seleccionar versión.
 - Subdominio de producción y otro de staging, ambos con SSL.
 
@@ -28,11 +28,27 @@ Crear base y usuario dedicados en Plesk. Cotejamiento `utf8mb4_unicode_ci`.
 Git de Plesk apuntando a `main`, con este despliegue adicional:
 
 ```bash
-npm ci
-npx prisma migrate deploy
+npm ci --include=dev          # prisma CLI, typescript y vite viven en devDependencies
+npx prisma generate           # escribe el cliente tipado dentro de node_modules
+npx prisma migrate deploy     # aplica las migraciones versionadas en prisma/migrations
 npm run build
 touch tmp/restart.txt
 ```
+
+Tres cosas que no son opcionales aquí:
+
+- **`--include=dev`.** La aplicación corre con `NODE_ENV=production` (§2) y con esa variable
+  `npm ci` omite las `devDependencies`. Ahí están `prisma`, `typescript` y `vite`: sin ellas
+  `npx prisma` intenta descargarse en pleno deploy y `npm run build` no encuentra el compilador.
+- **`prisma generate` explícito.** `@prisma/client` se instala vacío; `generate` es el paso que
+  escribe el cliente real a partir de `prisma/schema.prisma`. Es compilación, corre en cada
+  deploy. Descarga además un motor binario propio del sistema operativo del servidor, así que
+  **nunca subas `node_modules` desde tu máquina**: el binario no sería el de Ubuntu.
+- **`migrate deploy` solo aplica migraciones que ya existen**, nunca las escribe. Si
+  `prisma/migrations/` está vacío el comando termina con éxito y deja la base sin una sola
+  tabla; el seed del §5 falla después con un `table doesn't exist` difícil de interpretar.
+  La migración inicial se genera en local con `npx prisma migrate dev --name init` y se
+  commitea.
 
 El SPA compilado (`packages/web/dist`) lo sirve el mismo proceso Fastify, así que solo hay una
 aplicación que administrar.
@@ -47,6 +63,10 @@ Plesk → **Tareas programadas** → cada minuto:
 ```
 /opt/plesk/node/20/bin/node /var/www/vhosts/<dominio>/crm/packages/api/dist/worker.js
 ```
+
+Esa ruta **depende de la versión de Node de la suscripción**: si sigue en 21.7.3 el binario de
+`node/20` no existe y la tarea falla en silencio. Confirma la ruta real antes de darla por
+buena, y revisa el log de la tarea programada al menos una vez después de crearla.
 
 De esto dependen: los correos de lead nuevo, las alertas de SLA, los reintentos de webhooks y,
 más adelante, las conversiones server side. Si no está activa, el CRM guarda leads pero no
