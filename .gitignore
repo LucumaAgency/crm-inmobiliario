@@ -1,9 +1,14 @@
 node_modules/
-dist/
 .env
 .env.local
 *.log
 .DS_Store
-packages/web/dist/
+
+# Los dist SÍ se versionan: los compila GitHub Actions y Plesk solo hace pull.
+# El servidor no compila (ver docs/DEPLOY-PLESK.md).
+*.tsbuildinfo
 packages/*/tsconfig.tsbuildinfo
-tsconfig.tsbuildinfo
+
+# Generado por `prisma generate` en cada entorno: trae un motor binario propio
+# del sistema operativo, así que nunca se commitea.
+node_modules/.prisma/

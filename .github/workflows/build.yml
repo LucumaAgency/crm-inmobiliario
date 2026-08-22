@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Serializa las corridas: nunca dos builds pisándose el push del dist.
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # No re-dispararse con el propio commit bot de rebuild del dist.
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      # El cliente de Prisma se genera a partir del schema y es lo que da los tipos
+      # de las 15 tablas. Sin esto el build de la API no compila.
+      # Ojo: NO se commitea. Trae un motor binario propio del sistema operativo, así
+      # que el servidor lo regenera en su propio deploy.
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit dist if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/shared/dist packages/api/dist packages/web/dist
+          if git diff --staged --quiet; then
+            echo "No hay cambios en los dist — skip commit"
+            exit 0
+          fi
+          git commit -m "chore: rebuild dist"
+          # Reintenta con rebase si el ref se movió mientras buildeábamos.
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "push OK"
+              exit 0
+            fi
+            echo "push rechazado (intento $i) — rebase y reintento"
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+          done
+          echo "no se pudo pushear el dist tras varios reintentos"
+          exit 1

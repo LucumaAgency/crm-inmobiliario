@@ -3,8 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "description": "CRM inmobiliario de Lucuma Agency: plataforma + API para el conector WordPress",
-  "workspaces": ["packages/shared", "packages/api", "packages/web"],
-  "engines": { "node": ">=20 <23" },
+  "workspaces": [
+    "packages/shared",
+    "packages/api",
+    "packages/web"
+  ],
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "build": "npm run build -w @lucuma-crm/shared && npm run build -w @lucuma-crm/api && npm run build -w @lucuma-crm/web",
     "dev": "npm run dev -w @lucuma-crm/api & npm run dev -w @lucuma-crm/web",
@@ -14,11 +20,14 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx packages/api/src/seed.ts",
-    "typecheck": "tsc -b packages/shared packages/api packages/web"
+    "typecheck": "tsc -b packages/shared packages/api packages/web",
+    "seed:prod": "node packages/api/dist/seed.js"
   },
   "devDependencies": {
-    "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "prisma": "^5.22.0"
   }
 }

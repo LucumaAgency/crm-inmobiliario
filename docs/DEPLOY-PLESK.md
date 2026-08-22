@@ -23,35 +23,50 @@ Crear base y usuario dedicados en Plesk. Cotejamiento `utf8mb4_unicode_ci`.
 4. Variables de entorno (según `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `APP_URL`,
    `NODE_ENV=production`, `PORT`, y las de SMTP.
 
-## 3. Despliegue
+## 3. Despliegue: build en GitHub, pull en Plesk
 
-Git de Plesk apuntando a `main`, con este despliegue adicional:
+**El servidor no compila.** GitHub Actions (`.github/workflows/build.yml`) corre en cada push
+a `main`, genera el cliente de Prisma, verifica tipos, compila los tres paquetes y **commitea
+los `dist/` de vuelta al repo**. Plesk solo hace pull de código ya construido. Es el mismo
+patrón de `m2peru`, `scanner-inmobiliario-m2` y `valuador-app`.
+
+Se gana lo de siempre: el deploy no depende de que el servidor tenga `typescript` ni `vite`, no
+hay compilación que falle por memoria en una suscripción compartida, y lo que corre en Plesk es
+exactamente el artefacto que CI verificó.
+
+Git de Plesk apuntando a `main`, con estas acciones adicionales de despliegue:
 
 ```bash
-npm ci --include=dev          # prisma CLI, typescript y vite viven en devDependencies
-npx prisma generate           # escribe el cliente tipado dentro de node_modules
-npx prisma migrate deploy     # aplica las migraciones versionadas en prisma/migrations
-npm run build
+npm ci --omit=dev             # solo dependencias de producción
+npx prisma generate           # cliente tipado + motor binario de ESTE servidor
+npx prisma migrate deploy     # aplica las migraciones versionadas
 touch tmp/restart.txt
 ```
 
-Tres cosas que no son opcionales aquí:
+Dos cosas que sostienen ese bloque:
 
-- **`--include=dev`.** La aplicación corre con `NODE_ENV=production` (§2) y con esa variable
-  `npm ci` omite las `devDependencies`. Ahí están `prisma`, `typescript` y `vite`: sin ellas
-  `npx prisma` intenta descargarse en pleno deploy y `npm run build` no encuentra el compilador.
-- **`prisma generate` explícito.** `@prisma/client` se instala vacío; `generate` es el paso que
-  escribe el cliente real a partir de `prisma/schema.prisma`. Es compilación, corre en cada
-  deploy. Descarga además un motor binario propio del sistema operativo del servidor, así que
-  **nunca subas `node_modules` desde tu máquina**: el binario no sería el de Ubuntu.
-- **`migrate deploy` solo aplica migraciones que ya existen**, nunca las escribe. Si
-  `prisma/migrations/` está vacío el comando termina con éxito y deja la base sin una sola
-  tabla; el seed del §5 falla después con un `table doesn't exist` difícil de interpretar.
-  La migración inicial se genera en local con `npx prisma migrate dev --name init` y se
-  commitea.
+- **La CLI de `prisma` está en `dependencies`, no en `devDependencies`.** Tiene que sobrevivir
+  al `--omit=dev` porque el servidor la necesita para `generate` y `migrate deploy`.
+  `typescript`, `tsx` y `vite` sí quedan fuera: el servidor no los usa.
+- **`prisma generate` corre siempre, y su salida nunca se commitea.** Descarga un motor binario
+  propio del sistema operativo, así que el cliente generado en el runner de Ubuntu de GitHub no
+  sirve necesariamente aquí. Por lo mismo, **nunca subas `node_modules` desde tu máquina**.
+- **`migrate deploy` solo aplica migraciones que ya existen**, nunca las escribe. La inicial se
+  genera en local con `npx prisma migrate dev --name init` y se commitea. Si
+  `prisma/migrations/` estuviera vacío el comando terminaría con éxito dejando la base sin una
+  sola tabla, y el seed del §5 fallaría después con un `table doesn't exist` difícil de
+  interpretar.
 
 El SPA compilado (`packages/web/dist`) lo sirve el mismo proceso Fastify, así que solo hay una
 aplicación que administrar.
+
+### Verificado en simulacro
+
+Este bloque se probó completo contra MariaDB 10.6.22 partiendo de una base vacía y de un
+checkout limpio sin `node_modules`: `npm ci --omit=dev` deja la CLI de Prisma y no deja `tsc`,
+`migrate deploy` crea las 15 tablas, el seed corre desde `dist` sin `tsx`, la API responde
+`/api/health`, sirve el SPA, devuelve `401` en rutas protegidas sin sesión, y el worker termina
+con código 0.
 
 ## 4. Tarea programada (obligatoria)
 
@@ -75,8 +90,10 @@ avisa a nadie.
 ## 5. Primer arranque
 
 ```bash
-npm run seed -w @lucuma-crm/api
+npm run seed:prod
 ```
+
+Corre desde `packages/api/dist/seed.js`, sin `tsx`: en el servidor no hay devDependencies.
 
 Crea la organización, las etapas, el usuario admin y el sitio con sus llaves. **Anota la secret
 key: se muestra una sola vez.** Después entra al CRM con magic link.
