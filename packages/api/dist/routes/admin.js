@@ -199,6 +199,52 @@ export default async function adminRoutes(app) {
             select: { id: true, name: true, email: true, role: true, active: true },
         });
     });
+    /**
+     * Activar/desactivar un usuario y cambiar su rol.
+     *
+     * No hay borrado: un usuario aparece en asignaciones, actividades y auditoría, y
+     * borrarlo dejaría el historial sin dueño justo donde importa saber quién hizo qué.
+     * Desactivar le quita el acceso (el magic link exige `active`) y lo saca del reparto
+     * automático de leads (`pickOwner` solo mira activos), que es lo que se busca.
+     */
+    app.patch('/users/:id', { preHandler: gestion }, async (req, reply) => {
+        const parsed = z
+            .object({
+            active: z.boolean().optional(),
+            role: z.enum(['admin_lucuma', 'gerente', 'asesor', 'solo_lectura']).optional(),
+        })
+            .safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const objetivo = await prisma.user.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!objetivo)
+            return reply.code(404).send({ error: 'Usuario no encontrado' });
+        // Quedarse sin ningún administrador activo deja la organización sin quien gestione.
+        if (parsed.data.active === false || (parsed.data.role && parsed.data.role !== 'admin_lucuma')) {
+            if (objetivo.role === 'admin_lucuma') {
+                const otros = await prisma.user.count({
+                    where: {
+                        organizationId: req.user.organizationId,
+                        role: 'admin_lucuma',
+                        active: true,
+                        id: { not: objetivo.id },
+                    },
+                });
+                if (otros === 0) {
+                    return reply.code(409).send({
+                        error: 'Es el único administrador activo. Crea o activa otro antes de cambiarlo.',
+                    });
+                }
+            }
+        }
+        return prisma.user.update({
+            where: { id: objetivo.id },
+            data: parsed.data,
+            select: { id: true, name: true, email: true, role: true, active: true },
+        });
+    });
     // -------------------------------------------------------- alta manual
     app.post('/leads', async (req, reply) => {
         const parsed = z

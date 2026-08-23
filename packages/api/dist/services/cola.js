@@ -106,7 +106,34 @@ async function enviarEmail(payload) {
         message: lead.message,
         url: leadUrl(lead.id),
     });
-    await sendMail({ to: [...destinatarios], ...mail });
+    /**
+     * Un envío por destinatario, no uno solo con todos.
+     *
+     * Con un único envío, basta que el servidor de correo rechace UNA dirección para que
+     * se caiga la transacción entera y no reciba nadie. Pasó en la puesta en marcha: el
+     * asesor de ejemplo del seed tenía un dominio inexistente y eso dejaba sin aviso
+     * también a los destinatarios buenos del formulario. Un aviso de lead es lo último que
+     * puede depender de que todas las direcciones estén bien.
+     *
+     * Efecto secundario deseable: los destinatarios no se ven entre sí.
+     */
+    const fallos = [];
+    for (const destinatario of destinatarios) {
+        try {
+            await sendMail({ to: destinatario, ...mail });
+        }
+        catch (err) {
+            fallos.push(`${destinatario}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+    if (fallos.length === destinatarios.size) {
+        // Ninguno salió: probablemente el servidor de correo está caído, no las direcciones.
+        // Se lanza para que el job se reintente con backoff.
+        throw new Error(`No se pudo avisar a ningún destinatario. ${fallos.join(' | ')}`);
+    }
+    if (fallos.length) {
+        logError(`[cola] aviso del lead ${lead.id} no llegó a ${fallos.length} destinatario(s):`, fallos.join(' | '));
+    }
 }
 /** SLA de primer contacto: la conversión cae en picada después de la primera hora. */
 async function revisarSla(payload) {

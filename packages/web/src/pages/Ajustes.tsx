@@ -29,7 +29,14 @@ export default function Ajustes() {
   const sites = useQuery({ queryKey: ['sites'], queryFn: () => api.get<Site[]>('/sites') });
   const usuarios = useQuery({
     queryKey: ['users'],
-    queryFn: () => api.get<{ id: string; name: string; email: string; role: string }[]>('/users'),
+    queryFn: () =>
+      api.get<{ id: string; name: string; email: string; role: string; active: boolean }[]>('/users'),
+  });
+
+  const cambiarUsuario = useMutation({
+    mutationFn: (v: { id: string; active?: boolean; role?: string }) =>
+      api.patch(`/users/${v.id}`, { active: v.active, role: v.role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 
   const crearUsuario = useMutation({
@@ -119,10 +126,37 @@ export default function Ajustes() {
       <div className="card">
         <strong>Usuarios</strong>
         <table className="tabla" style={{ marginTop: 10 }}>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th></th></tr></thead>
           <tbody>
             {usuarios.data?.map((u) => (
-              <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{ROLES[u.role] ?? u.role}</td></tr>
+              <tr key={u.id} style={u.active ? undefined : { opacity: 0.55 }}>
+                <td>
+                  {u.name}
+                  {!u.active && <span className="chip chip-gris" style={{ marginLeft: 6 }}>inactivo</span>}
+                </td>
+                <td>{u.email}</td>
+                <td>
+                  <select
+                    value={u.role}
+                    disabled={cambiarUsuario.isPending}
+                    onChange={(e) => cambiarUsuario.mutate({ id: u.id, role: e.target.value })}
+                  >
+                    {Object.entries(ROLES).map(([valor, etiqueta]) => (
+                      <option key={valor} value={valor}>{etiqueta}</option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn btn-sec"
+                    disabled={cambiarUsuario.isPending}
+                    onClick={() => cambiarUsuario.mutate({ id: u.id, active: !u.active })}
+                  >
+                    {u.active ? 'Desactivar' : 'Activar'}
+                  </button>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -152,9 +186,13 @@ export default function Ajustes() {
           </select>
           <p className="meta" style={{ marginTop: 8 }}>
             No se define contraseña: la persona entra con un enlace de acceso enviado a ese
-            correo, así que tiene que ser un buzón real que pueda abrir.
+            correo, así que tiene que ser un buzón real que pueda abrir. Los usuarios no se
+            borran, se desactivan: aparecen en asignaciones, actividades y auditoría, y
+            borrarlos dejaría el historial sin dueño. Un asesor inactivo no puede entrar ni
+            recibe leads nuevos.
           </p>
           {crearUsuario.isError && <p className="error">{(crearUsuario.error as Error).message}</p>}
+          {cambiarUsuario.isError && <p className="error">{(cambiarUsuario.error as Error).message}</p>}
           <div className="acciones">
             <button
               type="submit"
