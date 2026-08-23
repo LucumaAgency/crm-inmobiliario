@@ -120,6 +120,25 @@ key: se muestra una sola vez.** Después entra al CRM con magic link.
 - El mismo envío repetido con la misma `idempotencyKey` **no** crea un segundo lead.
 - Un envío con la public key desde un dominio no autorizado devuelve `401`.
 
+## 6b. Dónde ver los logs
+
+La aplicación escribe en **`logs/app.log`**, en la raíz de la aplicación. Se abre desde el
+Administrador de archivos de Plesk, igual que el `debug.log` de WordPress. Ahí van las
+peticiones, los errores de la API y las líneas del worker.
+
+Existe porque Passenger se queda con la salida estándar y la entierra en un log del servidor
+incómodo de encontrar. El directorio está **fuera del document root** (que es `public/`), así
+que nginx no lo publica.
+
+Dos advertencias:
+
+- **Sin SMTP configurado, los magic links se escriben en ese archivo.** Es la única forma de
+  entrar mientras no haya correo, pero significa que cualquiera con acceso al archivo puede
+  iniciar sesión como administrador. Es una muleta de puesta en marcha, no un estado
+  aceptable: en cuanto SMTP funcione, esos enlaces dejan de escribirse solos.
+- **No rota.** Crece hasta llenar el disco si nadie lo mira. Para producción con tráfico real,
+  configurar `logrotate` sobre `logs/*.log` o vaciarlo periódicamente.
+
 ## 7. Operación
 
 - Backup diario de la base, verificado con una restauración de prueba cada cierto tiempo.

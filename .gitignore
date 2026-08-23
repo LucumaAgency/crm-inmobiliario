@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.local
 *.log
+logs/
 .DS_Store
 
 # Los dist y el public/ SÍ se versionan: los compila GitHub Actions y Plesk solo

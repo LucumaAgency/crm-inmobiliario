@@ -9,6 +9,7 @@ import fastifyStatic from '@fastify/static';
 import { env } from './env.js';
 import { prisma } from './db.js';
 import { originAllowed } from './lib/keys.js';
+import { getLogStream, logFile } from './lib/log.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import leadRoutes from './routes/leads.js';
@@ -17,8 +18,16 @@ import adminRoutes from './routes/admin.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function buildApp() {
+  // Passenger se queda con stdout y lo entierra en un log del servidor difícil de
+  // encontrar, así que además se escribe a `logs/app.log`, que se abre desde el
+  // Administrador de archivos de Plesk como el debug.log de WordPress.
+  const logStream = getLogStream();
+
   const app = Fastify({
-    logger: { level: env.isProd ? 'warn' : 'info' },
+    logger: {
+      level: env.isProd ? 'info' : 'debug',
+      ...(logStream ? { stream: logStream } : {}),
+    },
     trustProxy: true, // detrás de Passenger / nginx en Plesk
     bodyLimit: 1_000_000,
   });
@@ -75,6 +84,8 @@ export async function buildApp() {
       return reply.sendFile('index.html');
     });
   }
+
+  app.log.info({ logFile }, 'Log de la aplicación');
 
   return app;
 }

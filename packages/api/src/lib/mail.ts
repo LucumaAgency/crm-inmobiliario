@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { env } from '../env.js';
+import { logLine } from './log.js';
 
 let transport: nodemailer.Transporter | null = null;
 
@@ -31,9 +32,9 @@ export async function sendMail(opts: { to: string | string[]; subject: string; h
     // Sin SMTP no hay forma de recibir el correo, así que el cuerpo se vuelca en consola:
     // de otro modo el magic link es inalcanzable y no se puede entrar al CRM en local.
     const enlaces = [...opts.html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
-    console.log('[mail:dev]', opts.subject, '→', opts.to);
-    for (const enlace of enlaces) console.log('[mail:dev] enlace:', enlace);
-    if (opts.text) console.log('[mail:dev] texto:', opts.text);
+    logLine('[mail:dev]', opts.subject, '→', String(opts.to));
+    for (const enlace of enlaces) logLine('[mail:dev] enlace:', enlace);
+    if (opts.text) logLine('[mail:dev] texto:', opts.text);
   }
   return info;
 }

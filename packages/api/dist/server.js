@@ -1,5 +1,6 @@
 import { buildApp } from './app.js';
 import { env } from './env.js';
+import { logLine } from './lib/log.js';
 /**
  * Arranque de la API.
  *
@@ -13,7 +14,7 @@ async function main() {
     const app = await buildApp();
     try {
         await app.listen({ port: env.port, host: '0.0.0.0' });
-        console.log(`Lucuma CRM API escuchando en :${env.port}`);
+        logLine(`Lucuma CRM API escuchando en :${env.port}`);
     }
     catch (err) {
         app.log.error(err);
@@ -21,6 +22,6 @@ async function main() {
     }
 }
 main().catch((err) => {
-    console.error('No se pudo arrancar la API:', err);
+    logLine('No se pudo arrancar la API:', String(err?.stack ?? err));
     process.exit(1);
 });
