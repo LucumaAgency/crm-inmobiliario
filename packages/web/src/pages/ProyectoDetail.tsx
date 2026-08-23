@@ -1,0 +1,344 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api.js';
+
+interface Tipologia {
+  id: string;
+  name: string;
+  code: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  areaM2: string | null;
+  priceFrom: string | null;
+  currency: string;
+  description: string | null;
+  active: boolean;
+  _count?: { units: number };
+}
+
+interface Unidad {
+  id: string;
+  code: string;
+  typologyId: string | null;
+  typologyRef: { id: string; name: string } | null;
+  kind: string;
+  status: string;
+  bedrooms: number | null;
+  areaM2: string | null;
+  price: string | null;
+  currency: string;
+  floor: number | null;
+}
+
+const ESTADOS: Record<string, string> = {
+  disponible: 'Disponible',
+  reservado: 'Reservado',
+  vendido: 'Vendido',
+  no_disponible: 'No disponible',
+};
+
+const TIPOS: Record<string, string> = {
+  departamento: 'Departamento',
+  estacionamiento: 'Estacionamiento',
+  deposito: 'Depósito',
+  lote: 'Lote',
+  oficina: 'Oficina',
+  otro: 'Otro',
+};
+
+const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+
+export default function ProyectoDetail() {
+  const { id = '' } = useParams();
+  const qc = useQueryClient();
+  const [pestana, setPestana] = useState<'tipologias' | 'unidades'>('tipologias');
+
+  const proyectos = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/projects'),
+  });
+  const proyecto = proyectos.data?.find((p) => p.id === id);
+
+  const tipologias = useQuery({
+    queryKey: ['typologies', id],
+    queryFn: () => api.get<Tipologia[]>(`/projects/${id}/typologies`),
+  });
+  const unidades = useQuery({
+    queryKey: ['units', id],
+    queryFn: () => api.get<Unidad[]>(`/projects/${id}/units`),
+  });
+
+  const refrescar = () => {
+    qc.invalidateQueries({ queryKey: ['typologies', id] });
+    qc.invalidateQueries({ queryKey: ['units', id] });
+  };
+
+  // ---------------------------------------------------------- tipologías
+  const [tNombre, setTNombre] = useState('');
+  const [tDorm, setTDorm] = useState('');
+  const [tBanos, setTBanos] = useState('');
+  const [tArea, setTArea] = useState('');
+  const [tPrecio, setTPrecio] = useState('');
+  const [tDesc, setTDesc] = useState('');
+
+  const crearTipologia = useMutation({
+    mutationFn: () =>
+      api.post(`/projects/${id}/typologies`, {
+        name: tNombre.trim(),
+        bedrooms: num(tDorm),
+        bathrooms: num(tBanos),
+        areaM2: num(tArea),
+        priceFrom: num(tPrecio),
+        description: tDesc.trim() || undefined,
+      }),
+    onSuccess: () => {
+      refrescar();
+      setTNombre(''); setTDorm(''); setTBanos(''); setTArea(''); setTPrecio(''); setTDesc('');
+    },
+  });
+
+  const borrarTipologia = useMutation({
+    mutationFn: (t: Tipologia) => api.del<{ unidadesSinTipologia: number }>(`/typologies/${t.id}`),
+    onSuccess: refrescar,
+  });
+
+  // ------------------------------------------------------------ unidades
+  const [uCodigo, setUCodigo] = useState('');
+  const [uTip, setUTip] = useState('');
+  const [uPiso, setUPiso] = useState('');
+  const [uPrecio, setUPrecio] = useState('');
+  const [uTipo, setUTipo] = useState('departamento');
+
+  const crearUnidad = useMutation({
+    mutationFn: () =>
+      api.post(`/projects/${id}/units`, {
+        code: uCodigo.trim(),
+        typologyId: uTip || undefined,
+        kind: uTipo,
+        floor: num(uPiso),
+        price: num(uPrecio),
+      }),
+    onSuccess: () => { refrescar(); setUCodigo(''); setUPiso(''); setUPrecio(''); },
+  });
+
+  const cambiarUnidad = useMutation({
+    mutationFn: (v: { id: string; status?: string; typologyId?: string }) =>
+      api.patch(`/units/${v.id}`, v),
+    onSuccess: refrescar,
+  });
+
+  const porEstado = (unidades.data ?? []).reduce<Record<string, number>>((acc, u) => {
+    acc[u.status] = (acc[u.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <>
+      <div className="barra-acciones">
+        <div style={{ flex: 1 }}>
+          <Link to="/proyectos" className="meta">← Proyectos</Link>
+          <h2 style={{ margin: '4px 0 0', fontSize: 20 }}>{proyecto?.name ?? 'Proyecto'}</h2>
+        </div>
+      </div>
+
+      <div className="stats">
+        <div className="stat"><div className="n">{tipologias.data?.length ?? '—'}</div><div className="t">Tipologías</div></div>
+        <div className="stat"><div className="n">{unidades.data?.length ?? '—'}</div><div className="t">Unidades</div></div>
+        <div className="stat"><div className="n">{porEstado.disponible ?? 0}</div><div className="t">Disponibles</div></div>
+        <div className="stat"><div className="n">{porEstado.vendido ?? 0}</div><div className="t">Vendidas</div></div>
+      </div>
+
+      <div className="pestanas">
+        <button type="button" className={pestana === 'tipologias' ? 'activa' : ''} onClick={() => setPestana('tipologias')}>
+          Tipologías
+        </button>
+        <button type="button" className={pestana === 'unidades' ? 'activa' : ''} onClick={() => setPestana('unidades')}>
+          Unidades
+        </button>
+      </div>
+
+      {pestana === 'tipologias' && (
+        <>
+          <div className="card">
+            <strong>Tipologías del proyecto</strong>
+            <p className="meta" style={{ marginTop: 4 }}>
+              El modelo que se vende. Las unidades apuntan a una tipología, así que se define
+              una sola vez y no depende de escribir el mismo texto en cada unidad.
+            </p>
+
+            {tipologias.data?.length === 0 && (
+              <div className="vacio">Aún no hay tipologías. Crea la primera abajo.</div>
+            )}
+
+            {(tipologias.data?.length ?? 0) > 0 && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="tabla" style={{ marginTop: 10 }}>
+                  <thead>
+                    <tr><th>Nombre</th><th>Dorm.</th><th>Baños</th><th>Área</th><th>Desde</th><th>Unidades</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {tipologias.data?.map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.name}</td>
+                        <td>{t.bedrooms ?? '—'}</td>
+                        <td>{t.bathrooms ?? '—'}</td>
+                        <td>{t.areaM2 ? `${t.areaM2} m²` : '—'}</td>
+                        <td>{t.priceFrom ? `${t.currency} ${t.priceFrom}` : '—'}</td>
+                        <td>{t._count?.units ?? 0}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sec"
+                            disabled={borrarTipologia.isPending}
+                            onClick={() => {
+                              const n = t._count?.units ?? 0;
+                              const aviso = n
+                                ? `${t.name} tiene ${n} unidad(es). No se borran: quedarán sin tipología. ¿Continuar?`
+                                : `¿Borrar ${t.name}?`;
+                              if (confirm(aviso)) borrarTipologia.mutate(t);
+                            }}
+                          >
+                            Borrar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <strong>Nueva tipología</strong>
+            <form
+              onSubmit={(e) => { e.preventDefault(); if (tNombre.trim()) crearTipologia.mutate(); }}
+            >
+              <label htmlFor="t-nombre">Nombre *</label>
+              <input id="t-nombre" value={tNombre} placeholder="Tipo B · 3 dormitorios" onChange={(e) => setTNombre(e.target.value)} />
+              <div className="rejilla-2">
+                <div>
+                  <label htmlFor="t-dorm">Dormitorios</label>
+                  <input id="t-dorm" inputMode="numeric" value={tDorm} onChange={(e) => setTDorm(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="t-banos">Baños</label>
+                  <input id="t-banos" inputMode="numeric" value={tBanos} onChange={(e) => setTBanos(e.target.value)} />
+                </div>
+              </div>
+              <div className="rejilla-2">
+                <div>
+                  <label htmlFor="t-area">Área (m²)</label>
+                  <input id="t-area" inputMode="decimal" value={tArea} onChange={(e) => setTArea(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="t-precio">Precio desde</label>
+                  <input id="t-precio" inputMode="decimal" value={tPrecio} onChange={(e) => setTPrecio(e.target.value)} />
+                </div>
+              </div>
+              <label htmlFor="t-desc">Descripción</label>
+              <textarea id="t-desc" rows={2} value={tDesc} onChange={(e) => setTDesc(e.target.value)} />
+              {crearTipologia.isError && <p className="error">{(crearTipologia.error as Error).message}</p>}
+              <div className="acciones">
+                <button type="submit" className="btn" disabled={!tNombre.trim() || crearTipologia.isPending}>
+                  {crearTipologia.isPending ? 'Guardando…' : 'Añadir tipología'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {pestana === 'unidades' && (
+        <>
+          <div className="card">
+            <strong>Unidades</strong>
+            {unidades.data?.length === 0 && (
+              <div className="vacio">Aún no hay unidades. Crea primero las tipologías y luego añádelas.</div>
+            )}
+            {(unidades.data?.length ?? 0) > 0 && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="tabla" style={{ marginTop: 10 }}>
+                  <thead>
+                    <tr><th>Código</th><th>Tipología</th><th>Piso</th><th>Precio</th><th>Tipo</th><th>Estado</th></tr>
+                  </thead>
+                  <tbody>
+                    {unidades.data?.map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.code}</td>
+                        <td>
+                          <select
+                            value={u.typologyId ?? ''}
+                            onChange={(e) => cambiarUnidad.mutate({ id: u.id, typologyId: e.target.value })}
+                          >
+                            <option value="">— sin tipología —</option>
+                            {tipologias.data?.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>{u.floor ?? '—'}</td>
+                        <td>{u.price ? `${u.currency} ${u.price}` : '—'}</td>
+                        <td>{TIPOS[u.kind] ?? u.kind}</td>
+                        <td>
+                          <select
+                            value={u.status}
+                            onChange={(e) => cambiarUnidad.mutate({ id: u.id, status: e.target.value })}
+                          >
+                            {Object.entries(ESTADOS).map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <strong>Nueva unidad</strong>
+            <form onSubmit={(e) => { e.preventDefault(); if (uCodigo.trim()) crearUnidad.mutate(); }}>
+              <div className="rejilla-2">
+                <div>
+                  <label htmlFor="u-codigo">Código *</label>
+                  <input id="u-codigo" value={uCodigo} placeholder="601" onChange={(e) => setUCodigo(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="u-tip">Tipología</label>
+                  <select id="u-tip" value={uTip} onChange={(e) => setUTip(e.target.value)}>
+                    <option value="">— sin tipología —</option>
+                    {tipologias.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="rejilla-2">
+                <div>
+                  <label htmlFor="u-piso">Piso</label>
+                  <input id="u-piso" inputMode="numeric" value={uPiso} onChange={(e) => setUPiso(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="u-precio">Precio</label>
+                  <input id="u-precio" inputMode="decimal" value={uPrecio} onChange={(e) => setUPrecio(e.target.value)} />
+                </div>
+              </div>
+              <label htmlFor="u-tipo">Tipo</label>
+              <select id="u-tipo" value={uTipo} onChange={(e) => setUTipo(e.target.value)}>
+                {Object.entries(TIPOS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              {crearUnidad.isError && <p className="error">{(crearUnidad.error as Error).message}</p>}
+              <div className="acciones">
+                <button type="submit" className="btn" disabled={!uCodigo.trim() || crearUnidad.isPending}>
+                  {crearUnidad.isPending ? 'Guardando…' : 'Añadir unidad'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+    </>
+  );
+}

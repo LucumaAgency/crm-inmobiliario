@@ -170,13 +170,26 @@ async function resolverOpciones(schema, projectIdForm, organizationId) {
             orderBy: { code: 'asc' },
         });
         if (field.source.type === 'typologies') {
-            const vistas = new Set();
-            out[field.key] = units
-                .filter((u) => u.typology && !vistas.has(u.typology) && vistas.add(u.typology))
-                .map((u) => ({
-                value: u.typology,
-                label: `${u.typology} · ${u.bedrooms ?? '?'} dorm · ${u.areaM2 ?? '?'} m²`,
-            }));
+            /**
+             * Las tipologías salen de su propia tabla, no de deducirlas del texto de las
+             * unidades: así una errata al cargar el inventario no crea una opción fantasma en
+             * el formulario del cliente, y la etiqueta puede usar los datos de la tipología.
+             *
+             * Con `onlyAvailable`, se muestran solo las que tienen alguna unidad disponible:
+             * ofrecer una tipología agotada es la forma más rápida de quemar un lead.
+             */
+            const tipologias = await prisma.typology.findMany({
+                where: { projectId, active: true, project: { organizationId } },
+                orderBy: [{ position: 'asc' }, { name: 'asc' }],
+            });
+            const conStock = new Set(units.map((u) => u.typologyId).filter(Boolean));
+            out[field.key] = tipologias
+                .filter((t) => !field.source?.onlyAvailable || conStock.has(t.id))
+                // La etiqueta es el nombre tal cual. Componerla con dormitorios y área duplicaba
+                // el texto en cuanto alguien llamaba a su tipología «Tipo B · 2 dorm», que es lo
+                // natural. La tipología existe precisamente para que el cliente decida cómo se
+                // presenta al comprador.
+                .map((t) => ({ value: t.id, label: t.name }));
         }
         else {
             out[field.key] = units.map((u) => ({

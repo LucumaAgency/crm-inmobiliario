@@ -7,6 +7,8 @@ import AuthCallback from './pages/AuthCallback.js';
 import Leads from './pages/Leads.js';
 import LeadDetail from './pages/LeadDetail.js';
 import Tareas from './pages/Tareas.js';
+import Proyectos from './pages/Proyectos.js';
+import ProyectoDetail from './pages/ProyectoDetail.js';
 import Formularios from './pages/Formularios.js';
 import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
@@ -56,6 +58,9 @@ export default function App() {
           <NavLink to="/tareas" className={enlace}>
             <span className="icono">✓</span>Tareas
           </NavLink>
+          <NavLink to="/proyectos" className={enlace}>
+            <span className="icono">🏢</span>Proyectos
+          </NavLink>
           {puedeGestionar && (
             <NavLink to="/formularios" className={enlace}>
               <span className="icono">📋</span>Formularios
@@ -97,6 +102,8 @@ export default function App() {
             <Route path="/leads" element={<Leads />} />
             <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
             <Route path="/tareas" element={<Tareas />} />
+            <Route path="/proyectos" element={<Proyectos />} />
+            <Route path="/proyectos/:id" element={<ProyectoDetail />} />
             {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
             {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
             {puedeGestionar && <Route path="/ajustes" element={<Ajustes />} />}

@@ -33,13 +33,74 @@ export default async function adminRoutes(app) {
             data: { ...parsed.data, organizationId: req.user.organizationId },
         });
     });
+    // --------------------------------------------------------- tipologías
+    app.get('/projects/:id/typologies', async (req) => prisma.typology.findMany({
+        where: { projectId: req.params.id, project: { organizationId: req.user.organizationId } },
+        orderBy: [{ position: 'asc' }, { name: 'asc' }],
+        include: { _count: { select: { units: true } } },
+    }));
+    const typologyInput = z.object({
+        name: z.string().min(1),
+        code: z.string().optional(),
+        bedrooms: z.number().int().optional(),
+        bathrooms: z.number().int().optional(),
+        areaM2: z.number().optional(),
+        priceFrom: z.number().optional(),
+        currency: z.string().default('PEN'),
+        description: z.string().optional(),
+        planUrl: z.string().url().optional().or(z.literal('')),
+        imageUrl: z.string().url().optional().or(z.literal('')),
+        position: z.number().int().optional(),
+        active: z.boolean().optional(),
+    });
+    app.post('/projects/:id/typologies', { preHandler: gestion }, async (req, reply) => {
+        const parsed = typologyInput.safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const project = await prisma.project.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!project)
+            return reply.code(404).send({ error: 'Proyecto no encontrado' });
+        return prisma.typology.create({ data: { ...parsed.data, projectId: project.id } });
+    });
+    app.patch('/typologies/:id', { preHandler: gestion }, async (req, reply) => {
+        const parsed = typologyInput.partial().safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const tip = await prisma.typology.findFirst({
+            where: { id: req.params.id, project: { organizationId: req.user.organizationId } },
+        });
+        if (!tip)
+            return reply.code(404).send({ error: 'Tipología no encontrada' });
+        return prisma.typology.update({ where: { id: tip.id }, data: parsed.data });
+    });
+    /**
+     * Borrar una tipología.
+     *
+     * Las unidades no se tocan: la relación es `SetNull`, así que quedan sin tipología en vez
+     * de desaparecer del inventario. Se avisa cuántas quedan sueltas para que quien borra lo
+     * sepa antes de irse.
+     */
+    app.delete('/typologies/:id', { preHandler: gestion }, async (req, reply) => {
+        const tip = await prisma.typology.findFirst({
+            where: { id: req.params.id, project: { organizationId: req.user.organizationId } },
+            include: { _count: { select: { units: true } } },
+        });
+        if (!tip)
+            return reply.code(404).send({ error: 'Tipología no encontrada' });
+        await prisma.typology.delete({ where: { id: tip.id } });
+        return { ok: true, unidadesSinTipologia: tip._count.units };
+    });
     // ----------------------------------------------------------- unidades
     app.get('/projects/:id/units', async (req) => prisma.unit.findMany({
         where: { projectId: req.params.id, project: { organizationId: req.user.organizationId } },
         orderBy: { code: 'asc' },
+        include: { typologyRef: { select: { id: true, name: true } } },
     }));
     const unitInput = z.object({
         code: z.string().min(1),
+        typologyId: z.string().optional().or(z.literal('')),
         typology: z.string().optional(),
         kind: z.enum(['departamento', 'estacionamiento', 'deposito', 'lote', 'oficina', 'otro']).default('departamento'),
         status: z.enum(['disponible', 'reservado', 'vendido', 'no_disponible']).default('disponible'),
@@ -58,7 +119,11 @@ export default async function adminRoutes(app) {
         });
         if (!project)
             return reply.code(404).send({ error: 'Proyecto no encontrado' });
-        return prisma.unit.create({ data: { ...parsed.data, projectId: project.id } });
+        // Un select vacío llega como cadena vacía y rompería la clave foránea.
+        const { typologyId, ...resto } = parsed.data;
+        return prisma.unit.create({
+            data: { ...resto, typologyId: typologyId || null, projectId: project.id },
+        });
     });
     app.patch('/units/:id', { preHandler: gestion }, async (req, reply) => {
         const parsed = unitInput.partial().safeParse(req.body);
@@ -69,7 +134,11 @@ export default async function adminRoutes(app) {
         });
         if (!unit)
             return reply.code(404).send({ error: 'Unidad no encontrada' });
-        return prisma.unit.update({ where: { id: unit.id }, data: parsed.data });
+        const { typologyId, ...resto } = parsed.data;
+        return prisma.unit.update({
+            where: { id: unit.id },
+            data: { ...resto, ...(typologyId === undefined ? {} : { typologyId: typologyId || null }) },
+        });
     });
     // -------------------------------------------------------- formularios
     app.get('/forms', async (req) => prisma.form.findMany({

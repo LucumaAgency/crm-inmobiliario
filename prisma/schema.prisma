@@ -20,14 +20,14 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  users     User[]
-  sites     Site[]
-  projects  Project[]
-  contacts  Contact[]
-  leads     Lead[]
-  stages    Stage[]
-  forms     Form[]
-  settings  Json?
+  users    User[]
+  sites    Site[]
+  projects Project[]
+  contacts Contact[]
+  leads    Lead[]
+  stages   Stage[]
+  forms    Form[]
+  settings Json?
 
   @@map("organizations")
 }
@@ -50,11 +50,11 @@ model User {
   lastLoginAt    DateTime?
   createdAt      DateTime     @default(now())
 
-  assignedLeads  Lead[]       @relation("LeadOwner")
-  activities     Activity[]
-  assignments    Assignment[]
-  loginTokens    LoginToken[]
-  auditEntries   AuditLog[]
+  assignedLeads Lead[]       @relation("LeadOwner")
+  activities    Activity[]
+  assignments   Assignment[]
+  loginTokens   LoginToken[]
+  auditEntries  AuditLog[]
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
@@ -62,13 +62,13 @@ model User {
 }
 
 model LoginToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@map("login_tokens")
@@ -88,8 +88,8 @@ model Site {
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
 
-  forms          Form[]
-  submissions    FormSubmission[]
+  forms       Form[]
+  submissions FormSubmission[]
 
   @@index([organizationId])
   @@map("sites")
@@ -108,9 +108,10 @@ model Project {
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
 
-  units          Unit[]
-  leads          Lead[]
-  forms          Form[]
+  units      Unit[]
+  typologies Typology[]
+  leads      Lead[]
+  forms      Form[]
 
   @@unique([organizationId, slug])
   @@map("projects")
@@ -132,26 +133,64 @@ enum UnitStatus {
   no_disponible
 }
 
-model Unit {
-  id         String     @id @default(cuid())
-  projectId  String
-  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  code       String     // "601"
-  typology   String?    // "603"
-  kind       UnitKind   @default(departamento)
-  status     UnitStatus @default(disponible)
-  bedrooms   Int?
-  areaM2     Decimal?   @db.Decimal(10, 2)
-  price      Decimal?   @db.Decimal(12, 2)
-  currency   String     @default("PEN")
-  floor      Int?
-  extra      Json?
-  updatedAt  DateTime   @updatedAt
+// Tipología: el modelo de departamento que se vende, no la unidad concreta.
+//
+// Antes era un campo de texto suelto en cada unidad, y eso traía dos problemas: una errata
+// («3 dorm» frente a «3 Dorm») creaba una tipología fantasma en el formulario del cliente, y
+// no había dónde colgar el plano, el render ni la descripción, que es justo lo que pregunta
+// el comprador. Como entidad, se define una vez y las unidades la referencian.
+model Typology {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String // "Tipo B", "3 dormitorios vista parque"
+  code        String? // el que usa el cliente en sus planos
+  bedrooms    Int?
+  bathrooms   Int?
+  areaM2      Decimal? @db.Decimal(10, 2)
+  // Precio de referencia. El precio real vive en cada unidad, que varía por piso y vista.
+  priceFrom   Decimal? @db.Decimal(12, 2)
+  currency    String   @default("PEN")
+  description String?  @db.Text
+  planUrl     String? // plano
+  imageUrl    String? // render
+  position    Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  leads      Lead[]
+  units Unit[]
+
+  @@unique([projectId, name])
+  @@index([projectId, active])
+  @@map("typologies")
+}
+
+model Unit {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code        String // "601"
+  // Se conserva el texto libre por compatibilidad con lo ya cargado y para importaciones
+  // en crudo; la fuente de verdad es `typologyId`.
+  typology    String?
+  typologyId  String?
+  typologyRef Typology?  @relation(fields: [typologyId], references: [id], onDelete: SetNull)
+  kind        UnitKind   @default(departamento)
+  status      UnitStatus @default(disponible)
+  bedrooms    Int?
+  areaM2      Decimal?   @db.Decimal(10, 2)
+  price       Decimal?   @db.Decimal(12, 2)
+  currency    String     @default("PEN")
+  floor       Int?
+  extra       Json?
+  updatedAt   DateTime   @updatedAt
+
+  leads Lead[]
 
   @@unique([projectId, code])
   @@index([projectId, status])
+  @@index([typologyId])
   @@map("units")
 }
 
@@ -171,7 +210,7 @@ model Contact {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  leads          Lead[]
+  leads Lead[]
 
   // Claves de identidad. Únicas a nivel de motor, no solo por convención del código:
   // dos submits simultáneos de la misma persona son una condición de carrera que debe
@@ -198,7 +237,7 @@ model Stage {
   isLost         Boolean      @default(false)
   color          String?
 
-  leads          Lead[]
+  leads Lead[]
 
   @@unique([organizationId, slug])
   @@map("stages")
@@ -226,22 +265,22 @@ model Lead {
   ownerId        String?
   owner          User?        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  status         LeadStatus   @default(activo)
-  source         String       @default("web_form") // web_form | whatsapp | meta_ads | manual | import
-  message        String?      @db.Text
+  status  LeadStatus @default(activo)
+  source  String     @default("web_form") // web_form | whatsapp | meta_ads | manual | import
+  message String?    @db.Text
 
   // JSON: se guardan y se leen enteros, no se filtran.
-  attribution    Json?        // utm primera visita + último clic, gclid, fbclid, referrer, landing
-  consent        Json?        // texto aceptado, versión, fecha, IP  (Ley 29733)
+  attribution Json? // utm primera visita + último clic, gclid, fbclid, referrer, landing
+  consent     Json? // texto aceptado, versión, fecha, IP  (Ley 29733)
 
-  firstContactAt DateTime?    // para el SLA de primer contacto
+  firstContactAt DateTime? // para el SLA de primer contacto
   lastActivityAt DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  activities     Activity[]
-  assignments    Assignment[]
-  submissions    FormSubmission[]
+  activities  Activity[]
+  assignments Assignment[]
+  submissions FormSubmission[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -281,13 +320,13 @@ model Activity {
 }
 
 model Assignment {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   leadId     String
-  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reason     String?  // round_robin | manual | rebote | regla_formulario
-  assignedAt DateTime @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason     String? // round_robin | manual | rebote | regla_formulario
+  assignedAt DateTime  @default(now())
   endedAt    DateTime?
 
   @@index([leadId])
@@ -314,7 +353,7 @@ model Form {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  submissions    FormSubmission[]
+  submissions FormSubmission[]
 
   @@index([organizationId])
   @@map("forms")
@@ -356,17 +395,17 @@ enum JobStatus {
 // programada de Plesk cada minuto: Passenger duerme la app sin tráfico, así que un
 // setInterval dentro del proceso no es confiable.
 model Job {
-  id         String    @id @default(cuid())
-  type       String    // email.send | webhook.deliver | sla.check | conversion.push | retention.purge
-  payload    Json
-  status     JobStatus @default(pending)
-  attempts   Int       @default(0)
-  maxAttempts Int      @default(6)
-  lastError  String?   @db.Text
-  runAt      DateTime  @default(now())
-  lockedAt   DateTime?
-  lockedBy   String?
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(cuid())
+  type        String // email.send | webhook.deliver | sla.check | conversion.push | retention.purge
+  payload     Json
+  status      JobStatus @default(pending)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(6)
+  lastError   String?   @db.Text
+  runAt       DateTime  @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  createdAt   DateTime  @default(now())
 
   @@index([status, runAt])
   @@map("jobs")
@@ -377,7 +416,7 @@ model AuditLog {
   organizationId String
   userId         String?
   user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action         String   // lead.view | lead.export | user.login | keys.rotate
+  action         String // lead.view | lead.export | user.login | keys.rotate
   entity         String?
   entityId       String?
   meta           Json?
