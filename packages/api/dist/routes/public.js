@@ -52,7 +52,7 @@ export default async function publicRoutes(app) {
             id: form.id,
             version: form.version,
             schema: parsed.data,
-            dynamicOptions: await resolverOpciones(parsed.data, form.projectId),
+            dynamicOptions: await resolverOpciones(parsed.data, form.projectId, site.organizationId),
         };
         // El conector cachea por form_id + version; el ETag ayuda a no traer lo mismo dos veces.
         reply.header('ETag', `W/"${form.id}-${form.version}"`);
@@ -135,15 +135,17 @@ export default async function publicRoutes(app) {
         };
     });
 }
-async function resolverOpciones(schema, projectIdForm) {
+async function resolverOpciones(schema, projectIdForm, organizationId) {
     const out = {};
     for (const field of schema.fields) {
         if (!field.source)
             continue;
         const projectId = field.source.projectId ?? projectIdForm ?? undefined;
         if (field.source.type === 'projects') {
+            // Acotado a la organización: sin este filtro, un formulario con origen "proyectos"
+            // listaba los proyectos de TODOS los clientes a través de la API pública.
             const projects = await prisma.project.findMany({
-                where: { active: true },
+                where: { active: true, organizationId },
                 select: { id: true, name: true },
                 orderBy: { name: 'asc' },
             });
@@ -157,6 +159,9 @@ async function resolverOpciones(schema, projectIdForm) {
         const units = await prisma.unit.findMany({
             where: {
                 projectId,
+                // Doble llave: el projectId puede venir del esquema del formulario, así que se
+                // comprueba además que el proyecto sea de esta organización.
+                project: { organizationId },
                 ...(field.source.onlyAvailable ? { status: 'disponible' } : {}),
                 ...(field.source.excludeKinds?.length
                     ? { kind: { notIn: field.source.excludeKinds } }
