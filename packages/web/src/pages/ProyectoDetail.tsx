@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import ImportarUnidades from './ImportarUnidades.js';
 
 interface Tipologia {
   id: string;
@@ -53,6 +54,7 @@ export default function ProyectoDetail() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
   const [pestana, setPestana] = useState<'tipologias' | 'unidades'>('tipologias');
+  const [importando, setImportando] = useState(false);
 
   const proyectos = useQuery({
     queryKey: ['projects'],
@@ -252,8 +254,21 @@ export default function ProyectoDetail() {
 
       {pestana === 'unidades' && (
         <>
+          {importando && (
+            <ImportarUnidades
+              projectId={id}
+              onCerrar={() => setImportando(false)}
+              onImportado={refrescar}
+            />
+          )}
+
           <div className="card">
-            <strong>Unidades</strong>
+            <div className="fila">
+              <strong>Unidades</strong>
+              <button type="button" className="btn btn-sec" onClick={() => setImportando(true)}>
+                Importar CSV
+              </button>
+            </div>
             {unidades.data?.length === 0 && (
               <div className="vacio">Aún no hay unidades. Crea primero las tipologías y luego añádelas.</div>
             )}

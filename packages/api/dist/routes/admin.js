@@ -125,6 +125,131 @@ export default async function adminRoutes(app) {
             data: { ...resto, typologyId: typologyId || null, projectId: project.id },
         });
     });
+    /**
+     * Importación masiva de unidades.
+     *
+     * Cargar un edificio de 80 departamentos a mano no es razonable, y el inventario suele
+     * llegar en un Excel del cliente. El CSV se convierte a filas en el navegador y aquí solo
+     * se valida y se guarda.
+     *
+     * Dos decisiones que hacen que se pueda repetir sin miedo:
+     *
+     *  - **Se hace upsert por `(proyecto, código)`**, que ya es único. Reimportar el mismo
+     *    archivo actualiza en vez de fallar a mitad, y es lo que permite usar la importación
+     *    también para actualizar precios y estados, que es lo que el cliente manda cada mes.
+     *  - **Las filas malas no abortan el lote.** Se importan las buenas y se devuelve el
+     *    detalle de las que no, con su número de línea. Un archivo de 80 filas con dos
+     *    erratas debe cargar 78, no cero.
+     */
+    app.post('/projects/:id/units/import', { preHandler: gestion }, async (req, reply) => {
+        const entrada = z
+            .object({
+            crearTipologias: z.boolean().default(true),
+            filas: z.array(z.record(z.string())).min(1).max(2000),
+        })
+            .safeParse(req.body);
+        if (!entrada.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const project = await prisma.project.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!project)
+            return reply.code(404).send({ error: 'Proyecto no encontrado' });
+        const tipologias = await prisma.typology.findMany({ where: { projectId: project.id } });
+        const porNombre = new Map(tipologias.map((t) => [t.name.trim().toLowerCase(), t]));
+        const numero = (v) => {
+            if (v === undefined)
+                return undefined;
+            const limpio = v.replace(/[^0-9.,-]/g, '').replace(',', '.');
+            if (limpio === '')
+                return undefined;
+            const n = Number(limpio);
+            return Number.isFinite(n) ? n : undefined;
+        };
+        const KIND = ['departamento', 'estacionamiento', 'deposito', 'lote', 'oficina', 'otro'];
+        const STATUS = ['disponible', 'reservado', 'vendido', 'no_disponible'];
+        let creadas = 0;
+        let actualizadas = 0;
+        const tipologiasCreadas = [];
+        const errores = [];
+        for (let i = 0; i < entrada.data.filas.length; i += 1) {
+            const fila = entrada.data.filas[i];
+            const linea = i + 2; // +1 por el índice, +1 por la cabecera del archivo
+            const code = (fila.codigo ?? '').trim();
+            if (!code) {
+                errores.push({ linea, codigo: '', motivo: 'Falta el código de la unidad' });
+                continue;
+            }
+            const kind = (fila.tipo ?? 'departamento').trim().toLowerCase();
+            const status = (fila.estado ?? 'disponible').trim().toLowerCase();
+            if (!KIND.includes(kind)) {
+                errores.push({ linea, codigo: code, motivo: `Tipo no reconocido: "${fila.tipo}"` });
+                continue;
+            }
+            if (!STATUS.includes(status)) {
+                errores.push({ linea, codigo: code, motivo: `Estado no reconocido: "${fila.estado}"` });
+                continue;
+            }
+            // Tipología por nombre. Se crea si falta y así se pidió, para no obligar a darla de
+            // alta a mano antes de importar.
+            let typologyId = null;
+            const nombreTip = (fila.tipologia ?? '').trim();
+            if (nombreTip) {
+                const clave = nombreTip.toLowerCase();
+                let tip = porNombre.get(clave);
+                if (!tip && entrada.data.crearTipologias) {
+                    tip = await prisma.typology.create({
+                        data: {
+                            projectId: project.id,
+                            name: nombreTip,
+                            bedrooms: numero(fila.dormitorios),
+                            areaM2: numero(fila.area_m2),
+                        },
+                    });
+                    porNombre.set(clave, tip);
+                    tipologiasCreadas.push(nombreTip);
+                }
+                if (!tip) {
+                    errores.push({ linea, codigo: code, motivo: `La tipología "${nombreTip}" no existe` });
+                    continue;
+                }
+                typologyId = tip.id;
+            }
+            const datos = {
+                typologyId,
+                typology: nombreTip || null,
+                kind: kind,
+                status: status,
+                bedrooms: numero(fila.dormitorios),
+                areaM2: numero(fila.area_m2),
+                price: numero(fila.precio),
+                currency: (fila.moneda ?? 'PEN').trim().toUpperCase() || 'PEN',
+                floor: numero(fila.piso),
+            };
+            try {
+                const existente = await prisma.unit.findFirst({
+                    where: { projectId: project.id, code },
+                    select: { id: true },
+                });
+                if (existente) {
+                    await prisma.unit.update({ where: { id: existente.id }, data: datos });
+                    actualizadas += 1;
+                }
+                else {
+                    await prisma.unit.create({ data: { ...datos, code, projectId: project.id } });
+                    creadas += 1;
+                }
+            }
+            catch (err) {
+                errores.push({
+                    linea,
+                    codigo: code,
+                    motivo: err instanceof Error ? err.message.split('\n')[0] : 'Error al guardar',
+                });
+            }
+        }
+        return { creadas, actualizadas, tipologiasCreadas, errores };
+    });
     app.patch('/units/:id', { preHandler: gestion }, async (req, reply) => {
         const parsed = unitInput.partial().safeParse(req.body);
         if (!parsed.success)
