@@ -13,6 +13,7 @@ export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'conversi
  */
 export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): Promise<{
     id: string;
+    createdAt: Date;
     type: string;
     payload: import("@prisma/client/runtime/library").JsonValue;
     status: import(".prisma/client").$Enums.JobStatus;
@@ -22,7 +23,6 @@ export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): 
     runAt: Date;
     lockedAt: Date | null;
     lockedBy: string | null;
-    createdAt: Date;
 }>;
 /** Backoff exponencial: 1m, 5m, 15m, 1h, 6h, 24h. */
 export declare function backoffMinutes(attempt: number): number;
