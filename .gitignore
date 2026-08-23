@@ -4,8 +4,8 @@ node_modules/
 *.log
 .DS_Store
 
-# Los dist SÍ se versionan: los compila GitHub Actions y Plesk solo hace pull.
-# El servidor no compila (ver docs/DEPLOY-PLESK.md).
+# Los dist y el public/ SÍ se versionan: los compila GitHub Actions y Plesk solo
+# hace pull. El servidor no compila (ver docs/DEPLOY-PLESK.md).
 *.tsbuildinfo
 packages/*/tsconfig.tsbuildinfo
 

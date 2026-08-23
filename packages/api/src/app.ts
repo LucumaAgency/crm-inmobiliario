@@ -64,8 +64,10 @@ export async function buildApp() {
   await app.register(leadRoutes, { prefix: '/api/v1/leads' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
 
-  // El SPA compilado se sirve desde el mismo proceso (una sola app en Plesk).
-  const webDist = path.resolve(__dirname, '../../web/dist');
+  // El SPA compilado (public/ en la raíz) se sirve desde el mismo proceso.
+  // En Plesk ese directorio es además el document root, así que nginx entrega los
+  // estáticos directo y aquí solo cae el fallback de las rutas del SPA.
+  const webDist = path.resolve(__dirname, '../../../public');
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, wildcard: false });
     app.setNotFoundHandler((req, reply) => {

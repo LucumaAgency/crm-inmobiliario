@@ -20,6 +20,19 @@ Crear base y usuario dedicados en Plesk. Cotejamiento `utf8mb4_unicode_ci`.
 1. Plesk → **Node.js** → habilitar en el dominio.
 2. Document root apuntando a la carpeta del repo.
 3. **Application Startup File**: `packages/api/dist/server.js`
+3b. **Raíz del documento**: `<dominio>/public` — **no** la raíz de la aplicación y **no**
+   `packages/web/dist`.
+
+   Passenger **ignora la "Raíz de la aplicación" que muestra Plesk** y deduce la suya como el
+   *directorio padre del document root*. Con el docroot en `packages/web/dist` buscó el arranque
+   en `packages/web/packages/api/dist/server.js` y falló con `MODULE_NOT_FOUND`, que en el
+   navegador se ve como un genérico «Web application could not be started».
+
+   Por eso el SPA se compila a `public/` en la raíz del repo (`packages/web/vite.config.ts`),
+   y no dentro de su paquete: es la única disposición donde el docroot puede ser
+   `<raíz>/public` y el archivo de arranque resolverse desde la raíz. De paso resuelve la
+   advertencia de seguridad de Plesk, porque nginx solo publica el SPA compilado y nunca
+   `package.json`, `prisma/` ni el código.
 4. Variables de entorno (según `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `APP_URL`,
    `NODE_ENV=production`, `PORT`, y las de SMTP.
 
@@ -57,7 +70,8 @@ Dos cosas que sostienen ese bloque:
   sola tabla, y el seed del §5 fallaría después con un `table doesn't exist` difícil de
   interpretar.
 
-El SPA compilado (`packages/web/dist`) lo sirve el mismo proceso Fastify, así que solo hay una
+El SPA compilado (`public/`) lo sirve también el proceso Fastify, para el fallback de
+las rutas del dashboard; los estáticos los entrega nginx directo desde el docroot, así que solo hay una
 aplicación que administrar.
 
 ### Verificado en simulacro
