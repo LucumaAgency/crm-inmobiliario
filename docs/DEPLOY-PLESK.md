@@ -122,7 +122,9 @@ key: se muestra una sola vez.** Después entra al CRM con magic link.
 
 ## 6b. Dónde ver los logs
 
-La aplicación escribe en **`logs/app.log`**, en la raíz de la aplicación. Se abre desde el
+La aplicación escribe en **`logs/app.txt`**, en la raíz de la aplicación. La extensión es
+`.txt` y no `.log` porque el Administrador de archivos de Plesk no abre los `.log` en su
+visor: obliga a descargarlos o renombrarlos. Se abre desde el
 Administrador de archivos de Plesk, igual que el `debug.log` de WordPress. Ahí van las
 peticiones, los errores de la API y las líneas del worker.
 
@@ -137,7 +139,7 @@ Dos advertencias:
   iniciar sesión como administrador. Es una muleta de puesta en marcha, no un estado
   aceptable: en cuanto SMTP funcione, esos enlaces dejan de escribirse solos.
 - **No rota.** Crece hasta llenar el disco si nadie lo mira. Para producción con tráfico real,
-  configurar `logrotate` sobre `logs/*.log` o vaciarlo periódicamente.
+  configurar `logrotate` sobre `logs/*.txt` o vaciarlo periódicamente.
 
 ## 7. Operación
 

@@ -8,13 +8,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Directorio de logs: `logs/` en la raíz del proyecto, o lo que diga LOG_DIR.
  *
  * Vive FUERA del document root (que es `public/`), así que nginx nunca lo publica.
- * Comprobado en el despliegue: `/logs/app.log` devuelve el SPA, no el archivo.
+ * Comprobado en el despliegue: `/logs/app.txt` devuelve el SPA, no el archivo.
  */
 export const logDir = process.env.LOG_DIR
   ? path.resolve(process.env.LOG_DIR)
   : path.resolve(__dirname, '../../../../logs');
 
-export const logFile = path.join(logDir, 'app.log');
+// Extensión .txt a propósito: el Administrador de archivos de Plesk no abre .log
+// en su visor, obliga a descargarlo o a renombrarlo.
+export const logFile = path.join(logDir, 'app.txt');
 
 let stream: fs.WriteStream | null = null;
 

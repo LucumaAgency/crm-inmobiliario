@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/api.js';
@@ -15,59 +16,94 @@ interface Me {
   organization: { id: string; name: string } | null;
 }
 
+const ROLES: Record<string, string> = {
+  admin_lucuma: 'Admin',
+  gerente: 'Gerente',
+  asesor: 'Asesor',
+  solo_lectura: 'Solo lectura',
+};
+
 export default function App() {
   const location = useLocation();
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.get<Me>('/auth/me'),
     retry: false,
   });
 
+  // En móvil el lateral es un cajón: navegar debe cerrarlo, o tapa el contenido
+  // que la persona acaba de pedir.
+  useEffect(() => setMenuAbierto(false), [location.pathname]);
+
   if (location.pathname === '/auth/callback') return <AuthCallback />;
   if (isLoading) return <div className="vacio">Cargando…</div>;
   if (isError || !data) return <Login />;
 
   const puedeGestionar = data.user.role === 'admin_lucuma' || data.user.role === 'gerente';
+  const enlace = ({ isActive }: { isActive: boolean }) => (isActive ? 'activo' : '');
 
   return (
     <div className="app">
-      <header className="topbar">
-        <span className="marca">Lucuma CRM</span>
-        <h1>{data.organization?.name ?? ''}</h1>
-        <span className="meta">{data.user.name}</span>
-      </header>
+      <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
+        <div className="lateral-marca">Lucuma CRM</div>
 
-      <main className="contenido">
-        <Routes>
-          <Route path="/" element={<Navigate to="/leads" replace />} />
-          <Route path="/leads" element={<Leads />} />
-          <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
-          <Route path="/tareas" element={<Tareas />} />
-          {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
-          {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
-          {puedeGestionar && <Route path="/ajustes" element={<Ajustes />} />}
-          <Route path="*" element={<div className="vacio">Página no encontrada</div>} />
-        </Routes>
-      </main>
+        <nav className="lateral-nav">
+          <NavLink to="/leads" className={enlace}>
+            <span className="icono">👥</span>Leads
+          </NavLink>
+          <NavLink to="/tareas" className={enlace}>
+            <span className="icono">✓</span>Tareas
+          </NavLink>
+          {puedeGestionar && (
+            <NavLink to="/formularios" className={enlace}>
+              <span className="icono">📋</span>Formularios
+            </NavLink>
+          )}
+          {puedeGestionar && (
+            <NavLink to="/ajustes" className={enlace}>
+              <span className="icono">⚙</span>Ajustes
+            </NavLink>
+          )}
+        </nav>
 
-      <nav className="nav">
-        <NavLink to="/leads" className={({ isActive }) => (isActive ? 'activo' : '')}>
-          <span className="icono">👥</span>Leads
-        </NavLink>
-        <NavLink to="/tareas" className={({ isActive }) => (isActive ? 'activo' : '')}>
-          <span className="icono">✓</span>Tareas
-        </NavLink>
-        {puedeGestionar && (
-          <NavLink to="/formularios" className={({ isActive }) => (isActive ? 'activo' : '')}>
-            <span className="icono">📋</span>Formularios
-          </NavLink>
-        )}
-        {puedeGestionar && (
-          <NavLink to="/ajustes" className={({ isActive }) => (isActive ? 'activo' : '')}>
-            <span className="icono">⚙</span>Ajustes
-          </NavLink>
-        )}
-      </nav>
+        <div className="lateral-pie">
+          <div className="nombre">{data.user.name}</div>
+          <div className="meta">{ROLES[data.user.role] ?? data.user.role}</div>
+        </div>
+      </aside>
+
+      {menuAbierto && <div className="velo" onClick={() => setMenuAbierto(false)} />}
+
+      <div className="principal">
+        <header className="topbar">
+          <button
+            type="button"
+            className="hamburguesa"
+            aria-label="Abrir menú"
+            aria-expanded={menuAbierto}
+            onClick={() => setMenuAbierto((v) => !v)}
+          >
+            ☰
+          </button>
+          <h1>{data.organization?.name ?? ''}</h1>
+          <span className="meta">{data.user.name}</span>
+        </header>
+
+        <main className="contenido">
+          <Routes>
+            <Route path="/" element={<Navigate to="/leads" replace />} />
+            <Route path="/leads" element={<Leads />} />
+            <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
+            <Route path="/tareas" element={<Tareas />} />
+            {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
+            {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
+            {puedeGestionar && <Route path="/ajustes" element={<Ajustes />} />}
+            <Route path="*" element={<div className="vacio">Página no encontrada</div>} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
 }

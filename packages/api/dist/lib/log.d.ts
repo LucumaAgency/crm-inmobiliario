@@ -3,7 +3,7 @@ import fs from 'node:fs';
  * Directorio de logs: `logs/` en la raíz del proyecto, o lo que diga LOG_DIR.
  *
  * Vive FUERA del document root (que es `public/`), así que nginx nunca lo publica.
- * Comprobado en el despliegue: `/logs/app.log` devuelve el SPA, no el archivo.
+ * Comprobado en el despliegue: `/logs/app.txt` devuelve el SPA, no el archivo.
  */
 export declare const logDir: string;
 export declare const logFile: string;
