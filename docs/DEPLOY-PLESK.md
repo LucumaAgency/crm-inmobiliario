@@ -82,6 +82,25 @@ checkout limpio sin `node_modules`: `npm ci --omit=dev` deja la CLI de Prisma y 
 `/api/health`, sirve el SPA, devuelve `401` en rutas protegidas sin sesión, y el worker termina
 con código 0.
 
+### Despliegue manual, mientras las acciones de Plesk no funcionen
+
+Si las acciones adicionales fallan (por el PATH de Node, o porque el shell corre enjaulado),
+hay que hacerlo a mano desde **Node.js → Run script**, y el orden importa:
+
+| # | Paso | Qué toca |
+|---|---|---|
+| 1 | Desplegar desde Git | el código y `public/` |
+| 2 | `prisma:generate` | **`node_modules`**: reescribe el cliente tipado |
+| 3 | `prisma:deploy` | **la base**: aplica las migraciones |
+| 4 | Reiniciar la aplicación | el proceso en memoria |
+
+Los pasos 2 y 3 son distintos y hacen falta los dos. Saltarse el 2 tras añadir un modelo da un
+`Cannot read properties of undefined` al usarlo, y un `Unknown field ... for include statement`
+en las relaciones nuevas: el código pide algo que el cliente generado todavía no conoce.
+
+Y saltarse el 4 deja el SPA nuevo hablando con la API vieja, que se ve como rutas que responden
+«No encontrado» aunque existan en el código.
+
 ## 4. Tarea programada (obligatoria)
 
 **Passenger duerme la aplicación cuando no hay tráfico**, así que un `setInterval` dentro del
