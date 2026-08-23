@@ -141,3 +141,31 @@ label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; }
   .topbar .meta { display: none; }
   .contenido { padding: 22px; }
 }
+
+/* --- Alta manual de lead ------------------------------------------------ */
+.barra-acciones { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.barra-acciones .filtros { flex: 1; margin-bottom: 0; }
+.barra-acciones .btn { white-space: nowrap; }
+
+.modal-fondo {
+  position: fixed; inset: 0; z-index: 40; background: rgba(16,24,40,.5);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal {
+  background: var(--blanco); width: 100%; max-width: 560px;
+  border-radius: 14px 14px 0 0; padding: 18px;
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-cab { display: flex; align-items: center; justify-content: space-between; }
+.modal-cab h2 { font-size: 18px; margin: 0 0 4px; }
+.cerrar {
+  background: none; border: 0; font-size: 26px; line-height: 1;
+  color: var(--suave); padding: 0 6px;
+}
+.rejilla-2 { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+
+@media (min-width: 620px) {
+  .rejilla-2 { grid-template-columns: 1fr 1fr; }
+  .modal-fondo { align-items: center; }
+  .modal { border-radius: 14px; }
+}

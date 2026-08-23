@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { desde } from '../lib/format.js';
+import NuevoLead from './NuevoLead.js';
 
 interface Lead {
   id: string;
@@ -21,6 +22,7 @@ interface Stats { total: number; ultimos30: number; sinContactar: number }
 export default function Leads() {
   const [q, setQ] = useState('');
   const [stageId, setStageId] = useState('');
+  const [creando, setCreando] = useState(false);
 
   const stats = useQuery({ queryKey: ['stats'], queryFn: () => api.get<Stats>('/stats') });
   const stages = useQuery({
@@ -44,13 +46,18 @@ export default function Leads() {
         <div className="stat"><div className="n">{leads.data?.total ?? '—'}</div><div className="t">En esta vista</div></div>
       </div>
 
-      <div className="filtros">
-        <input placeholder="Buscar nombre, teléfono, DNI…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={stageId} onChange={(e) => setStageId(e.target.value)}>
-          <option value="">Todas las etapas</option>
-          {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+      <div className="barra-acciones">
+        <div className="filtros">
+          <input placeholder="Buscar nombre, teléfono, DNI…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select value={stageId} onChange={(e) => setStageId(e.target.value)}>
+            <option value="">Todas las etapas</option>
+            {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <button type="button" className="btn" onClick={() => setCreando(true)}>+ Nuevo lead</button>
       </div>
+
+      {creando && <NuevoLead onCerrar={() => setCreando(false)} />}
 
       {leads.isLoading && <div className="vacio">Cargando leads…</div>}
       {leads.data?.leads.length === 0 && (
