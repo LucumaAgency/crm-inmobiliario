@@ -32,6 +32,34 @@ export async function buildApp() {
     bodyLimit: 1_000_000,
   });
 
+  /**
+   * Manejador de errores.
+   *
+   * Sin esto, un choque contra un índice único llegaba al navegador como un 500 con la
+   * invocación de Prisma, el nombre de la tabla y el del índice: incomprensible para
+   * quien lo usa y de paso una filtración de la forma interna de la base. Los errores
+   * previstos se traducen; el resto se registra entero y sale genérico.
+   */
+  app.setErrorHandler((err, req, reply) => {
+    const codigo = (err as { code?: string }).code;
+
+    if (codigo === 'P2002') {
+      return reply.code(409).send({ error: 'Ya existe un registro con ese valor.' });
+    }
+    if (codigo === 'P2025') {
+      return reply.code(404).send({ error: 'No encontrado.' });
+    }
+    if (err.validation || err.statusCode === 400) {
+      return reply.code(400).send({ error: 'Datos inválidos.' });
+    }
+    if (err.statusCode && err.statusCode < 500) {
+      return reply.code(err.statusCode).send({ error: err.message });
+    }
+
+    req.log.error({ err }, 'Error no controlado');
+    return reply.code(500).send({ error: 'Error interno.' });
+  });
+
   await app.register(cookie);
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
 

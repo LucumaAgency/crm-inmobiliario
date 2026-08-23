@@ -10,16 +10,37 @@ interface Site {
   active: boolean;
 }
 
+const ROLES: Record<string, string> = {
+  admin_lucuma: 'Admin Lucuma',
+  gerente: 'Gerente',
+  asesor: 'Asesor',
+  solo_lectura: 'Solo lectura',
+};
+
 export default function Ajustes() {
   const qc = useQueryClient();
   const [nombre, setNombre] = useState('');
   const [dominios, setDominios] = useState('');
   const [secretNueva, setSecretNueva] = useState<string | null>(null);
+  const [uNombre, setUNombre] = useState('');
+  const [uCorreo, setUCorreo] = useState('');
+  const [uRol, setURol] = useState('asesor');
 
   const sites = useQuery({ queryKey: ['sites'], queryFn: () => api.get<Site[]>('/sites') });
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () => api.get<{ id: string; name: string; email: string; role: string }[]>('/users'),
+  });
+
+  const crearUsuario = useMutation({
+    mutationFn: () =>
+      api.post('/users', { name: uNombre.trim(), email: uCorreo.trim(), role: uRol }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      setUNombre('');
+      setUCorreo('');
+      setURol('asesor');
+    },
   });
 
   const crear = useMutation({
@@ -101,10 +122,49 @@ export default function Ajustes() {
           <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead>
           <tbody>
             {usuarios.data?.map((u) => (
-              <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.role}</td></tr>
+              <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{ROLES[u.role] ?? u.role}</td></tr>
             ))}
           </tbody>
         </table>
+
+        <form
+          style={{ marginTop: 14, borderTop: '1px solid var(--borde)', paddingTop: 12 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (uNombre.trim() && uCorreo.trim()) crearUsuario.mutate();
+          }}
+        >
+          <div className="rejilla-2">
+            <div>
+              <label htmlFor="u-nombre">Nombre</label>
+              <input id="u-nombre" value={uNombre} onChange={(e) => setUNombre(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="u-correo">Correo</label>
+              <input id="u-correo" type="email" value={uCorreo} onChange={(e) => setUCorreo(e.target.value)} />
+            </div>
+          </div>
+          <label htmlFor="u-rol">Rol</label>
+          <select id="u-rol" value={uRol} onChange={(e) => setURol(e.target.value)}>
+            {Object.entries(ROLES).map(([valor, etiqueta]) => (
+              <option key={valor} value={valor}>{etiqueta}</option>
+            ))}
+          </select>
+          <p className="meta" style={{ marginTop: 8 }}>
+            No se define contraseña: la persona entra con un enlace de acceso enviado a ese
+            correo, así que tiene que ser un buzón real que pueda abrir.
+          </p>
+          {crearUsuario.isError && <p className="error">{(crearUsuario.error as Error).message}</p>}
+          <div className="acciones">
+            <button
+              type="submit"
+              className="btn"
+              disabled={!uNombre.trim() || !uCorreo.trim() || crearUsuario.isPending}
+            >
+              {crearUsuario.isPending ? 'Creando…' : 'Añadir usuario'}
+            </button>
+          </div>
+        </form>
       </div>
 
       <div className="card">
