@@ -6,11 +6,13 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
+import multipart from '@fastify/multipart';
 import { env } from './env.js';
 import { prisma } from './db.js';
 import { originAllowed } from './lib/keys.js';
 import { getLogStream, logFile } from './lib/log.js';
 import { resolverTenant } from './lib/tenant.js';
+import { MAX_BYTES, MEDIA_PREFIX, uploadsDir } from './lib/media.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import leadRoutes from './routes/leads.js';
@@ -61,6 +63,7 @@ export async function buildApp() {
     app.addHook('onRequest', async (req) => {
         req.tenant = await resolverTenant(req.headers.host);
     });
+    await app.register(multipart, { limits: { fileSize: MAX_BYTES, files: 1 } });
     await app.register(cookie);
     await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
     /**
@@ -96,6 +99,25 @@ export async function buildApp() {
     await app.register(authRoutes, { prefix: '/api/v1/auth' });
     await app.register(leadRoutes, { prefix: '/api/v1/leads' });
     await app.register(adminRoutes, { prefix: '/api/v1' });
+    /**
+     * Archivos subidos (planos y renders).
+     *
+     * Se sirven desde `uploads/`, que vive FUERA de `public/`: ese directorio se borra en
+     * cada build y llega versionado en cada despliegue, así que un archivo subido ahí no
+     * sobreviviría al siguiente deploy.
+     *
+     * `decorateReply: false` porque `sendFile` ya lo aporta el registro del SPA.
+     */
+    await fs.promises.mkdir(uploadsDir, { recursive: true }).catch(() => undefined);
+    await app.register(fastifyStatic, {
+        root: uploadsDir,
+        prefix: `${MEDIA_PREFIX}/`,
+        decorateReply: false,
+        index: false,
+        // Nombre por hash del contenido: si cambia el archivo, cambia la URL.
+        maxAge: '365d',
+        immutable: true,
+    });
     // El SPA compilado (public/ en la raíz) se sirve desde el mismo proceso.
     // En Plesk ese directorio es además el document root, así que nginx entrega los
     // estáticos directo y aquí solo cae el fallback de las rutas del SPA.
@@ -105,6 +127,16 @@ export async function buildApp() {
         app.setNotFoundHandler((req, reply) => {
             if (req.url.startsWith('/api/'))
                 return reply.code(404).send({ error: 'No encontrado' });
+            /**
+             * Un archivo que falta debe dar 404, no el HTML del SPA.
+             *
+             * Sin esto, `/media/loquesea.pdf` devolvía `index.html` con un 200: un `<img>` recibía
+             * HTML en vez de una imagen y el fallo quedaba enmascarado, que es lo peor que puede
+             * hacer un error.
+             */
+            if (req.url.startsWith(`${MEDIA_PREFIX}/`)) {
+                return reply.code(404).send({ error: 'Archivo no encontrado' });
+            }
             return reply.sendFile('index.html');
         });
     }

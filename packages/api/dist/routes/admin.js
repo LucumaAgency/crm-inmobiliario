@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { formSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
+import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, requireAuth, requireRole } from '../lib/auth.js';
 import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
@@ -34,11 +35,19 @@ export default async function adminRoutes(app) {
         });
     });
     // --------------------------------------------------------- tipologías
-    app.get('/projects/:id/typologies', async (req) => prisma.typology.findMany({
-        where: { projectId: req.params.id, project: { organizationId: req.user.organizationId } },
-        orderBy: [{ position: 'asc' }, { name: 'asc' }],
-        include: { _count: { select: { units: true } } },
-    }));
+    app.get('/projects/:id/typologies', async (req) => {
+        const tipologias = await prisma.typology.findMany({
+            where: { projectId: req.params.id, project: { organizationId: req.user.organizationId } },
+            orderBy: [{ position: 'asc' }, { name: 'asc' }],
+            include: { _count: { select: { units: true } } },
+        });
+        // En la base va la ruta relativa; al navegador se le da la URL ya resuelta.
+        return tipologias.map((t) => ({
+            ...t,
+            planUrl: urlPublica(t.planUrl),
+            imageUrl: urlPublica(t.imageUrl),
+        }));
+    });
     const typologyInput = z.object({
         name: z.string().min(1),
         code: z.string().optional(),
@@ -91,6 +100,47 @@ export default async function adminRoutes(app) {
             return reply.code(404).send({ error: 'Tipología no encontrada' });
         await prisma.typology.delete({ where: { id: tip.id } });
         return { ok: true, unidadesSinTipologia: tip._count.units };
+    });
+    /**
+     * Subida del plano o el render de una tipología.
+     *
+     * Un solo archivo por petición y un solo campo, para que el endpoint sea aburrido: los
+     * formularios de subida son de los sitios más atacados de cualquier panel.
+     */
+    app.post('/typologies/:id/media', { preHandler: gestion }, async (req, reply) => {
+        const campo = req.query.campo === 'imageUrl' ? 'imageUrl' : 'planUrl';
+        const tip = await prisma.typology.findFirst({
+            where: { id: req.params.id, project: { organizationId: req.user.organizationId } },
+        });
+        if (!tip)
+            return reply.code(404).send({ error: 'Tipología no encontrada' });
+        const archivo = await req.file();
+        if (!archivo)
+            return reply.code(400).send({ error: 'No llegó ningún archivo.' });
+        let contenido;
+        try {
+            contenido = await archivo.toBuffer();
+        }
+        catch {
+            return reply.code(413).send({ error: 'El archivo es demasiado grande.' });
+        }
+        const res = await guardar(req.user.organizationId, contenido, archivo.mimetype);
+        if ('error' in res)
+            return reply.code(400).send({ error: res.error });
+        const anterior = tip[campo];
+        const actualizada = await prisma.typology.update({
+            where: { id: tip.id },
+            data: { [campo]: res.ruta },
+        });
+        // El anterior puede seguir en uso: el nombre es el hash del contenido, así que dos
+        // tipologías con el mismo plano comparten archivo.
+        if (anterior && anterior !== res.ruta) {
+            const enUso = await prisma.typology.count({
+                where: { OR: [{ planUrl: anterior }, { imageUrl: anterior }] },
+            });
+            await borrarSiHuerfano(anterior, enUso > 0);
+        }
+        return { ...actualizada, [campo]: res.ruta, url: urlPublica(res.ruta), bytes: res.bytes };
     });
     // ----------------------------------------------------------- unidades
     app.get('/projects/:id/units', async (req) => prisma.unit.findMany({

@@ -14,6 +14,8 @@ interface Tipologia {
   priceFrom: string | null;
   currency: string;
   description: string | null;
+  planUrl: string | null;
+  imageUrl: string | null;
   active: boolean;
   _count?: { units: number };
 }
@@ -100,6 +102,38 @@ export default function ProyectoDetail() {
     },
   });
 
+  const [subiendo, setSubiendo] = useState<string | null>(null);
+  const [errorSubida, setErrorSubida] = useState<string | null>(null);
+
+  /**
+   * Sube un archivo a una tipología.
+   *
+   * No usa el helper de la API porque va como multipart y no como JSON: el helper fija
+   * `Content-Type: application/json`, que rompería el envío.
+   */
+  const subir = async (tipologiaId: string, campo: 'planUrl' | 'imageUrl', archivo: File) => {
+    setErrorSubida(null);
+    setSubiendo(`${tipologiaId}:${campo}`);
+    try {
+      const datos = new FormData();
+      datos.append('archivo', archivo);
+      const res = await fetch(`/api/v1/typologies/${tipologiaId}/media?campo=${campo}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: datos,
+      });
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => ({}));
+        throw new Error(cuerpo.error ?? `Error ${res.status}`);
+      }
+      refrescar();
+    } catch (err) {
+      setErrorSubida((err as Error).message);
+    } finally {
+      setSubiendo(null);
+    }
+  };
+
   const borrarTipologia = useMutation({
     mutationFn: (t: Tipologia) => api.del<{ unidadesSinTipologia: number }>(`/typologies/${t.id}`),
     onSuccess: refrescar,
@@ -169,6 +203,8 @@ export default function ProyectoDetail() {
               una sola vez y no depende de escribir el mismo texto en cada unidad.
             </p>
 
+            {errorSubida && <p className="error">{errorSubida}</p>}
+
             {tipologias.data?.length === 0 && (
               <div className="vacio">Aún no hay tipologías. Crea la primera abajo.</div>
             )}
@@ -177,17 +213,18 @@ export default function ProyectoDetail() {
               <div style={{ overflowX: 'auto' }}>
                 <table className="tabla" style={{ marginTop: 10 }}>
                   <thead>
-                    <tr><th>Nombre</th><th>Dorm.</th><th>Baños</th><th>Área</th><th>Desde</th><th>Unidades</th><th></th></tr>
+                    <tr><th>Nombre</th><th>Dorm.</th><th>Área</th><th>Desde</th><th>Unidades</th><th>Plano</th><th>Render</th><th></th></tr>
                   </thead>
                   <tbody>
                     {tipologias.data?.map((t) => (
                       <tr key={t.id}>
                         <td>{t.name}</td>
                         <td>{t.bedrooms ?? '—'}</td>
-                        <td>{t.bathrooms ?? '—'}</td>
                         <td>{t.areaM2 ? `${t.areaM2} m²` : '—'}</td>
                         <td>{t.priceFrom ? `${t.currency} ${t.priceFrom}` : '—'}</td>
                         <td>{t._count?.units ?? 0}</td>
+                        <td><Archivo t={t} campo="planUrl" etiqueta="plano" subiendo={subiendo} subir={subir} /></td>
+                        <td><Archivo t={t} campo="imageUrl" etiqueta="render" subiendo={subiendo} subir={subir} /></td>
                         <td>
                           <button
                             type="button"
@@ -355,5 +392,51 @@ export default function ProyectoDetail() {
         </>
       )}
     </>
+  );
+}
+
+/** Celda de plano o render: muestra el archivo si existe y permite reemplazarlo. */
+function Archivo({
+  t,
+  campo,
+  etiqueta,
+  subiendo,
+  subir,
+}: {
+  t: Tipologia;
+  campo: 'planUrl' | 'imageUrl';
+  etiqueta: string;
+  subiendo: string | null;
+  subir: (id: string, campo: 'planUrl' | 'imageUrl', archivo: File) => void;
+}) {
+  const url = t[campo];
+  const cargando = subiendo === `${t.id}:${campo}`;
+  const idInput = `f-${t.id}-${campo}`;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" title={`Ver ${etiqueta}`}>
+          {url.endsWith('.pdf') ? 'PDF' : (
+            <img src={url} alt={etiqueta} style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+          )}
+        </a>
+      )}
+      <label htmlFor={idInput} className="btn btn-sec" style={{ padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>
+        {cargando ? '…' : url ? 'Cambiar' : 'Subir'}
+      </label>
+      <input
+        id={idInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
+        style={{ display: 'none' }}
+        disabled={cargando}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) subir(t.id, campo, f);
+          e.target.value = '';
+        }}
+      />
+    </div>
   );
 }
