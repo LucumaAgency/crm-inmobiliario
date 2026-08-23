@@ -37,47 +37,63 @@ export async function captureLead(input, schema, ctx) {
     });
     // 4) Lead: ¿ya existe uno abierto del mismo contacto en el mismo proyecto?
     const projectId = ctx.projectId ?? campos.projectId ?? null;
-    const desde = new Date(Date.now() - VENTANA_DEDUP_DIAS * 24 * 60 * 60 * 1000);
-    const existente = await prisma.lead.findFirst({
-        where: {
-            organizationId: ctx.organizationId,
-            contactId: contacto.id,
-            projectId,
-            status: 'activo',
-            createdAt: { gte: desde },
-        },
-        orderBy: { createdAt: 'desc' },
-    });
     const unidad = await resolverUnidad(campos.unitInterest, projectId);
     const unitId = unidad?.id ?? null;
     const ahora = new Date();
-    let leadId;
-    let duplicado = false;
-    if (existente) {
-        // Mismo contacto + mismo proyecto dentro de la ventana: es una actividad nueva
-        // sobre el lead existente, no un lead nuevo. No se pisa el historial.
-        duplicado = true;
-        leadId = existente.id;
-        // `lead.unitId` guarda la última unidad consultada, así que la anterior se pierde de
-        // la ficha. Quien pregunta por dos unidades del mismo proyecto está comparando, y
-        // cuáles son es justamente el insumo de la llamada del asesor: queda en el historial.
-        const cambioDeUnidad = Boolean(unidad && existente.unitId && unidad.id !== existente.unitId);
-        const detalle = [
-            unidad ? `unidad ${unidad.code}` : null,
-            campos.message ? `«${campos.message}»` : null,
-        ].filter(Boolean).join(' · ');
-        await prisma.$transaction([
-            prisma.lead.update({
-                where: { id: leadId },
+    const desde = new Date(Date.now() - VENTANA_DEDUP_DIAS * 24 * 60 * 60 * 1000);
+    /**
+     * Buscar-o-crear el lead, serializado por contacto.
+     *
+     * El `findFirst` seguido de `create` es una condición de carrera: con tres envíos
+     * simultáneos de la misma persona (un doble clic en el botón), los tres buscan a la
+     * vez, ninguno encuentra nada y los tres crean. Comprobado antes de este cambio: un
+     * contacto y **tres** leads del mismo proyecto, repartidos entre asesores distintos por
+     * el round robin. Tres personas llamando al mismo cliente por el mismo departamento.
+     *
+     * Aquí no sirve un índice único como el de `Contact`: la regla de deduplicación no es
+     * estática sino «activo y dentro de 30 días», y un lead legítimamente nuevo a los 40
+     * días chocaría contra la restricción.
+     *
+     * La salida es un bloqueo de fila sobre el contacto (`FOR UPDATE`): dos capturas de la
+     * misma persona se ordenan en vez de pisarse, y las de personas distintas no se
+     * estorban. El bloqueo lo suelta el commit.
+     */
+    const { leadId, duplicado, esNuevo } = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw `SELECT id FROM contacts WHERE id = ${contacto.id} FOR UPDATE`;
+        const existente = await tx.lead.findFirst({
+            where: {
+                organizationId: ctx.organizationId,
+                contactId: contacto.id,
+                projectId,
+                status: 'activo',
+                createdAt: { gte: desde },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (existente) {
+            // Mismo contacto + mismo proyecto dentro de la ventana: es una actividad nueva
+            // sobre el lead existente, no un lead nuevo. No se pisa el historial.
+            //
+            // `lead.unitId` guarda la última unidad consultada, así que la anterior se pierde
+            // de la ficha. Quien pregunta por dos unidades del mismo proyecto está comparando,
+            // y cuáles son es justamente el insumo de la llamada del asesor: queda en el
+            // historial.
+            const cambioDeUnidad = Boolean(unidad && existente.unitId && unidad.id !== existente.unitId);
+            const detalle = [
+                unidad ? `unidad ${unidad.code}` : null,
+                campos.message ? `«${campos.message}»` : null,
+            ].filter(Boolean).join(' · ');
+            await tx.lead.update({
+                where: { id: existente.id },
                 data: {
                     lastActivityAt: ahora,
                     unitId: unitId ?? existente.unitId,
                     message: campos.message ?? existente.message,
                 },
-            }),
-            prisma.activity.create({
+            });
+            await tx.activity.create({
                 data: {
-                    leadId,
+                    leadId: existente.id,
                     type: 'sistema',
                     body: `Volvió a escribir desde el formulario${detalle ? `: ${detalle}` : ''}`,
                     meta: {
@@ -88,15 +104,14 @@ export async function captureLead(input, schema, ctx) {
                         unitChangedFrom: cambioDeUnidad ? existente.unitId : null,
                     },
                 },
-            }),
-        ]);
-    }
-    else {
-        const etapaInicial = await prisma.stage.findFirst({
+            });
+            return { leadId: existente.id, duplicado: true, esNuevo: false };
+        }
+        const etapaInicial = await tx.stage.findFirst({
             where: { organizationId: ctx.organizationId },
             orderBy: { position: 'asc' },
         });
-        const lead = await prisma.lead.create({
+        const lead = await tx.lead.create({
             data: {
                 organizationId: ctx.organizationId,
                 contactId: contacto.id,
@@ -111,14 +126,16 @@ export async function captureLead(input, schema, ctx) {
                 lastActivityAt: ahora,
             },
         });
-        leadId = lead.id;
-        if (!spam) {
-            const owner = await pickOwner(ctx.organizationId);
-            if (owner)
-                await assignLead(leadId, owner, 'round_robin');
-            // SLA de primer contacto: se revisa a los 15 minutos.
-            await enqueue('sla.check', { leadId }, new Date(Date.now() + 15 * 60 * 1000));
-        }
+        return { leadId: lead.id, duplicado: false, esNuevo: true };
+    });
+    // Asignación y SLA fuera de la transacción: encolar dispara el procesado de la cola
+    // (services/cola.ts), y no debe ocurrir con el bloqueo del contacto tomado.
+    if (esNuevo && !spam) {
+        const owner = await pickOwner(ctx.organizationId);
+        if (owner)
+            await assignLead(leadId, owner, 'round_robin');
+        // SLA de primer contacto: se revisa a los 15 minutos.
+        await enqueue('sla.check', { leadId }, new Date(Date.now() + 15 * 60 * 1000));
     }
     // 5) Guardar el envío crudo. Si el mapeo cambia o falla, el original sobrevive.
     if (ctx.formId) {
