@@ -8,13 +8,26 @@ export type JobType =
   | 'retention.purge';
 
 /**
- * Encola un trabajo. Lo procesa worker.ts, invocado por una tarea programada de Plesk.
- * No usamos setInterval dentro del proceso: Passenger duerme la app cuando no hay tráfico.
+ * Encola un trabajo.
+ *
+ * Lo procesa la tarea programada (`bin/worker.sh`). Además, si el trabajo ya está
+ * vencido, se pide un procesado **en línea** sin esperarlo: así el aviso al asesor sale
+ * en segundos en vez de esperar al siguiente minuto, y sigue saliendo en servidores
+ * donde no se puede configurar un cron por minuto. Ver `services/cola.ts`.
+ *
+ * Los trabajos con espera (una alerta de SLA a los 15 minutos) no disparan nada: para
+ * esos hace falta que alguien despierte la aplicación entonces, y de eso solo puede
+ * encargarse la tarea programada.
  */
 export async function enqueue(type: JobType, payload: unknown, runAt = new Date()) {
-  return prisma.job.create({
+  const job = await prisma.job.create({
     data: { type, payload: payload as never, runAt },
   });
+  if (runAt.getTime() <= Date.now()) {
+    const { dispararCola } = await import('../services/cola.js');
+    dispararCola();
+  }
+  return job;
 }
 
 /** Backoff exponencial: 1m, 5m, 15m, 1h, 6h, 24h. */

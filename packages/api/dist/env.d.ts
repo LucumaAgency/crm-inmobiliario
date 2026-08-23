@@ -5,6 +5,7 @@ export declare const env: {
     appUrl: string;
     jwtSecret: string;
     cookieName: string;
+    workerInline: boolean;
     smtp: {
         host: string | undefined;
         port: number;

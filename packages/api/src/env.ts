@@ -54,6 +54,10 @@ export const env = {
   appUrl: reqEnProduccion('APP_URL', 'http://localhost:5173'),
   jwtSecret: reqEnProduccion('JWT_SECRET', 'dev-secret-no-usar-en-produccion'),
   cookieName: process.env.COOKIE_NAME ?? 'lcrm_session',
+  // Procesado de la cola dentro del proceso de la API al encolar algo vencido.
+  // Se apaga con WORKER_INLINE=0 en servidores donde la tarea programada sí funciona
+  // por minuto y se prefiere que el proceso web solo atienda peticiones.
+  workerInline: (process.env.WORKER_INLINE ?? '1') !== '0',
   smtp: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),

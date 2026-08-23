@@ -105,9 +105,27 @@ Probado ejecutándolo desde `/` y con el entorno vacío (`env -i`), que es el pe
 cron: encuentra Node, carga el `.env` por ruta propia, conecta con la base y procesa la cola.
 Revisa igual el log de la tarea la primera vez.
 
-De esto dependen: los correos de lead nuevo, las alertas de SLA, los reintentos de webhooks y,
-más adelante, las conversiones server side. Si no está activa, el CRM guarda leads pero no
-avisa a nadie.
+De esto dependen las alertas de SLA, los reintentos con espera y, más adelante, las
+conversiones server side.
+
+### Si el hosting no permite un cron por minuto
+
+Hay servidores donde esto no se puede montar: las tareas programadas corren **enjauladas**
+(la raíz es el home del usuario, sin `/opt/plesk` y a veces sin `dirname` ni `sort`), o el plan
+de servicio limita la frecuencia mínima a una hora. Sacar la tarea de la jaula exige darle shell
+real al usuario del sistema, y si esa suscripción aloja además los sitios de otros clientes, es
+un riesgo que no compensa.
+
+Para ese caso la API procesa la cola **en línea**: al encolar un trabajo ya vencido dispara el
+procesado dentro de su propio proceso, sin esperarlo (ver `services/cola.ts`). El aviso de lead
+nuevo sale en segundos aunque no haya tarea programada.
+
+No la reemplaza. Los trabajos con espera —una alerta de SLA a los 15 minutos, un reintento con
+backoff— necesitan que alguien despierte la aplicación entonces, y de eso solo puede encargarse
+el cron. Con frecuencia horaria llegarían con hasta una hora de retraso; sin cron, solo cuando
+otra petición pase por ahí.
+
+Se apaga con `WORKER_INLINE=0` donde la tarea programada sí funcione por minuto.
 
 ## 4b. Correo saliente (SMTP)
 
