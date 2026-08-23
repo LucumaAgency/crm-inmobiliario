@@ -10,6 +10,7 @@ import { env } from './env.js';
 import { prisma } from './db.js';
 import { originAllowed } from './lib/keys.js';
 import { getLogStream, logFile } from './lib/log.js';
+import { resolverTenant } from './lib/tenant.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import leadRoutes from './routes/leads.js';
@@ -58,6 +59,14 @@ export async function buildApp() {
 
     req.log.error({ err }, 'Error no controlado');
     return reply.code(500).send({ error: 'Error interno.' });
+  });
+
+  /**
+   * Cada petición sabe a qué cliente pertenece, deducido del subdominio.
+   * En modo de un solo cliente queda en null y todo se comporta como antes.
+   */
+  app.addHook('onRequest', async (req) => {
+    req.tenant = await resolverTenant(req.headers.host);
   });
 
   await app.register(cookie);

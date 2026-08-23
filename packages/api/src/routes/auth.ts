@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { magicLinkInput } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
+import { baseUrlDePeticion } from '../lib/tenant.js';
 import { audit, clearSession, issueSession, loadUser } from '../lib/auth.js';
 import { magicLinkEmail, sendMail } from '../lib/mail.js';
 
@@ -14,8 +15,20 @@ export default async function authRoutes(app: FastifyInstance) {
     const parsed = magicLinkInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Correo inválido' });
 
+    /**
+     * Acotado a la organización del subdominio.
+     *
+     * El índice único de `User` es `(organizationId, email)`, así que el mismo correo
+     * puede existir en varias organizaciones —cosa segura en cuanto Lucuma administre a
+     * dos clientes—. Sin este filtro, `findFirst` devolvía una cualquiera de ellas y se
+     * entraba al CRM de un cliente al azar, sin forma de elegir.
+     */
     const user = await prisma.user.findFirst({
-      where: { email: parsed.data.email.toLowerCase(), active: true },
+      where: {
+        email: parsed.data.email.toLowerCase(),
+        active: true,
+        ...(req.tenant ? { organizationId: req.tenant.id } : {}),
+      },
     });
 
     if (user) {
@@ -27,12 +40,22 @@ export default async function authRoutes(app: FastifyInstance) {
           expiresAt: new Date(Date.now() + VIGENCIA_MIN * 60 * 1000),
         },
       });
-      const url = `${env.appUrl.replace(/\/$/, '')}/auth/callback?token=${token}`;
+      // Con varios clientes, el enlace debe volver al subdominio desde el que se pidió:
+      // uno de Bastión no puede llevar al CRM de otro, ni a la raíz.
+      const url = `${baseUrlDePeticion(req)}/auth/callback?token=${token}`;
       const mail = magicLinkEmail(url, user.name);
       await sendMail({ to: user.email, ...mail });
     }
     return { ok: true, message: 'Si el correo existe, te llegará un enlace de acceso.' };
   });
+
+  /**
+   * Quién es el cliente de este subdominio. Lo consulta la pantalla de acceso para
+   * mostrar su nombre; devuelve null en modo de un solo cliente.
+   */
+  app.get('/tenant', async (req) => ({
+    tenant: req.tenant ? { name: req.tenant.name, slug: req.tenant.slug } : null,
+  }));
 
   /** Canjea el token del enlace por una sesión. */
   app.post<{ Body: { token?: string } }>('/callback', async (req, reply) => {

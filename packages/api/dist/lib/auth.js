@@ -1,8 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../env.js';
 import { prisma } from '../db.js';
+import { sesionCoincide } from './tenant.js';
 export function issueSession(reply, user) {
     const token = jwt.sign(user, env.jwtSecret, { expiresIn: '30d' });
+    // Sin `domain`: la cookie queda atada al host exacto que la emitió. Poner el dominio
+    // padre la compartiría entre todos los subdominios, es decir, entre todos los clientes,
+    // que es justamente lo que este modelo evita.
     reply.setCookie(env.cookieName, token, {
         httpOnly: true,
         sameSite: 'lax',
@@ -20,7 +24,17 @@ export async function loadUser(req) {
     if (!raw)
         return;
     try {
-        req.user = jwt.verify(raw, env.jwtSecret);
+        const sesion = jwt.verify(raw, env.jwtSecret);
+        /**
+         * La sesión solo vale en el subdominio de su organización.
+         *
+         * Cada cliente vive en un origen distinto, así que el navegador ya no comparte la
+         * cookie entre subdominios. Esta comprobación cubre el caso de que alguien la copie
+         * a mano: una sesión de Bastión no abre el CRM de Proba.
+         */
+        if (!sesionCoincide(req, sesion.organizationId))
+            return;
+        req.user = sesion;
     }
     catch {
         /* cookie inválida o vencida: se ignora */

@@ -1,8 +1,17 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
 /** Magic link: los asesores no gestionan contraseñas. */
 export default function Login() {
+  // Quién es el cliente de este subdominio. Se muestra para que nadie dude de en qué
+  // CRM está entrando cuando administra varios.
+  const tenant = useQuery({
+    queryKey: ['tenant'],
+    queryFn: () => api.get<{ tenant: { name: string; slug: string } | null }>('/auth/tenant'),
+    retry: false,
+  });
+
   const [email, setEmail] = useState('');
   const [estado, setEstado] = useState<'idle' | 'enviando' | 'enviado' | 'error'>('idle');
 
@@ -20,6 +29,9 @@ export default function Login() {
   return (
     <div className="login card">
       <div className="marca" style={{ fontSize: 22, marginBottom: 4 }}>Lucuma CRM</div>
+      {tenant.data?.tenant && (
+        <p className="nombre" style={{ marginTop: 0 }}>{tenant.data.tenant.name}</p>
+      )}
       <p className="meta">Te enviamos un enlace de acceso a tu correo.</p>
       <form onSubmit={enviar}>
         <label htmlFor="email">Correo</label>

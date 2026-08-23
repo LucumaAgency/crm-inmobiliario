@@ -10,6 +10,7 @@ import { prisma } from '../db.js';
 import { enqueue } from '../lib/jobs.js';
 import { assignLead, pickOwner } from './assign.js';
 import { env } from '../env.js';
+import { urlDeOrganizacion } from '../lib/tenant.js';
 
 const VENTANA_DEDUP_DIAS = 30;
 
@@ -350,6 +351,13 @@ async function resolverUnidad(valor: string | undefined, projectId: string | nul
   });
 }
 
-export function leadUrl(leadId: string) {
-  return `${env.appUrl.replace(/\/$/, '')}/leads/${leadId}`;
+/**
+ * Enlace a la ficha del lead.
+ *
+ * El worker manda correos fuera de cualquier petición HTTP, así que no puede deducir el
+ * subdominio del host: se lo dice el slug de la organización del lead. Sin dominio base
+ * configurado cae en `APP_URL`, que es el modo de un solo cliente.
+ */
+export function leadUrl(leadId: string, orgSlug?: string | null) {
+  return `${urlDeOrganizacion(orgSlug)}/leads/${leadId}`;
 }

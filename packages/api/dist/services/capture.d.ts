@@ -20,4 +20,11 @@ export interface CaptureResult {
  * importación, alta manual) termina aquí.
  */
 export declare function captureLead(input: SubmissionInput, schema: FormSchema | null, ctx: CaptureContext): Promise<CaptureResult>;
-export declare function leadUrl(leadId: string): string;
+/**
+ * Enlace a la ficha del lead.
+ *
+ * El worker manda correos fuera de cualquier petición HTTP, así que no puede deducir el
+ * subdominio del host: se lo dice el slug de la organización del lead. Sin dominio base
+ * configurado cae en `APP_URL`, que es el modo de un solo cliente.
+ */
+export declare function leadUrl(leadId: string, orgSlug?: string | null): string;

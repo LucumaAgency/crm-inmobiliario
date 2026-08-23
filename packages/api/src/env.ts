@@ -54,6 +54,11 @@ export const env = {
   appUrl: reqEnProduccion('APP_URL', 'http://localhost:5173'),
   jwtSecret: reqEnProduccion('JWT_SECRET', 'dev-secret-no-usar-en-produccion'),
   cookieName: process.env.COOKIE_NAME ?? 'lcrm_session',
+  /**
+   * Dominio base del CRM (`crmlucuma.com`). Cada cliente vive en su subdominio.
+   * Sin definir, la aplicación funciona en modo de un solo cliente, como hasta ahora.
+   */
+  baseDomain: process.env.CRM_BASE_DOMAIN?.trim().toLowerCase() || '',
   // Procesado de la cola dentro del proceso de la API al encolar algo vencido.
   // Se apaga con WORKER_INLINE=0 en servidores donde la tarea programada sí funciona
   // por minuto y se prefiere que el proceso web solo atienda peticiones.

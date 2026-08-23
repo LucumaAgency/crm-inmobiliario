@@ -91,6 +91,7 @@ async function enviarEmail(payload: Record<string, unknown>) {
       project: { select: { name: true } },
       unit: { select: { code: true } },
       owner: { select: { email: true, name: true } },
+      organization: { select: { slug: true } },
     },
   });
   if (!lead) return;
@@ -108,7 +109,7 @@ async function enviarEmail(payload: Record<string, unknown>) {
     project: lead.project?.name,
     unit: lead.unit?.code,
     message: lead.message,
-    url: leadUrl(lead.id),
+    url: leadUrl(lead.id, lead.organization?.slug),
   });
 
   /**
@@ -145,7 +146,10 @@ async function enviarEmail(payload: Record<string, unknown>) {
 async function revisarSla(payload: { leadId: string }) {
   const lead = await prisma.lead.findUnique({
     where: { id: payload.leadId },
-    include: { owner: { select: { email: true, name: true } } },
+    include: {
+      owner: { select: { email: true, name: true } },
+      organization: { select: { slug: true } },
+    },
   });
   if (!lead || lead.firstContactAt || lead.status !== 'activo') return;
 
@@ -154,7 +158,7 @@ async function revisarSla(payload: { leadId: string }) {
     await sendMail({
       to: lead.owner.email,
       subject: `Lead sin contactar hace ${minutos} minutos`,
-      html: `<p>Este lead sigue sin primer contacto.</p><p><a href="${leadUrl(lead.id)}">Abrirlo ahora</a></p>`,
+      html: `<p>Este lead sigue sin primer contacto.</p><p><a href="${leadUrl(lead.id, lead.organization?.slug)}">Abrirlo ahora</a></p>`,
     });
   }
   await prisma.activity.create({

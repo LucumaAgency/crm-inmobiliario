@@ -3,7 +3,7 @@ import { normalizeDocument, normalizeEmail, normalizePhonePE, } from '@lucuma-cr
 import { prisma } from '../db.js';
 import { enqueue } from '../lib/jobs.js';
 import { assignLead, pickOwner } from './assign.js';
-import { env } from '../env.js';
+import { urlDeOrganizacion } from '../lib/tenant.js';
 const VENTANA_DEDUP_DIAS = 30;
 /**
  * Puerta única de entrada de leads. Toda fuente (formulario web, WhatsApp, Meta Ads,
@@ -300,6 +300,13 @@ async function resolverUnidad(valor, projectId) {
         select: { id: true, code: true },
     });
 }
-export function leadUrl(leadId) {
-    return `${env.appUrl.replace(/\/$/, '')}/leads/${leadId}`;
+/**
+ * Enlace a la ficha del lead.
+ *
+ * El worker manda correos fuera de cualquier petición HTTP, así que no puede deducir el
+ * subdominio del host: se lo dice el slug de la organización del lead. Sin dominio base
+ * configurado cae en `APP_URL`, que es el modo de un solo cliente.
+ */
+export function leadUrl(leadId, orgSlug) {
+    return `${urlDeOrganizacion(orgSlug)}/leads/${leadId}`;
 }
