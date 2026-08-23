@@ -139,14 +139,26 @@ Con el correo de Plesk del propio dominio:
 2. Añadir estas variables **al `.env`**, no solo al panel de Node.js:
 
 ```
-SMTP_HOST=<host de correo del servidor>
-SMTP_PORT=587
+SMTP_HOST=mail.<dominio>
+SMTP_PORT=465
 SMTP_USER=crm@<dominio>
-SMTP_PASS=<contraseña del buzón>
+SMTP_PASS=la-contraseña-del-buzón
 MAIL_FROM="Lucuma CRM <crm@<dominio>>"
 ```
 
-`secure` se activa solo cuando el puerto es 465; con 587 se usa STARTTLS.
+Sustituye `<dominio>` por el real. Los `< >` solo se conservan en `MAIL_FROM`, donde forman
+parte del formato estándar `Nombre <dirección>`.
+
+**Puerto 465, no 587.** El transporte activa TLS directo solo cuando el puerto es 465; con 587
+espera STARTTLS, y el servidor de correo de Plesk rechaza la conexión. Comprobado en el
+despliegue de referencia: con 587 fallaba, con 465 y `mail.<dominio>` funciona.
+
+`localhost` como host parece más simple y evita DNS, pero el certificado del servidor de correo
+no coincide con ese nombre y la conexión TLS se cae. Usa el nombre real del servidor de correo.
+
+Cuando algo no cuadre, el fallo completo queda en `logs/app.txt` con su código: `EDNS`/`EBADNAME`
+es un host que no existe, `EAUTH` son credenciales, `ECONNREFUSED` es host o puerto, y un error
+de certificado suele ser el host equivocado.
 
 **Tienen que estar en el `.env`**, y esta es la razón: los correos de lead nuevo no los manda la
 API, los manda el **worker**, que corre desde una tarea programada y por tanto **no recibe las
