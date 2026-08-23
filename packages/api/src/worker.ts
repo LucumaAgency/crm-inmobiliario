@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from './db.js';
 import { env } from './env.js';
-import { logLine } from './lib/log.js';
+import { logError, logLine } from './lib/log.js';
 import { backoffMinutes } from './lib/jobs.js';
 import { newLeadEmail, sendMail } from './lib/mail.js';
 import { leadUrl } from './services/capture.js';
@@ -151,14 +151,14 @@ async function main() {
           lockedBy: null,
         },
       });
-      logLine(`[worker] job ${job.id} (${job.type}) falló, intento ${intentos}:`, err);
+      logError(`[worker] job ${job.id} (${job.type}) falló, intento ${intentos}:`, err);
     }
   }
   await prisma.$disconnect();
 }
 
 main().catch(async (err) => {
-  logLine('[worker] error fatal:', err);
+  logError('[worker] error fatal:', err);
   await prisma.$disconnect();
   process.exit(1);
 });

@@ -22,3 +22,12 @@ export declare function getLogStream(): fs.WriteStream | null;
  * mailer de desarrollo.
  */
 export declare function logLine(...partes: unknown[]): void;
+/**
+ * Como `logLine`, pero por **stderr**.
+ *
+ * La tarea programada de Plesk decide si avisar mirando la salida de error, no el
+ * código de salida: un fallo que solo escribe en stdout deja el aviso «Solo errores»
+ * mudo, y el worker puede llevar semanas roto sin que nadie se entere. Todo lo que
+ * sea un fallo va por aquí.
+ */
+export declare function logError(...partes: unknown[]): void;

@@ -46,9 +46,29 @@ export function getLogStream() {
  * mailer de desarrollo.
  */
 export function logLine(...partes) {
+    escribir(console.log, partes);
+}
+/**
+ * Como `logLine`, pero por **stderr**.
+ *
+ * La tarea programada de Plesk decide si avisar mirando la salida de error, no el
+ * código de salida: un fallo que solo escribe en stdout deja el aviso «Solo errores»
+ * mudo, y el worker puede llevar semanas roto sin que nadie se entere. Todo lo que
+ * sea un fallo va por aquí.
+ */
+export function logError(...partes) {
+    escribir(console.error, partes);
+}
+function escribir(salida, partes) {
     const texto = partes
-        .map((p) => (typeof p === 'string' ? p : JSON.stringify(p)))
+        .map((p) => {
+        if (typeof p === 'string')
+            return p;
+        if (p instanceof Error)
+            return p.stack ?? p.message;
+        return JSON.stringify(p);
+    })
         .join(' ');
-    console.log(texto);
+    salida(texto);
     getLogStream()?.write(`${new Date().toISOString()} ${texto}\n`);
 }

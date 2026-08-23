@@ -1,6 +1,6 @@
 import { buildApp } from './app.js';
 import { env } from './env.js';
-import { logLine } from './lib/log.js';
+import { logError, logLine } from './lib/log.js';
 
 /**
  * Arranque de la API.
@@ -23,6 +23,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logLine('No se pudo arrancar la API:', String(err?.stack ?? err));
+  logError('No se pudo arrancar la API:', err);
   process.exit(1);
 });
