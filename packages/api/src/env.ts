@@ -1,12 +1,24 @@
 import 'node:process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirnameEnv = path.dirname(fileURLToPath(import.meta.url));
 
 // El cliente de Prisma lee .env por su cuenta, pero el proceso no: sin esto `APP_URL`,
 // `JWT_SECRET` y las de SMTP caían a sus valores por defecto aunque el .env las definiera.
-// En Plesk las variables las inyecta el panel y este archivo no existe, de ahí el try.
+//
+// La ruta es EXPLÍCITA y relativa a este archivo, no al directorio actual: `loadEnvFile()`
+// sin argumento busca en el cwd, y la tarea programada que ejecuta el worker no corre
+// necesariamente desde la raíz de la aplicación. Con el cwd equivocado el worker arrancaría
+// sin DATABASE_URL y moriría en cada ejecución, en silencio.
+//
+// Las variables ya presentes en el entorno GANAN sobre el archivo (comprobado), así que en
+// Plesk el panel sigue mandando y el .env solo rellena lo que falte.
+const rutaEnv = path.resolve(__dirnameEnv, '../../../.env');
 try {
-  (process as NodeJS.Process & { loadEnvFile?: (p?: string) => void }).loadEnvFile?.();
+  (process as NodeJS.Process & { loadEnvFile?: (p?: string) => void }).loadEnvFile?.(rutaEnv);
 } catch {
-  /* sin .env: se usan las variables del entorno, que es el caso de producción */
+  /* sin .env: se usan las variables del entorno, que es el caso de Passenger en Plesk */
 }
 
 const enProduccion = (process.env.NODE_ENV ?? 'development') === 'production';

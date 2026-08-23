@@ -90,16 +90,54 @@ proceso no es confiable. La cola la procesa un worker externo:
 Plesk → **Tareas programadas** → cada minuto:
 
 ```
-/opt/plesk/node/20/bin/node /var/www/vhosts/<dominio>/crm/packages/api/dist/worker.js
+/var/www/vhosts/<hosting>/<dominio>/bin/worker.sh
 ```
 
-Esa ruta **depende de la versión de Node de la suscripción**: si sigue en 21.7.3 el binario de
-`node/20` no existe y la tarea falla en silencio. Confirma la ruta real antes de darla por
-buena, y revisa el log de la tarea programada al menos una vez después de crearla.
+Se usa el script del repo en vez de invocar `node` directamente porque **el shell de las tareas
+programadas no hereda el PATH de Node de la suscripción**: un `node ...` a secas falla con
+`command not found`, y en una tarea programada eso pasa en silencio, cada minuto, sin que nadie
+se entere. `bin/worker.sh` busca el intérprete (prefiere 22 y 20 sobre la 21, que es impar y ya
+no recibe parches), se sitúa en la raíz y ejecuta el worker.
+
+Si hiciera falta fijar el intérprete: `NODE_BIN=/opt/plesk/node/20/bin/node .../bin/worker.sh`.
+
+Probado ejecutándolo desde `/` y con el entorno vacío (`env -i`), que es el peor caso de un
+cron: encuentra Node, carga el `.env` por ruta propia, conecta con la base y procesa la cola.
+Revisa igual el log de la tarea la primera vez.
 
 De esto dependen: los correos de lead nuevo, las alertas de SLA, los reintentos de webhooks y,
 más adelante, las conversiones server side. Si no está activa, el CRM guarda leads pero no
 avisa a nadie.
+
+## 4b. Correo saliente (SMTP)
+
+Mientras `SMTP_HOST` no esté definido, la aplicación **no envía nada**: escribe los correos en
+`logs/app.txt`, magic links incluidos. Sirve para arrancar, pero ningún asesor va a entrar así
+y los avisos de lead nuevo no salen del servidor.
+
+Con el correo de Plesk del propio dominio:
+
+1. Plesk → **Correo** → crear una cuenta, por ejemplo `crm@<dominio>`.
+2. Añadir estas variables **al `.env`**, no solo al panel de Node.js:
+
+```
+SMTP_HOST=<host de correo del servidor>
+SMTP_PORT=587
+SMTP_USER=crm@<dominio>
+SMTP_PASS=<contraseña del buzón>
+MAIL_FROM="Lucuma CRM <crm@<dominio>>"
+```
+
+`secure` se activa solo cuando el puerto es 465; con 587 se usa STARTTLS.
+
+**Tienen que estar en el `.env`**, y esta es la razón: los correos de lead nuevo no los manda la
+API, los manda el **worker**, que corre desde una tarea programada y por tanto **no recibe las
+variables del panel de Node.js**. Si solo las pones ahí, el login por magic link funcionará y
+las notificaciones de lead no, que es la peor combinación posible: parece que todo va bien.
+
+Para entregabilidad real conviene una cuenta externa (Google Workspace, Zoho, un servicio
+transaccional) en vez del correo del hosting, y configurar SPF y DKIM del dominio. Un correo de
+lead nuevo que cae en spam equivale a no tenerlo.
 
 ## 5. Primer arranque
 
