@@ -147,9 +147,12 @@ export declare const leadListQuery: z.ZodObject<{
     status: z.ZodOptional<z.ZodEnum<["activo", "ganado", "perdido", "spam"]>>;
     page: z.ZodDefault<z.ZodNumber>;
     perPage: z.ZodDefault<z.ZodNumber>;
+    /** `actividad` (por defecto) o `creacion`, el orden de antes. */
+    orden: z.ZodDefault<z.ZodEnum<["actividad", "creacion"]>>;
 }, "strip", z.ZodTypeAny, {
     page: number;
     perPage: number;
+    orden: "actividad" | "creacion";
     status?: "activo" | "ganado" | "perdido" | "spam" | undefined;
     q?: string | undefined;
     stageId?: string | undefined;
@@ -163,6 +166,7 @@ export declare const leadListQuery: z.ZodObject<{
     projectId?: string | undefined;
     page?: number | undefined;
     perPage?: number | undefined;
+    orden?: "actividad" | "creacion" | undefined;
 }>;
 export declare const activityInput: z.ZodObject<{
     type: z.ZodEnum<["nota", "llamada", "whatsapp", "email", "visita"]>;

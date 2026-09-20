@@ -24,6 +24,7 @@ interface Stats { total: number; ultimos30: number; sinContactar: number }
 export default function Leads() {
   const [q, setQ] = useState('');
   const [stageId, setStageId] = useState('');
+  const [orden, setOrden] = useState<'actividad' | 'creacion'>('actividad');
   const [creando, setCreando] = useState(false);
 
   const stats = useQuery({ queryKey: ['stats'], queryFn: () => api.get<Stats>('/stats') });
@@ -32,11 +33,24 @@ export default function Leads() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/stages'),
   });
   const leads = useQuery({
-    queryKey: ['leads', q, stageId],
+    queryKey: ['leads', q, stageId, orden],
     queryFn: () =>
       api.get<{ total: number; leads: Lead[] }>(
-        `/leads?${new URLSearchParams({ ...(q ? { q } : {}), ...(stageId ? { stageId } : {}) })}`
+        `/leads?${new URLSearchParams({
+          ...(q ? { q } : {}),
+          ...(stageId ? { stageId } : {}),
+          orden,
+        })}`
       ),
+    /**
+     * Un lead entra por un webhook, no por algo que el asesor haga en esta pantalla: sin
+     * refresco habría que recargar para enterarse. Se sondea cada 20 s y además al volver
+     * a la pestaña, que es cuando de verdad se mira.
+     */
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
+    // Que el sondeo no parpadee la lista mientras se lee.
+    placeholderData: (previo) => previo,
   });
 
   return (
@@ -54,6 +68,14 @@ export default function Leads() {
           <select value={stageId} onChange={(e) => setStageId(e.target.value)}>
             <option value="">Todas las etapas</option>
             {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as typeof orden)}
+            aria-label="Orden de la lista"
+          >
+            <option value="actividad">Actividad reciente</option>
+            <option value="creacion">Fecha de creación</option>
           </select>
         </div>
         <button type="button" className="btn" onClick={() => setCreando(true)}>+ Nuevo lead</button>

@@ -217,6 +217,22 @@ async function recibirUno(
       where: { id: numero.id },
       data: { lastInboundAt: recibidoEn, lastError: null },
     }),
+    /**
+     * Un mensaje entrante ES actividad del lead, aunque no genere una entrada en el
+     * historial (decisión 28).
+     *
+     * Sin esto, un cliente que escribe sobre un lead que ya existía no movía nada: la
+     * lista ordena por actividad reciente y el lead se quedaba donde estaba, enterrado
+     * entre los viejos. El mensaje llegaba y nadie lo veía.
+     */
+    ...(leadId
+      ? [
+          prisma.lead.update({
+            where: { id: leadId },
+            data: { lastActivityAt: recibidoEn },
+          }),
+        ]
+      : []),
   ]);
 
   logLine(`wa: mensaje de +${waId} → lead ${leadId ?? 'sin lead'}`);

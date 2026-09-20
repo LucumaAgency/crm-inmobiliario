@@ -11,7 +11,7 @@ export default async function leadRoutes(app) {
         if (!q.success)
             return reply.code(400).send({ error: 'Filtros inválidos' });
         const user = req.user;
-        const { page, perPage, q: texto, ...filtros } = q.data;
+        const { page, perPage, q: texto, orden, ...filtros } = q.data;
         const where = { ...scopeForUser(user) };
         for (const [k, v] of Object.entries(filtros))
             if (v)
@@ -40,7 +40,20 @@ export default async function leadRoutes(app) {
                     stage: { select: { id: true, name: true, slug: true, color: true } },
                     owner: { select: { id: true, name: true } },
                 },
-                orderBy: { createdAt: 'desc' },
+                /**
+                 * Por actividad reciente, no por fecha de creación.
+                 *
+                 * Lo que el asesor necesita arriba es lo que se movió: quien acaba de escribir por
+                 * WhatsApp, no quien entró primero. `lastActivityAt` lo tocan la captura, las
+                 * actividades y los mensajes entrantes, así que un lead de hace meses que vuelve
+                 * a escribir sube solo.
+                 *
+                 * Se puede pedir el orden anterior con `orden=creacion`: hay quien trabaja la
+                 * lista de arriba abajo y una lista que se reordena sola lo desorienta.
+                 */
+                orderBy: orden === 'creacion'
+                    ? { createdAt: 'desc' }
+                    : [{ lastActivityAt: 'desc' }, { createdAt: 'desc' }],
                 skip: (page - 1) * perPage,
                 take: perPage,
             }),

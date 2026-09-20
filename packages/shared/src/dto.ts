@@ -51,6 +51,8 @@ export const leadListQuery = z.object({
   status: z.enum(['activo', 'ganado', 'perdido', 'spam']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(25),
+  /** `actividad` (por defecto) o `creacion`, el orden de antes. */
+  orden: z.enum(['actividad', 'creacion']).default('actividad'),
 });
 
 export const activityInput = z.object({
