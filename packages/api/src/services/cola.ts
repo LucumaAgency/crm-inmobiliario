@@ -71,6 +71,11 @@ async function procesar(job: { id: string; type: string; payload: unknown }) {
       return enviarEmail(job.payload as Record<string, unknown>);
     case 'sla.check':
       return revisarSla(job.payload as { leadId: string });
+    case 'meta.lead.fetch': {
+      // El aviso de Meta solo trae un identificador; los datos hay que ir a buscarlos.
+      const { procesarLeadgen } = await import('./meta.js');
+      return procesarLeadgen(String((job.payload as { leadgenId: string }).leadgenId));
+    }
     case 'retention.purge':
       return; // Fase 2: purga según política de retención
     case 'webhook.deliver':

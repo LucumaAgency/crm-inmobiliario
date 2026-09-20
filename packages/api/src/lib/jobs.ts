@@ -4,6 +4,7 @@ export type JobType =
   | 'email.send'
   | 'webhook.deliver'
   | 'sla.check'
+  | 'meta.lead.fetch'
   | 'conversion.push'
   | 'retention.purge';
 

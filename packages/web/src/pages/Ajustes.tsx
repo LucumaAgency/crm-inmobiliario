@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import MetaLeadAds from './MetaLeadAds.js';
 
 interface Site {
   id: string;
@@ -204,6 +205,8 @@ export default function Ajustes() {
           </div>
         </form>
       </div>
+
+      <MetaLeadAds />
 
       <div className="card">
         <strong>Exportar</strong>

@@ -26,8 +26,10 @@ model Organization {
   contacts Contact[]
   leads    Lead[]
   stages   Stage[]
-  forms    Form[]
-  settings Json?
+  forms     Form[]
+  metaPages MetaPage[]
+  metaLeads MetaLead[]
+  settings  Json?
 
   @@map("organizations")
 }
@@ -112,6 +114,7 @@ model Project {
   typologies Typology[]
   leads      Lead[]
   forms      Form[]
+  metaPages  MetaPage[]
 
   @@unique([organizationId, slug])
   @@map("projects")
@@ -281,6 +284,7 @@ model Lead {
   activities  Activity[]
   assignments Assignment[]
   submissions FormSubmission[]
+  metaLeads   MetaLead[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -382,6 +386,85 @@ model FormSubmission {
   @@map("form_submissions")
 }
 
+// ------------------------------------------------------------- meta lead ads
+
+// Una pagina de Facebook conectada a un cliente.
+//
+// El webhook de Meta es UNO solo para toda la aplicacion (Meta no admite una URL por
+// cliente), asi que la organizacion no se deduce del subdominio como en el resto del
+// CRM: se deduce del pageId que viene en el aviso. Por eso el pageId es unico a nivel
+// global: una pagina pertenece a un solo cliente.
+model MetaPage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // ID de la pagina en Facebook. Llave de enrutado del webhook.
+  pageId         String       @unique
+  pageName       String
+  // Page access token, cifrado en reposo (AES-256-GCM, ver lib/secretos.ts). Es la
+  // credencial que permite leer los datos personales del lead: en claro en la base,
+  // cualquiera con acceso al volcado lee los leads de Meta sin pasar por el CRM.
+  accessTokenEnc String       @db.Text
+  // Proyecto por defecto para los leads de esta pagina.
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  // Mapa { "<form_id de Meta>": "<projectId>" }. Una pagina suele anunciar varios
+  // proyectos con un formulario instantaneo cada uno; sin esto todos los leads caerian
+  // en el mismo proyecto y el asesor no sabria por cual preguntaron.
+  formMap        Json?
+  // Destinatarios del aviso de lead nuevo, como en los formularios web.
+  notifyEmails   Json?
+  active         Boolean      @default(true)
+  lastLeadAt     DateTime?
+  // Ultimo error de la API de Meta (token vencido, permiso retirado).
+  lastError      String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("meta_pages")
+}
+
+enum MetaLeadStatus {
+  recibido
+  procesado
+  fallido
+  descartado
+}
+
+// Cada aviso de leadgen recibido de Meta.
+//
+// Es la idempotencia de este canal: Meta reintenta el webhook cuando no recibe un 200 a
+// tiempo, y el mismo leadgen_id puede llegar varias veces. El unico sobre leadgenId es
+// lo que impide que un reintento cree un segundo lead. La deduplicacion de captureLead
+// no basta: cubre a la misma persona en 30 dias, no al mismo aviso.
+model MetaLead {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // ID del lead en Meta. Idempotencia del canal.
+  leadgenId      String         @unique
+  pageId         String
+  // form_id del formulario instantaneo de Meta (no es un Form del CRM).
+  metaFormId     String?
+  adId           String?
+  adsetId        String?
+  campaignId     String?
+  platform       String?
+  leadId         String?
+  lead           Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  // La respuesta del Graph API tal cual. Si el mapeo falla, el original sobrevive.
+  raw            Json?
+  status         MetaLeadStatus @default(recibido)
+  error          String?        @db.Text
+  createdAt      DateTime       @default(now())
+  processedAt    DateTime?
+
+  @@index([organizationId, createdAt])
+  @@index([status])
+  @@map("meta_leads")
+}
+
 // ------------------------------------------------------------- jobs y webhooks
 
 enum JobStatus {
@@ -396,7 +479,7 @@ enum JobStatus {
 // setInterval dentro del proceso no es confiable.
 model Job {
   id          String    @id @default(cuid())
-  type        String // email.send | webhook.deliver | sla.check | conversion.push | retention.purge
+  type        String // email.send | webhook.deliver | sla.check | meta.lead.fetch | conversion.push | retention.purge
   payload     Json
   status      JobStatus @default(pending)
   attempts    Int       @default(0)

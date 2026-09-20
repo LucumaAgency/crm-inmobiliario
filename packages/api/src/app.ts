@@ -17,6 +17,7 @@ import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
+import metaRoutes from './routes/meta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -107,6 +108,20 @@ export async function buildApp() {
       await publicRoutes(scope);
     },
     { prefix: '/api/v1/public' }
+  );
+
+  /**
+   * Webhook de Meta Lead Ads. Va por su propio ámbito porque registra un parser de JSON
+   * que conserva el cuerpo crudo para comprobar la firma, y eso no debe alcanzar al resto
+   * de la API. Límite propio: Meta puede mandar ráfagas cuando reintenta lo atrasado, y
+   * ese tráfico no debe consumir el cupo de los formularios de los clientes.
+   */
+  await app.register(
+    async (scope) => {
+      await scope.register(rateLimit, { max: 600, timeWindow: '1 minute' });
+      await metaRoutes(scope);
+    },
+    { prefix: '/api/v1/meta' }
   );
 
   await app.register(authRoutes, { prefix: '/api/v1/auth' });

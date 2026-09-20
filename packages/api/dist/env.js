@@ -66,5 +66,15 @@ export const env = {
         from: process.env.MAIL_FROM ?? 'Lucuma CRM <no-reply@localhost>',
     },
     workerBatch: Number(process.env.WORKER_BATCH ?? 25),
+    /**
+     * Meta Lead Ads. Sin `appSecret` el webhook queda apagado: sin firma no hay forma de
+     * distinguir un aviso de Meta de uno inventado, y este canal crea leads sin sesión.
+     */
+    meta: {
+        appSecret: process.env.META_APP_SECRET?.trim() || '',
+        /** Cadena que Meta devuelve en el alta del webhook (hub.verify_token). */
+        verifyToken: process.env.META_VERIFY_TOKEN?.trim() || '',
+        graphVersion: process.env.META_GRAPH_VERSION?.trim() || 'v21.0',
+    },
     isProd: (process.env.NODE_ENV ?? 'development') === 'production',
 };
