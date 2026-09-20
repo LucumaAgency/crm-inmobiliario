@@ -204,3 +204,11 @@ label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; }
   font-size: 12px; line-height: 1.5;
   white-space: pre-wrap; word-break: break-word;
 }
+
+/* Lead con mensajes de WhatsApp sin leer */
+.chip-verde { background: #dcfce7; color: #166534; }
+.card-sin-leer { border-left: 3px solid #16a34a; }
+.punto {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #16a34a; margin-right: 7px; vertical-align: middle;
+}

@@ -15,6 +15,8 @@ interface Lead {
   unit: { code: string } | null;
   stage: { name: string; color: string | null } | null;
   owner: { name: string } | null;
+  /** Conversación de WhatsApp del contacto, si tiene. */
+  whatsapp: { unread: number; lastInboundAt: string | null } | null;
 }
 
 interface Stats { total: number; ultimos30: number; sinContactar: number }
@@ -67,10 +69,18 @@ export default function Leads() {
       {leads.data?.leads.map((l) => {
         const minutos = (Date.now() - new Date(l.createdAt).getTime()) / 60000;
         const enRiesgo = !l.firstContactAt && minutos > 15;
+        const sinLeer = l.whatsapp?.unread ?? 0;
         return (
-          <Link key={l.id} to={`/leads/${l.id}`} className="card card-lead">
+          <Link
+            key={l.id}
+            to={`/leads/${l.id}`}
+            className={sinLeer > 0 ? 'card card-lead card-sin-leer' : 'card card-lead'}
+          >
             <div className="fila">
-              <span className="nombre">{l.contact.fname} {l.contact.lname ?? ''}</span>
+              <span className="nombre">
+                {sinLeer > 0 && <span className="punto" aria-hidden="true" />}
+                {l.contact.fname} {l.contact.lname ?? ''}
+              </span>
               {l.stage && (
                 <span className="chip" style={l.stage.color ? { background: l.stage.color + '22', color: l.stage.color } : undefined}>
                   {l.stage.name}
@@ -84,7 +94,18 @@ export default function Leads() {
             </div>
             <div className="fila" style={{ marginTop: 8 }}>
               <span className="meta">{desde(l.createdAt)} · {l.owner?.name ?? 'sin asignar'}</span>
-              {enRiesgo && <span className="chip chip-alerta">Sin contactar</span>}
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {sinLeer > 0 ? (
+                  <span className="chip chip-verde">
+                    {sinLeer === 1 ? '1 mensaje sin leer' : `${sinLeer} mensajes sin leer`}
+                  </span>
+                ) : (
+                  l.whatsapp?.lastInboundAt && (
+                    <span className="meta">escribió {desde(l.whatsapp.lastInboundAt)}</span>
+                  )
+                )}
+                {enRiesgo && <span className="chip chip-alerta">Sin contactar</span>}
+              </span>
             </div>
           </Link>
         );

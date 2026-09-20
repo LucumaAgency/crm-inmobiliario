@@ -45,7 +45,47 @@ export default async function leadRoutes(app) {
                 take: perPage,
             }),
         ]);
-        return { total, page, perPage, leads };
+        /**
+         * Mensajes de WhatsApp sin leer, por lead.
+         *
+         * Va en una consulta aparte y no en el `include` porque la conversación cuelga del
+         * CONTACTO, no del lead: la misma persona puede tener un lead viejo y uno nuevo, y su
+         * conversación es una sola. Se resuelve sobre la página ya cargada, así que es una
+         * consulta más por página, no una por lead.
+         *
+         * Sin esto, un mensaje entrante no se ve en ninguna parte hasta que alguien abre la
+         * ficha por casualidad. Pasó en la puesta en marcha: el mensaje entró, creó actividad
+         * sobre un lead existente, y en la lista no cambió nada.
+         */
+        const conversaciones = leads.length
+            ? await prisma.waConversation.findMany({
+                where: {
+                    organizationId: user.organizationId,
+                    contactId: { in: leads.map((l) => l.contactId) },
+                },
+                select: { contactId: true, unread: true, lastInboundAt: true },
+            })
+            : [];
+        const porContacto = new Map();
+        for (const c of conversaciones) {
+            const previo = porContacto.get(c.contactId);
+            porContacto.set(c.contactId, {
+                // Un contacto podría tener conversación con más de un número del cliente.
+                unread: (previo?.unread ?? 0) + c.unread,
+                lastInboundAt: !previo?.lastInboundAt || (c.lastInboundAt && c.lastInboundAt > previo.lastInboundAt)
+                    ? c.lastInboundAt
+                    : previo.lastInboundAt,
+            });
+        }
+        return {
+            total,
+            page,
+            perPage,
+            leads: leads.map((l) => ({
+                ...l,
+                whatsapp: porContacto.get(l.contactId) ?? null,
+            })),
+        };
     });
     app.get('/:id', async (req, reply) => {
         const user = req.user;
