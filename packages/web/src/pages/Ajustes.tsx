@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import MetaLeadAds from './MetaLeadAds.js';
+import WhatsAppNumeros from './WhatsAppNumeros.js';
 
 interface Site {
   id: string;
@@ -207,6 +208,8 @@ export default function Ajustes() {
       </div>
 
       <MetaLeadAds />
+
+      <WhatsAppNumeros />
 
       <div className="card">
         <strong>Exportar</strong>

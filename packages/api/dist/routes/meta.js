@@ -1,5 +1,5 @@
 /**
- * Webhook de Meta Lead Ads.
+ * Webhook de Meta: Lead Ads y WhatsApp.
  *
  * Es el único punto del CRM que acepta escrituras sin sesión y sin llave de sitio, así
  * que la firma es lo que sostiene todo:
@@ -9,13 +9,17 @@
  *  - `POST /api/v1/meta/webhook` — los avisos. Se comprueba `X-Hub-Signature-256` contra
  *    el cuerpo CRUDO antes de mirar nada más.
  *
- * La URL es una sola para toda la aplicación: Meta no admite una por cliente. La
- * organización sale del `page_id` del aviso, no del subdominio (ver `MetaPage`).
+ * La URL es una sola para toda la aplicación: Meta no admite una por cliente, y **tampoco
+ * una por producto**. Por aquí entran los formularios instantáneos (`object: "page"`) y
+ * los mensajes de WhatsApp (`object: "whatsapp_business_account"`), que comparten app y
+ * por tanto app secret. La organización sale del identificador que trae el aviso —
+ * `page_id` o `phone_number_id`—, nunca del subdominio.
  */
 import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { logError, logLine } from '../lib/log.js';
 import { registrarAviso } from '../services/meta.js';
+import { recibirMensajes } from '../services/whatsapp.js';
 export default async function metaRoutes(app) {
     /**
      * Meta firma los bytes que envió, no el JSON re-serializado.
@@ -60,6 +64,26 @@ export default async function metaRoutes(app) {
             return reply.code(401).send({ error: 'Firma inválida' });
         }
         const cuerpo = req.body ?? {};
+        /**
+         * WhatsApp. Se procesa en la petición, igual que el aviso de leadgen y por el mismo
+         * motivo: son escrituras locales, y el mensaje tiene que estar en la base antes de
+         * responder 200 para que no se pierda si el proceso muere justo después.
+         */
+        if (cuerpo.object === 'whatsapp_business_account') {
+            for (const entrada of cuerpo.entry ?? []) {
+                for (const cambio of entrada.changes ?? []) {
+                    if (cambio.field !== 'messages' || !cambio.value)
+                        continue;
+                    try {
+                        await recibirMensajes(cambio.value);
+                    }
+                    catch (err) {
+                        logError('wa: no se pudo procesar el aviso', err);
+                    }
+                }
+            }
+            return { received: true };
+        }
         if (cuerpo.object !== 'page')
             return { received: true };
         const avisos = [];

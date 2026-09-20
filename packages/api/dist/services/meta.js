@@ -17,6 +17,7 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { descifrar } from '../lib/secretos.js';
 import { logLine } from '../lib/log.js';
+import { partirNombre } from '../lib/nombres.js';
 import { captureLead } from './capture.js';
 /**
  * Registra el aviso y encola su procesado. Idempotente: el mismo `leadgen_id` dos veces
@@ -266,27 +267,6 @@ function mapear(campos) {
     if (extras.length)
         values.message = extras.join('\n');
     return { values };
-}
-/**
- * Parte el nombre completo en nombres y apellidos, a la peruana.
- *
- * Meta da `full_name` en un solo campo cuando el anunciante no pide nombre y apellido por
- * separado. Cortar por el primer espacio es lo obvio y es lo incorrecto aquí: «María
- * Elena Rojas Paz» dejaría a la señora como «María» de nombre y «Elena Rojas Paz» de
- * apellido, y el asesor la saluda mal en el primer mensaje de WhatsApp.
- *
- * En Perú se usan dos apellidos, así que desde tres palabras las dos últimas son los
- * apellidos y lo anterior son los nombres. Con dos palabras, uno y uno. No es infalible
- * —hay apellidos compuestos como «De la Cruz»—, pero acierta en la enorme mayoría y
- * falla mejor: deja el nombre de pila correcto, que es lo que se usa para saludar.
- */
-export function partirNombre(completo) {
-    const partes = completo.trim().split(/\s+/).filter(Boolean);
-    if (partes.length <= 1)
-        return { fname: partes[0] ?? '' };
-    if (partes.length === 2)
-        return { fname: partes[0], lname: partes[1] };
-    return { fname: partes.slice(0, -2).join(' '), lname: partes.slice(-2).join(' ') };
 }
 /** El formulario instantáneo manda sobre el proyecto por defecto de la página. */
 function proyectoDe(pagina, metaFormId) {

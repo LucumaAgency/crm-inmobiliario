@@ -67,6 +67,12 @@ export const env = {
     },
     workerBatch: Number(process.env.WORKER_BATCH ?? 25),
     /**
+     * Token del latido externo de la cola (`/api/v1/cron/tick`). Sin definir, la ruta
+     * responde 503: una cola que cualquiera puede disparar es una forma gratis de hacer
+     * trabajar al servidor.
+     */
+    cronToken: process.env.CRON_TOKEN?.trim() || '',
+    /**
      * Meta Lead Ads. Sin `appSecret` el webhook queda apagado: sin firma no hay forma de
      * distinguir un aviso de Meta de uno inventado, y este canal crea leads sin sesión.
      */
