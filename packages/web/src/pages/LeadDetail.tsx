@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
+import ChatWhatsApp from './ChatWhatsApp.js';
 
 interface Detalle {
   id: string;
@@ -107,6 +108,8 @@ export default function LeadDetail({ rol }: { rol: string }) {
           {lead.message && <p style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>{lead.message}</p>}
         </div>
       )}
+
+      {rol !== 'solo_lectura' && <ChatWhatsApp leadId={lead.id} />}
 
       {rol !== 'solo_lectura' && (
         <div className="card">

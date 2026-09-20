@@ -666,6 +666,109 @@ export default async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ------------------------------------------------------ whatsapp
+
+  app.get('/whatsapp/numbers', { preHandler: gestion }, async (req) => {
+    const numeros = await prisma.waNumber.findMany({
+      where: { organizationId: req.user!.organizationId },
+      orderBy: { createdAt: 'desc' },
+      include: { project: { select: { id: true, name: true } } },
+    });
+    return numeros.map(({ accessTokenEnc, ...n }) => ({ ...n, tokenHint: pista(accessTokenEnc) }));
+  });
+
+  const numeroWa = z.object({
+    phoneNumberId: z.string().regex(/^\d{5,}$/, 'El ID del número son solo dígitos'),
+    wabaId: z.string().regex(/^\d{5,}$/, 'El ID de la cuenta son solo dígitos'),
+    displayNumber: z.string().min(6),
+    accessToken: z.string().min(20),
+    projectId: z.string().optional().nullable(),
+  });
+
+  app.post('/whatsapp/numbers', { preHandler: gestion }, async (req, reply) => {
+    const parsed = numeroWa.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const { accessToken, projectId, ...resto } = parsed.data;
+
+    const ocupado = await prisma.waNumber.findUnique({ where: { phoneNumberId: resto.phoneNumberId } });
+    if (ocupado) return reply.code(409).send({ error: 'Ese número ya está conectado.' });
+
+    const numero = await prisma.waNumber.create({
+      data: {
+        organizationId: req.user!.organizationId,
+        ...resto,
+        projectId: await proyectoValido(req.user!.organizationId, projectId),
+        accessTokenEnc: cifrar(accessToken),
+      },
+    });
+    await audit(req.user!.organizationId, req.user!.id, 'whatsapp.connect', {
+      entity: 'wa_number', entityId: numero.id, meta: { phoneNumberId: numero.phoneNumberId }, ip: req.ip,
+    });
+    const { accessTokenEnc, ...salida } = numero;
+    return { ...salida, tokenHint: pista(accessTokenEnc) };
+  });
+
+  app.patch<{ Params: { id: string } }>('/whatsapp/numbers/:id', { preHandler: gestion }, async (req, reply) => {
+    const parsed = numeroWa.partial().omit({ phoneNumberId: true })
+      .extend({ active: z.boolean().optional() }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+
+    const numero = await prisma.waNumber.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!numero) return reply.code(404).send({ error: 'Número no encontrado' });
+
+    const { accessToken, projectId, ...resto } = parsed.data;
+    const actualizado = await prisma.waNumber.update({
+      where: { id: numero.id },
+      data: {
+        ...resto,
+        ...(projectId !== undefined
+          ? { projectId: await proyectoValido(req.user!.organizationId, projectId) }
+          : {}),
+        ...(accessToken ? { accessTokenEnc: cifrar(accessToken), lastError: null } : {}),
+      },
+    });
+    const { accessTokenEnc, ...salida } = actualizado;
+    return { ...salida, tokenHint: pista(accessTokenEnc) };
+  });
+
+  app.delete<{ Params: { id: string } }>('/whatsapp/numbers/:id', { preHandler: gestion }, async (req, reply) => {
+    const numero = await prisma.waNumber.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!numero) return reply.code(404).send({ error: 'Número no encontrado' });
+    await prisma.waNumber.delete({ where: { id: numero.id } });
+    await audit(req.user!.organizationId, req.user!.id, 'whatsapp.disconnect', {
+      entity: 'wa_number', entityId: numero.id, meta: { phoneNumberId: numero.phoneNumberId }, ip: req.ip,
+    });
+    return { ok: true };
+  });
+
+  /**
+   * Plantillas aprobadas del cliente. Sin `gestion`: son lo único que se puede enviar
+   * fuera de la ventana de 24 horas, así que el asesor las necesita para dar seguimiento
+   * al día siguiente. No exponen ninguna credencial, solo nombres y textos.
+   */
+  app.get('/whatsapp/templates', async (req) => {
+    const numero = await prisma.waNumber.findFirst({
+      where: { organizationId: req.user!.organizationId, active: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!numero) return { ok: false as const, error: 'No hay ningún número conectado' };
+    const { plantillasDe } = await import('../services/whatsapp.js');
+    return plantillasDe(numero.phoneNumberId);
+  });
+
+  app.get<{ Params: { id: string } }>('/whatsapp/numbers/:id/templates', { preHandler: gestion }, async (req, reply) => {
+    const numero = await prisma.waNumber.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!numero) return reply.code(404).send({ error: 'Número no encontrado' });
+    const { plantillasDe } = await import('../services/whatsapp.js');
+    return plantillasDe(numero.phoneNumberId);
+  });
+
   /** Un projectId de otra organización dejaría leads colgando de un proyecto ajeno. */
   async function proyectoValido(organizationId: string, projectId?: string | null) {
     if (!projectId) return null;
