@@ -19,5 +19,15 @@ export declare const env: {
         from: string;
     };
     workerBatch: number;
+    /**
+     * Meta Lead Ads. Sin `appSecret` el webhook queda apagado: sin firma no hay forma de
+     * distinguir un aviso de Meta de uno inventado, y este canal crea leads sin sesión.
+     */
+    meta: {
+        appSecret: string;
+        /** Cadena que Meta devuelve en el alta del webhook (hub.verify_token). */
+        verifyToken: string;
+        graphVersion: string;
+    };
     isProd: boolean;
 };

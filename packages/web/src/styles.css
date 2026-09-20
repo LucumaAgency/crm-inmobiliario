@@ -85,6 +85,7 @@ button { font: inherit; cursor: pointer; }
 }
 .chip-gris { background: #f2f4f7; color: var(--suave); }
 .chip-alerta { background: #fef3c7; color: #92400e; }
+.chip-rojo { background: #fee2e2; color: #991b1b; }
 
 .btn {
   background: var(--azul); color: #fff; border: 0; border-radius: 8px;

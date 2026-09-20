@@ -6,6 +6,7 @@ import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, requireAuth, requireRole } from '../lib/auth.js';
 import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
+import { cifrar, pista } from '../lib/secretos.js';
 
 /** Gestión: proyectos, unidades, formularios, sitios, usuarios, etapas. */
 export default async function adminRoutes(app: FastifyInstance) {
@@ -529,6 +530,148 @@ export default async function adminRoutes(app: FastifyInstance) {
       select: { id: true, name: true, email: true, role: true, active: true },
     });
   });
+
+  // --------------------------------------------------- meta lead ads
+  /**
+   * Páginas de Facebook conectadas. El page access token no vuelve nunca al navegador:
+   * se muestra solo una pista de sus últimos caracteres, para saber cuál está cargado.
+   */
+  app.get('/meta/pages', { preHandler: gestion }, async (req) => {
+    const paginas = await prisma.metaPage.findMany({
+      where: { organizationId: req.user!.organizationId },
+      orderBy: { createdAt: 'desc' },
+      include: { project: { select: { id: true, name: true } } },
+    });
+    return paginas.map(({ accessTokenEnc, ...p }) => ({ ...p, tokenHint: pista(accessTokenEnc) }));
+  });
+
+  const paginaMeta = z.object({
+    pageId: z.string().regex(/^\d{5,}$/, 'El ID de la página son solo dígitos'),
+    pageName: z.string().min(1),
+    accessToken: z.string().min(20),
+    projectId: z.string().optional().nullable(),
+    formMap: z.record(z.string()).optional(),
+    notifyEmails: z.array(z.string().email()).optional(),
+  });
+
+  app.post('/meta/pages', { preHandler: gestion }, async (req, reply) => {
+    const parsed = paginaMeta.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const { accessToken, projectId, ...resto } = parsed.data;
+
+    // El pageId es único en toda la instalación: si ya existe, o es un duplicado del
+    // mismo cliente o alguien está intentando desviar los leads de otro. No se dice cuál.
+    const ocupada = await prisma.metaPage.findUnique({ where: { pageId: resto.pageId } });
+    if (ocupada) return reply.code(409).send({ error: 'Esa página ya está conectada.' });
+
+    const pagina = await prisma.metaPage.create({
+      data: {
+        organizationId: req.user!.organizationId,
+        ...resto,
+        projectId: await proyectoValido(req.user!.organizationId, projectId),
+        accessTokenEnc: cifrar(accessToken),
+        formMap: (resto.formMap ?? undefined) as never,
+        notifyEmails: (resto.notifyEmails ?? undefined) as never,
+      },
+    });
+    await audit(req.user!.organizationId, req.user!.id, 'meta.page.connect', {
+      entity: 'meta_page',
+      entityId: pagina.id,
+      meta: { pageId: pagina.pageId },
+      ip: req.ip,
+    });
+    const { accessTokenEnc, ...salida } = pagina;
+    return { ...salida, tokenHint: pista(accessTokenEnc) };
+  });
+
+  app.patch<{ Params: { id: string } }>('/meta/pages/:id', { preHandler: gestion }, async (req, reply) => {
+    const parsed = paginaMeta.partial().omit({ pageId: true }).extend({ active: z.boolean().optional() }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+
+    const pagina = await prisma.metaPage.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!pagina) return reply.code(404).send({ error: 'Página no encontrada' });
+
+    const { accessToken, projectId, formMap, notifyEmails, ...resto } = parsed.data;
+    const actualizada = await prisma.metaPage.update({
+      where: { id: pagina.id },
+      data: {
+        ...resto,
+        ...(projectId !== undefined
+          ? { projectId: await proyectoValido(req.user!.organizationId, projectId) }
+          : {}),
+        ...(formMap !== undefined ? { formMap: formMap as never } : {}),
+        ...(notifyEmails !== undefined ? { notifyEmails: notifyEmails as never } : {}),
+        // Un token nuevo borra el último error: es lo que se venía a arreglar.
+        ...(accessToken ? { accessTokenEnc: cifrar(accessToken), lastError: null } : {}),
+      },
+    });
+    const { accessTokenEnc, ...salida } = actualizada;
+    return { ...salida, tokenHint: pista(accessTokenEnc) };
+  });
+
+  app.delete<{ Params: { id: string } }>('/meta/pages/:id', { preHandler: gestion }, async (req, reply) => {
+    const pagina = await prisma.metaPage.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!pagina) return reply.code(404).send({ error: 'Página no encontrada' });
+    await prisma.metaPage.delete({ where: { id: pagina.id } });
+    await audit(req.user!.organizationId, req.user!.id, 'meta.page.disconnect', {
+      entity: 'meta_page', entityId: pagina.id, meta: { pageId: pagina.pageId }, ip: req.ip,
+    });
+    return { ok: true };
+  });
+
+  /**
+   * Prueba del token contra el Graph API.
+   *
+   * Vale la pena tenerla porque el fallo típico de este canal —el token caducó o le
+   * quitaron el permiso— es invisible: el webhook sigue llegando y los leads se quedan
+   * en la cola. Aquí se ve en el momento.
+   */
+  app.get<{ Params: { id: string } }>('/meta/pages/:id/test', { preHandler: gestion }, async (req, reply) => {
+    const pagina = await prisma.metaPage.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!pagina) return reply.code(404).send({ error: 'Página no encontrada' });
+    const { probarPagina } = await import('../services/meta.js');
+    return probarPagina(pagina.pageId);
+  });
+
+  /** Últimos avisos recibidos: es el diagnóstico de «entró el lead o no». */
+  app.get('/meta/leads', { preHandler: gestion }, async (req) => {
+    const avisos = await prisma.metaLead.findMany({
+      where: { organizationId: req.user!.organizationId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true, leadgenId: true, pageId: true, metaFormId: true, campaignId: true,
+        platform: true, status: true, error: true, leadId: true, createdAt: true, processedAt: true,
+      },
+    });
+    return { avisos };
+  });
+
+  /** Reintento manual de un aviso fallido, sin esperar al backoff. */
+  app.post<{ Params: { id: string } }>('/meta/leads/:id/retry', { preHandler: gestion }, async (req, reply) => {
+    const aviso = await prisma.metaLead.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.organizationId },
+    });
+    if (!aviso) return reply.code(404).send({ error: 'Aviso no encontrado' });
+    if (aviso.status === 'procesado') return reply.code(409).send({ error: 'Ese aviso ya entró como lead.' });
+    await prisma.metaLead.update({ where: { id: aviso.id }, data: { status: 'recibido', error: null } });
+    const { enqueue } = await import('../lib/jobs.js');
+    await enqueue('meta.lead.fetch', { leadgenId: aviso.leadgenId });
+    return { ok: true };
+  });
+
+  /** Un projectId de otra organización dejaría leads colgando de un proyecto ajeno. */
+  async function proyectoValido(organizationId: string, projectId?: string | null) {
+    if (!projectId) return null;
+    const p = await prisma.project.findFirst({ where: { id: projectId, organizationId } });
+    return p ? p.id : null;
+  }
 
   // -------------------------------------------------------- alta manual
   app.post('/leads', async (req, reply) => {
