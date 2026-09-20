@@ -194,3 +194,13 @@ label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; }
 .burbuja.entra { align-self: flex-start; background: #fff; border: 1px solid var(--borde); }
 .burbuja.sale { align-self: flex-end; background: #dcf8c6; }
 .burbuja .acuse { font-size: 11px; margin-top: 3px; }
+
+/* Visor del registro del servidor */
+.registro {
+  max-height: 420px; overflow: auto;
+  margin: 10px 0 0; padding: 12px;
+  background: #0f172a; color: #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}

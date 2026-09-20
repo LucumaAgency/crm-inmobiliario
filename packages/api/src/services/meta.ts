@@ -55,6 +55,7 @@ interface RespuestaLeadgen {
  * un error nuestro repetido le hace desactivar la suscripción.
  */
 export async function registrarAviso(aviso: AvisoLeadgen): Promise<boolean> {
+  logLine(`meta: aviso de leadgen recibido (página ${aviso.pageId}, leadgen ${aviso.leadgenId})`);
   const pagina = await prisma.metaPage.findUnique({ where: { pageId: aviso.pageId } });
   if (!pagina || !pagina.active) {
     logLine(`meta: aviso de una página no registrada o inactiva (${aviso.pageId})`);

@@ -115,14 +115,14 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
     type: string;
-    waMessageId: string | null;
-    conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
     sentAt: Date | null;
+    conversationId: string;
+    userId: string | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
@@ -131,14 +131,14 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
     type: string;
-    waMessageId: string | null;
-    conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
     sentAt: Date | null;
+    conversationId: string;
+    userId: string | null;
 }>;
 /**
  * Envía de verdad. Lo llama la cola.

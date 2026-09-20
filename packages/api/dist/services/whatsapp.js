@@ -37,8 +37,19 @@ const ESTADOS = {
  */
 export async function recibirMensajes(valor) {
     const phoneNumberId = valor.metadata?.phone_number_id;
-    if (!phoneNumberId)
+    if (!phoneNumberId) {
+        logLine('wa: aviso sin phone_number_id, ignorado');
         return;
+    }
+    /**
+     * Se deja constancia de la LLEGADA, no solo del resultado.
+     *
+     * Sin esta línea, un aviso descartado y un aviso que nunca llegó se ven igual en el
+     * log —vacío— y son dos problemas opuestos: uno está del lado de Meta y el otro del
+     * nuestro. Diagnosticarlo costaba mirar el log de accesos de Apache.
+     */
+    logLine(`wa: aviso recibido de ${phoneNumberId} ` +
+        `(${valor.messages?.length ?? 0} mensaje(s), ${valor.statuses?.length ?? 0} estado(s))`);
     const numero = await prisma.waNumber.findUnique({ where: { phoneNumberId } });
     if (!numero || !numero.active) {
         logLine(`wa: aviso de un número no registrado o inactivo (${phoneNumberId})`);

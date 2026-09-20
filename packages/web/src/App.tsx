@@ -106,7 +106,7 @@ export default function App() {
             <Route path="/proyectos/:id" element={<ProyectoDetail />} />
             {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
             {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
-            {puedeGestionar && <Route path="/ajustes" element={<Ajustes />} />}
+            {puedeGestionar && <Route path="/ajustes" element={<Ajustes rol={data.user.role} />} />}
             <Route path="*" element={<div className="vacio">Página no encontrada</div>} />
           </Routes>
         </main>

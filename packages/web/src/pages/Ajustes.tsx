@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import MetaLeadAds from './MetaLeadAds.js';
 import WhatsAppNumeros from './WhatsAppNumeros.js';
+import Registro from './Registro.js';
 
 interface Site {
   id: string;
@@ -19,7 +20,7 @@ const ROLES: Record<string, string> = {
   solo_lectura: 'Solo lectura',
 };
 
-export default function Ajustes() {
+export default function Ajustes({ rol }: { rol: string }) {
   const qc = useQueryClient();
   const [nombre, setNombre] = useState('');
   const [dominios, setDominios] = useState('');
@@ -210,6 +211,8 @@ export default function Ajustes() {
       <MetaLeadAds />
 
       <WhatsAppNumeros />
+
+      {rol === 'admin_lucuma' && <Registro />}
 
       <div className="card">
         <strong>Exportar</strong>
