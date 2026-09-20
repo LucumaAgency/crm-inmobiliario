@@ -155,6 +155,15 @@ export async function buildApp() {
     const webDist = path.resolve(__dirname, '../../../public');
     if (fs.existsSync(webDist)) {
         await app.register(fastifyStatic, { root: webDist, wildcard: false });
+        /**
+         * Política de privacidad, sin la extensión en la URL.
+         *
+         * Sin esta ruta, `/privacidad` cae en el fallback del SPA y devuelve la aplicación:
+         * Meta vería un HTML con un `<div id="root">` vacío en vez de la política, y el
+         * cliente que pulse el enlace del diálogo de permisos, lo mismo. Es una página
+         * estática a propósito: tiene que abrir sin sesión y sin JavaScript.
+         */
+        app.get('/privacidad', (_req, reply) => reply.sendFile('privacidad.html'));
         app.setNotFoundHandler((req, reply) => {
             if (req.url.startsWith('/api/'))
                 return reply.code(404).send({ error: 'No encontrado' });
