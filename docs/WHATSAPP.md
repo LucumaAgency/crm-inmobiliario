@@ -89,3 +89,9 @@ alerta de los 15 minutos saltaría sobre un asesor que ya respondió.
   multi-agente de verdad, sale más barato poner Chatwoot al lado que construirla.
 - **No se puede escribir primero** a alguien que nunca escribió: WhatsApp no lo permite
   salvo con plantilla, y la conversación tiene que existir.
+- **La lista de leads no se actualiza sola.** El chat de la ficha se refresca cada 15 s,
+  pero la lista no: hay que recargar para ver un mensaje nuevo.
+- **El orden de la lista no refleja la actividad.** Sigue siendo por fecha de creación, así
+  que un lead que acaba de escribir se queda donde estaba. Debería subir lo que tiene
+  mensajes sin leer y después lo de actividad más reciente; cambiar el orden por defecto
+  afecta a todas las vistas, así que conviene decidirlo antes de tocarlo.
