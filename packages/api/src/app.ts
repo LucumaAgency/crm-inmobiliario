@@ -135,13 +135,21 @@ export async function buildApp() {
       await scope.register(rateLimit, { max: 30, timeWindow: '1 minute' });
       await cronRoutes(scope);
     },
-    { prefix: '/api/v1/cron' }
+    // Silencioso por el mismo motivo: un latido por minuto son casi 3.000 líneas diarias
+    // de ruido. La ruta ya escribe por su cuenta, pero solo cuando hubo trabajo.
+    { prefix: '/api/v1/cron', logLevel: 'silent' }
   );
 
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(leadRoutes, { prefix: '/api/v1/leads' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
-  await app.register(logRoutes, { prefix: '/api/v1/logs' });
+  /**
+   * `logLevel: 'silent'`: el visor se refresca solo cada pocos segundos y cada refresco
+   * escribiría dos líneas —«incoming request» y «request completed»— en el mismo archivo
+   * que está mostrando. En minutos ahoga lo que se estaba buscando. Un visor de logs que
+   * ensucia el log que vigila no sirve para vigilarlo.
+   */
+  await app.register(logRoutes, { prefix: '/api/v1/logs', logLevel: 'silent' });
 
   /**
    * Archivos subidos (planos y renders).
