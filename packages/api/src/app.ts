@@ -18,6 +18,7 @@ import authRoutes from './routes/auth.js';
 import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
+import cronRoutes from './routes/cron.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -122,6 +123,18 @@ export async function buildApp() {
       await metaRoutes(scope);
     },
     { prefix: '/api/v1/meta' }
+  );
+
+  /**
+   * Latido de la cola, llamado por un cron externo. Límite propio y holgado: es una ruta
+   * sin sesión, y su tráfico legítimo es una llamada por minuto.
+   */
+  await app.register(
+    async (scope) => {
+      await scope.register(rateLimit, { max: 30, timeWindow: '1 minute' });
+      await cronRoutes(scope);
+    },
+    { prefix: '/api/v1/cron' }
   );
 
   await app.register(authRoutes, { prefix: '/api/v1/auth' });

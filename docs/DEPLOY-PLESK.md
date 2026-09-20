@@ -135,16 +135,46 @@ de servicio limita la frecuencia mínima a una hora. Sacar la tarea de la jaula 
 real al usuario del sistema, y si esa suscripción aloja además los sitios de otros clientes, es
 un riesgo que no compensa.
 
-Para ese caso la API procesa la cola **en línea**: al encolar un trabajo ya vencido dispara el
-procesado dentro de su propio proceso, sin esperarlo (ver `services/cola.ts`). El aviso de lead
-nuevo sale en segundos aunque no haya tarea programada.
+Hay dos salidas, y conviene tener las dos.
 
-No la reemplaza. Los trabajos con espera —una alerta de SLA a los 15 minutos, un reintento con
-backoff— necesitan que alguien despierte la aplicación entonces, y de eso solo puede encargarse
-el cron. Con frecuencia horaria llegarían con hasta una hora de retraso; sin cron, solo cuando
-otra petición pase por ahí.
+**1. El disparo en línea** (decisión 23). La API procesa la cola dentro de su propio proceso al
+encolar un trabajo ya vencido, sin esperarlo (ver `services/cola.ts`). El aviso de lead nuevo
+sale en segundos aunque no haya tarea programada.
+
+No reemplaza al worker. Los trabajos **con espera** —una alerta de SLA a los 15 minutos, un
+reintento con backoff— necesitan que alguien despierte la aplicación entonces, y de eso el
+disparo en línea no puede encargarse: solo actúa cuando ya hay tráfico.
 
 Se apaga con `WORKER_INLINE=0` donde la tarea programada sí funcione por minuto.
+
+**2. El latido externo.** Es lo que cubre el hueco anterior. El problema de fondo no es el cron
+sino que **Passenger duerme la aplicación sin tráfico**; una petición HTTP la despierta, así que
+un cron de fuera llamando cada minuto hace el mismo trabajo que el worker local:
+
+1. Generar un token largo y ponerlo en el `.env` como `CRON_TOKEN`.
+   Sin ese valor la ruta responde 503: una cola que cualquiera puede disparar es una forma
+   gratis de hacer trabajar al servidor.
+2. Dar de alta en un servicio de cron externo, cada minuto:
+
+   ```
+   https://<dominio del CRM>/api/v1/cron/tick?token=<CRON_TOKEN>
+   ```
+
+   El token también se acepta en la cabecera `X-LCRM-Cron`, que es preferible cuando el
+   servicio lo permite: no queda escrito en los registros de acceso del servidor.
+
+La respuesta dice cuánto hizo: `{"ok":true,"jobs":3,"ms":412}`. Con `pendiente: true` quedó
+trabajo para el siguiente latido, porque cada llamada se corta a los 25 segundos para no chocar
+con el tiempo de espera del proxy. Nada se pierde: la cola está en la base.
+
+Dos latidos solapados no se pisan —los trabajos se toman con bloqueo de fila— y el log solo
+escribe cuando hubo trabajo: un latido por minuto serían 1.440 líneas diarias de «no había
+nada», y un log que nadie puede leer es un log que no existe.
+
+**Esto no sustituye a la suscripción propia** (decisión 18). Resuelve el SLA y los reintentos,
+que es lo que hoy incumple lo que el producto promete. No resuelve el aislamiento respecto a los
+72 dominios que comparten usuario del sistema con la base del CRM, ni el backup propio, y añade
+una dependencia de un tercero.
 
 ## 4b. Correo saliente (SMTP)
 

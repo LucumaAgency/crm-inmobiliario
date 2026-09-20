@@ -16,10 +16,10 @@ export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): 
     createdAt: Date;
     type: string;
     status: import(".prisma/client").$Enums.JobStatus;
-    lastError: string | null;
     payload: import("@prisma/client/runtime/library").JsonValue;
     attempts: number;
     maxAttempts: number;
+    lastError: string | null;
     runAt: Date;
     lockedAt: Date | null;
     lockedBy: string | null;
