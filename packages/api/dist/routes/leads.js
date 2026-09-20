@@ -2,6 +2,8 @@ import { activityInput, leadListQuery } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, scopeForUser } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
+import { z } from 'zod';
+import { enviarPlantilla, enviarTexto, ventanaAbierta, } from '../services/whatsapp.js';
 export default async function leadRoutes(app) {
     app.addHook('preHandler', requireAuth);
     app.get('/', async (req, reply) => {
@@ -66,6 +68,95 @@ export default async function leadRoutes(app) {
             return reply.code(404).send({ error: 'Lead no encontrado' });
         await audit(user.organizationId, user.id, 'lead.view', { entity: 'lead', entityId: lead.id, ip: req.ip });
         return lead;
+    });
+    // ------------------------------------------------------------- whatsapp
+    /**
+     * Conversación de WhatsApp del lead.
+     *
+     * Cuelga del lead y no de una bandeja aparte a propósito: el asesor trabaja sobre la
+     * ficha, con el proyecto, la unidad y el historial a la vista. Una bandeja suelta
+     * obliga a mirar dos pantallas para contestar una pregunta sobre un departamento.
+     */
+    app.get('/:id/whatsapp', async (req, reply) => {
+        const user = req.user;
+        const lead = await prisma.lead.findFirst({
+            where: { id: req.params.id, ...scopeForUser(user) },
+            select: { id: true, contactId: true },
+        });
+        if (!lead)
+            return reply.code(404).send({ error: 'Lead no encontrado' });
+        /**
+         * Se busca por CONTACTO, no por lead: la conversación es de la persona y sobrevive a
+         * los leads. Quien escribió hace ocho meses por otro proyecto tiene su historial aquí
+         * y el asesor lo necesita antes de saludar.
+         */
+        const conversacion = await prisma.waConversation.findFirst({
+            where: { organizationId: user.organizationId, contactId: lead.contactId },
+            orderBy: { updatedAt: 'desc' },
+            include: {
+                waNumber: { select: { displayNumber: true, active: true } },
+                messages: { orderBy: { createdAt: 'asc' }, take: 200 },
+            },
+        });
+        if (!conversacion)
+            return { conversacion: null, ventanaAbierta: false };
+        if (conversacion.unread > 0) {
+            await prisma.waConversation.update({ where: { id: conversacion.id }, data: { unread: 0 } });
+        }
+        return {
+            conversacion: { ...conversacion, unread: 0 },
+            ventanaAbierta: ventanaAbierta(conversacion),
+        };
+    });
+    /** Enviar. Texto dentro de la ventana de 24 h, plantilla fuera de ella. */
+    app.post('/:id/whatsapp', async (req, reply) => {
+        const user = req.user;
+        const parsed = z
+            .union([
+            z.object({ text: z.string().min(1).max(4000) }),
+            z.object({
+                templateName: z.string().min(1),
+                language: z.string().min(2).default('es'),
+                variables: z.array(z.string()).optional(),
+            }),
+        ])
+            .safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const lead = await prisma.lead.findFirst({
+            where: { id: req.params.id, ...scopeForUser(user) },
+            select: { id: true, contactId: true, firstContactAt: true },
+        });
+        if (!lead)
+            return reply.code(404).send({ error: 'Lead no encontrado' });
+        const conversacion = await prisma.waConversation.findFirst({
+            where: { organizationId: user.organizationId, contactId: lead.contactId },
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true },
+        });
+        if (!conversacion) {
+            return reply.code(409).send({
+                error: 'Todavía no hay conversación con este contacto. WhatsApp no permite escribir primero salvo con una plantilla, y para eso el contacto tiene que existir en un número conectado.',
+            });
+        }
+        const mensaje = 'text' in parsed.data
+            ? await enviarTexto({ conversationId: conversacion.id, userId: user.id, text: parsed.data.text })
+            : await enviarPlantilla({
+                conversationId: conversacion.id,
+                userId: user.id,
+                templateName: parsed.data.templateName,
+                language: parsed.data.language,
+                variables: parsed.data.variables,
+            });
+        /**
+         * Escribirle al cliente ES el primer contacto. Sin esto, el lead seguiría contando
+         * como no atendido y la alerta de SLA saltaría igual sobre un asesor que ya respondió.
+         */
+        await prisma.lead.update({
+            where: { id: lead.id },
+            data: { lastActivityAt: new Date(), firstContactAt: lead.firstContactAt ?? new Date() },
+        });
+        return mensaje;
     });
     /** Registrar actividad. Si se agenda la siguiente, se crea pendiente en el mismo paso. */
     app.post('/:id/activities', async (req, reply) => {

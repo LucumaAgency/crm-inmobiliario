@@ -73,6 +73,10 @@ async function procesar(job) {
             const { procesarLeadgen } = await import('./meta.js');
             return procesarLeadgen(String(job.payload.leadgenId));
         }
+        case 'wa.send': {
+            const { despacharMensaje } = await import('./whatsapp.js');
+            return despacharMensaje(String(job.payload.messageId));
+        }
         case 'retention.purge':
             return; // Fase 2: purga según política de retención
         case 'webhook.deliver':

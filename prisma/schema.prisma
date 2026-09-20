@@ -29,6 +29,8 @@ model Organization {
   forms     Form[]
   metaPages MetaPage[]
   metaLeads MetaLead[]
+  waNumbers WaNumber[]
+  waConversations WaConversation[]
   settings  Json?
 
   @@map("organizations")
@@ -57,6 +59,7 @@ model User {
   assignments   Assignment[]
   loginTokens   LoginToken[]
   auditEntries  AuditLog[]
+  waMessages    WaMessage[]
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
@@ -115,6 +118,7 @@ model Project {
   leads      Lead[]
   forms      Form[]
   metaPages  MetaPage[]
+  waNumbers  WaNumber[]
 
   @@unique([organizationId, slug])
   @@map("projects")
@@ -225,6 +229,8 @@ model Contact {
   @@unique([organizationId, email], name: "uq_contact_email")
   @@unique([organizationId, phone], name: "uq_contact_phone")
   @@unique([organizationId, document], name: "uq_contact_document")
+  waConversations WaConversation[]
+
   @@map("contacts")
 }
 
@@ -285,6 +291,7 @@ model Lead {
   assignments Assignment[]
   submissions FormSubmission[]
   metaLeads   MetaLead[]
+  waConversations WaConversation[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -465,6 +472,123 @@ model MetaLead {
   @@map("meta_leads")
 }
 
+// -------------------------------------------------------------- whatsapp
+
+// Un numero de WhatsApp Business conectado a un cliente.
+//
+// Igual que con MetaPage, el enrutado no puede venir del subdominio: el webhook es uno
+// solo para toda la instalacion y de hecho es EL MISMO, porque Meta manda leadgen y
+// mensajes de WhatsApp a la misma URL. La organizacion sale del phoneNumberId. Unico
+// global: un numero pertenece a un solo cliente.
+//
+// El numero vive en la Cloud API, lo que significa que deja de funcionar en la app de
+// WhatsApp del telefono. Por eso es un numero comercial de la empresa y nunca el celular
+// de un asesor (ver docs/WHATSAPP.md).
+model WaNumber {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // ID del numero en la Cloud API. Llave de enrutado del webhook.
+  phoneNumberId  String       @unique
+  // Cuenta de WhatsApp Business que lo contiene. Hace falta para listar las plantillas.
+  wabaId         String
+  // El numero como lo ve el cliente. Solo para mostrar.
+  displayNumber  String
+  // Token de acceso, cifrado en reposo. Ver lib/secretos.ts.
+  accessTokenEnc String       @db.Text
+  // Proyecto por defecto de los leads que entren por este numero.
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  active         Boolean      @default(true)
+  lastInboundAt  DateTime?
+  lastError      String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  conversations WaConversation[]
+
+  @@index([organizationId])
+  @@map("wa_numbers")
+}
+
+// La conversacion de un contacto con un numero.
+//
+// Es una entidad propia por la ventana de 24 horas: fuera de ella solo se puede escribir
+// con plantillas aprobadas, que ademas se pagan. Eso no es un detalle de la API, es lo
+// que decide que puede hacer el asesor ahora mismo, asi que vive en el modelo.
+model WaConversation {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  waNumberId      String
+  waNumber        WaNumber     @relation(fields: [waNumberId], references: [id], onDelete: Cascade)
+  contactId       String
+  contact         Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  // Lead al que se cuelga el historial. Puede cambiar con el tiempo: el mismo contacto
+  // vuelve a los seis meses y eso es un lead nuevo, pero la conversacion es la misma.
+  leadId          String?
+  lead            Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  // Telefono del contacto tal como lo identifica WhatsApp: E.164 sin el signo mas.
+  waId            String
+  // Cuando vence la ventana de servicio. Se renueva con cada mensaje entrante.
+  windowExpiresAt DateTime?
+  lastInboundAt   DateTime?
+  lastOutboundAt  DateTime?
+  // Mensajes entrantes que todavia nadie abrio en el CRM.
+  unread          Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  messages WaMessage[]
+
+  @@unique([waNumberId, waId])
+  @@index([organizationId, updatedAt])
+  @@map("wa_conversations")
+}
+
+enum WaDirection {
+  entrante
+  saliente
+}
+
+// enviado = aceptado por Meta. Los siguientes llegan por el webhook de estados.
+enum WaMessageStatus {
+  pendiente
+  enviado
+  entregado
+  leido
+  fallido
+}
+
+model WaMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   WaConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      WaDirection
+  // ID del mensaje en WhatsApp (wamid...). Idempotencia del canal: Meta reintenta el
+  // webhook y el mismo mensaje puede llegar dos veces.
+  waMessageId    String?         @unique
+  // text | image | document | audio | video | sticker | location | template | unsupported
+  type           String          @default("text")
+  body           String?         @db.Text
+  // Para lo que no es texto: id del medio en Meta, nombre y tipo. No se descarga solo.
+  media          Json?
+  // Plantilla usada, si el mensaje salio fuera de la ventana de 24 h.
+  templateName   String?
+  status         WaMessageStatus @default(pendiente)
+  error          String?         @db.Text
+  // Quien lo envio desde el CRM. Null en los entrantes.
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // El payload de Meta tal cual, por si el mapeo se queda corto.
+  raw            Json?
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("wa_messages")
+}
+
 // ------------------------------------------------------------- jobs y webhooks
 
 enum JobStatus {
@@ -479,7 +603,7 @@ enum JobStatus {
 // setInterval dentro del proceso no es confiable.
 model Job {
   id          String    @id @default(cuid())
-  type        String // email.send | webhook.deliver | sla.check | meta.lead.fetch | conversion.push | retention.purge
+  type        String // email.send | webhook.deliver | sla.check | meta.lead.fetch | wa.send | conversion.push | retention.purge
   payload     Json
   status      JobStatus @default(pending)
   attempts    Int       @default(0)
