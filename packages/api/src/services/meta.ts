@@ -217,8 +217,30 @@ export async function resolverTokenDePagina(pageId: string, token: string): Prom
       access_token?: string;
     };
     if (pagina.access_token) {
-      logLine(`meta: token de usuario canjeado por el de la página ${pageId}`);
+      logLine(`meta: token canjeado por el de la página ${pageId}`);
       return pagina.access_token;
+    }
+  } catch {
+    /* el camino directo exige pages_read_engagement; se intenta el otro */
+  }
+
+  /**
+   * Segundo intento por `/me/accounts`.
+   *
+   * El camino directo (`/{pageId}?fields=access_token`) exige `pages_read_engagement`, y un
+   * token de usuario del sistema no suele llevarlo: se genera con los permisos que se marcan
+   * a mano y ese se olvida. `/me/accounts` devuelve el mismo token de página sin pedirlo.
+   * Sin este respaldo, el token permanente —que es justo el que hay que usar en producción—
+   * era el único que no se podía canjear.
+   */
+  try {
+    const cuentas = (await llamarGraph('me/accounts', { fields: 'id,access_token' }, token)) as {
+      data?: Array<{ id?: string; access_token?: string }>;
+    };
+    const suya = cuentas.data?.find((c) => c.id === pageId);
+    if (suya?.access_token) {
+      logLine(`meta: token canjeado por el de la página ${pageId} (vía /me/accounts)`);
+      return suya.access_token;
     }
   } catch (err) {
     logLine(`meta: no se pudo canjear el token de la página ${pageId}: ${String(err)}`);
@@ -245,7 +267,23 @@ export async function probarPagina(pageId: string): Promise<{
 
   try {
     const token = descifrar(pagina.accessTokenEnc);
-    const info = (await llamarGraph(`${pageId}`, { fields: 'name' }, token)) as { name?: string };
+
+    /**
+     * El nombre es opcional y su fallo NO invalida la prueba.
+     *
+     * Leerlo exige `pages_read_engagement`, que un token de usuario del sistema no suele
+     * llevar. Antes, ese permiso de adorno tumbaba toda la comprobación y daba a entender
+     * que la conexión estaba rota cuando los formularios —lo único que el CRM necesita de
+     * verdad— se leían perfectamente.
+     */
+    let pageName: string | undefined;
+    try {
+      const info = (await llamarGraph(`${pageId}`, { fields: 'name' }, token)) as { name?: string };
+      pageName = info.name;
+    } catch {
+      pageName = pagina.pageName;
+    }
+
     const formularios = (await llamarGraph(
       `${pageId}/leadgen_forms`,
       { fields: 'id,name,status', limit: '100' },
@@ -253,7 +291,7 @@ export async function probarPagina(pageId: string): Promise<{
     )) as { data?: Array<{ id: string; name: string; status?: string }> };
 
     await prisma.metaPage.update({ where: { id: pagina.id }, data: { lastError: null } });
-    return { ok: true, pageName: info.name, forms: formularios.data ?? [] };
+    return { ok: true, pageName, forms: formularios.data ?? [] };
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : String(err);
     await prisma.metaPage.update({
