@@ -70,6 +70,44 @@ El **consentimiento** lo recoge Meta dentro de Facebook o Instagram, no nosotros
 constancia de la procedencia y del `form_id`, que es lo que hay que poder mostrar ante un
 reclamo bajo la Ley 29733.
 
+## Las cuatro capas que hay que activar, y ninguna avisa
+
+Conectar Lead Ads no es un paso, son cuatro, y **fallan todas en silencio**: Meta simplemente
+no entrega y no hay error en ninguna parte. Se descubrió probándolo el 2026-09-21, y este es el
+orden en que conviene comprobarlas.
+
+1. **La app tiene que estar PUBLICADA.** Una app en desarrollo no recibe leadgen de producción.
+   Esto es distinto de WhatsApp, que sí entrega sin publicar. El control está en el menú
+   lateral del panel de la app, en **Publicar** —con la etiqueta «Sin publicar»—, no en un
+   interruptor de la barra superior.
+
+2. **El webhook suscrito al campo `leadgen`** del objeto **Page** (no User, que es el que sale
+   por defecto). Guardar la URL y suscribir el campo son dos acciones separadas.
+
+3. **La app suscrita a la página.** No tiene interfaz: es
+   `POST /{page-id}/subscribed_apps` con `subscribed_fields=leadgen`, y requiere
+   `leads_retrieval`. Se comprueba con un `GET` a esa misma ruta.
+
+4. **El Lead Access Manager de la página.** Si la página lo tiene activado, ninguna app recibe
+   leads hasta que se le concede acceso explícito, por muchos permisos que tenga. Es la capa
+   que más despista porque todo lo demás sale en verde.
+
+La **herramienta de pruebas** (`developers.facebook.com/tools/lead-ads-testing`) evalúa las
+cuatro y las muestra con un diagnóstico por página y por app. Es el primer sitio al que ir
+cuando un cliente diga que no le llegan los leads.
+
+## El token que hay que pegar
+
+El Explorador de la API Graph entrega por defecto un **token de usuario**, y cambiar el
+desplegable a la página **no regenera el de arriba**: hay que volver a pulsar «Generate Access
+Token» con la página ya seleccionada. Copiar el de usuario sin querer produce
+`(#190) This method must be called with a Page Access Token`, que no dice qué hacer.
+
+El CRM lo resuelve solo: acepta cualquiera de los dos y canjea el de página cuando hace falta.
+
+Los tokens del Explorador **caducan en una o dos horas**. Para producción hay que usar un
+**token de usuario del sistema** del portafolio empresarial, que no caduca.
+
 ## Diagnóstico
 
 Estados de un aviso, en **Ajustes → Últimos avisos de Meta**:
