@@ -191,6 +191,43 @@ export async function procesarLeadgen(leadgenId: string): Promise<void> {
 }
 
 /**
+ * Devuelve un token DE PÁGINA a partir de lo que pegue el usuario.
+ *
+ * El Explorador de Meta entrega por defecto un token de usuario, y cambiar el desplegable
+ * a la página no regenera el de arriba: hay que volver a pulsar «Generate Access Token».
+ * Es fácil copiar el de usuario creyendo que cambió, y entonces el Graph API responde
+ * «(#190) This method must be called with a Page Access Token», que no dice en ningún
+ * momento qué hacer. Pasó dos veces seguidas al conectar la primera página.
+ *
+ * Como el token de usuario ya contiene el permiso para obtener el de la página, el CRM lo
+ * canjea solo en vez de exigir que lo haga la persona. Si lo que llega ya es de página, se
+ * usa tal cual; si no se puede canjear, se guarda lo recibido y el error saldrá al probar
+ * la conexión, que es donde se entiende.
+ */
+export async function resolverTokenDePagina(pageId: string, token: string): Promise<string> {
+  try {
+    const yo = (await llamarGraph('me', { fields: 'id' }, token)) as { id?: string };
+    if (yo.id === pageId) return token; // ya es de página
+  } catch {
+    /* si ni siquiera se puede consultar, se intenta el canje igual */
+  }
+
+  try {
+    const pagina = (await llamarGraph(pageId, { fields: 'access_token' }, token)) as {
+      access_token?: string;
+    };
+    if (pagina.access_token) {
+      logLine(`meta: token de usuario canjeado por el de la página ${pageId}`);
+      return pagina.access_token;
+    }
+  } catch (err) {
+    logLine(`meta: no se pudo canjear el token de la página ${pageId}: ${String(err)}`);
+  }
+
+  return token;
+}
+
+/**
  * Comprueba que el token de la página sigue vivo y lista sus formularios instantáneos.
  *
  * Los formularios se devuelven para poder armar el `formMap` sin copiar identificadores

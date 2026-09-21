@@ -30,6 +30,7 @@ export default function WhatsAppNumeros() {
   const [token, setToken] = useState('');
   const [projectId, setProjectId] = useState('');
   const [plantillas, setPlantillas] = useState<{ id: string; texto: string } | null>(null);
+  const [tokenNuevo, setTokenNuevo] = useState<Record<string, string>>({});
 
   const numeros = useQuery({ queryKey: ['wa-numbers'], queryFn: () => api.get<Numero[]>('/whatsapp/numbers') });
   const proyectos = useQuery({
@@ -121,18 +122,39 @@ export default function WhatsAppNumeros() {
             {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
 
-          <label>Reemplazar el token</label>
+          <label htmlFor={`token-${n.id}`}>Reemplazar el token</label>
           <input
+            id={`token-${n.id}`}
             type="password"
             placeholder="Pegar un token nuevo"
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v) { actualizar.mutate({ id: n.id, datos: { accessToken: v } }); e.target.value = ''; }
-            }}
+            value={tokenNuevo[n.id] ?? ''}
+            onChange={(e) => setTokenNuevo((t) => ({ ...t, [n.id]: e.target.value }))}
           />
 
           <div className="acciones" style={{ marginTop: 12 }}>
-            <button className="btn btn-sec" onClick={() => probar.mutate(n.id)} disabled={probar.isPending}>
+            {/* Guardar explícito: con `onBlur` la prueba se adelantaba al guardado. */}
+            <button
+              className="btn btn-sec"
+              disabled={!(tokenNuevo[n.id] ?? '').trim() || actualizar.isPending}
+              onClick={() =>
+                actualizar.mutate(
+                  { id: n.id, datos: { accessToken: (tokenNuevo[n.id] ?? '').trim() } },
+                  {
+                    onSuccess: () => {
+                      setTokenNuevo((t) => ({ ...t, [n.id]: '' }));
+                      probar.mutate(n.id);
+                    },
+                  }
+                )
+              }
+            >
+              {actualizar.isPending ? 'Guardando…' : 'Guardar token y probar'}
+            </button>
+            <button
+              className="btn btn-sec"
+              onClick={() => probar.mutate(n.id)}
+              disabled={probar.isPending || actualizar.isPending}
+            >
               {probar.isPending ? 'Probando…' : 'Probar conexión'}
             </button>
             <button

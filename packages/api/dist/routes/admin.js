@@ -521,12 +521,15 @@ export default async function adminRoutes(app) {
         const ocupada = await prisma.metaPage.findUnique({ where: { pageId: resto.pageId } });
         if (ocupada)
             return reply.code(409).send({ error: 'Esa página ya está conectada.' });
+        // Acepta también un token de usuario: el CRM canjea el de la página (ver services/meta.ts).
+        const { resolverTokenDePagina } = await import('../services/meta.js');
+        const tokenPagina = await resolverTokenDePagina(resto.pageId, accessToken);
         const pagina = await prisma.metaPage.create({
             data: {
                 organizationId: req.user.organizationId,
                 ...resto,
                 projectId: await proyectoValido(req.user.organizationId, projectId),
-                accessTokenEnc: cifrar(accessToken),
+                accessTokenEnc: cifrar(tokenPagina),
                 formMap: (resto.formMap ?? undefined),
                 notifyEmails: (resto.notifyEmails ?? undefined),
             },
@@ -560,7 +563,12 @@ export default async function adminRoutes(app) {
                 ...(formMap !== undefined ? { formMap: formMap } : {}),
                 ...(notifyEmails !== undefined ? { notifyEmails: notifyEmails } : {}),
                 // Un token nuevo borra el último error: es lo que se venía a arreglar.
-                ...(accessToken ? { accessTokenEnc: cifrar(accessToken), lastError: null } : {}),
+                ...(accessToken
+                    ? {
+                        accessTokenEnc: cifrar(await (await import('../services/meta.js')).resolverTokenDePagina(pagina.pageId, accessToken)),
+                        lastError: null,
+                    }
+                    : {}),
             },
         });
         const { accessTokenEnc, ...salida } = actualizada;

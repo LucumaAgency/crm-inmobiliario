@@ -58,6 +58,8 @@ export default function MetaLeadAds() {
   const [projectId, setProjectId] = useState('');
   const [correos, setCorreos] = useState('');
   const [prueba, setPrueba] = useState<{ id: string; resultado: Prueba } | null>(null);
+  /** Token nuevo escrito por página, hasta que se guarda explícitamente. */
+  const [tokenNuevo, setTokenNuevo] = useState<Record<string, string>>({});
 
   const paginas = useQuery({ queryKey: ['meta-pages'], queryFn: () => api.get<Pagina[]>('/meta/pages') });
   const proyectos = useQuery({
@@ -162,18 +164,49 @@ export default function MetaLeadAds() {
               ))}
             </select>
 
-            <label>Reemplazar el token</label>
+            <label htmlFor={`token-${p.id}`}>Reemplazar el token</label>
             <input
+              id={`token-${p.id}`}
               type="password"
               placeholder="Pegar un page access token nuevo"
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v) { actualizar.mutate({ id: p.id, datos: { accessToken: v } }); e.target.value = ''; }
-              }}
+              value={tokenNuevo[p.id] ?? ''}
+              onChange={(e) => setTokenNuevo((t) => ({ ...t, [p.id]: e.target.value }))}
             />
+            <p className="meta">
+              Tiene que ser un <strong>token de página</strong>, no de usuario. En el Explorador
+              de Meta, elige la página en «Usuario o página» y vuelve a pulsar «Generate Access
+              Token»: cambiar el desplegable no regenera el token de arriba.
+            </p>
 
             <div className="acciones" style={{ marginTop: 12 }}>
-              <button className="btn btn-sec" onClick={() => probar.mutate(p.id)} disabled={probar.isPending}>
+              {/*
+                Guardar es un botón y no el `onBlur` que había antes. Con `onBlur`, pulsar
+                «Probar conexión» disparaba las dos peticiones a la vez y la prueba salía con
+                el token viejo: parecía que el token nuevo estaba mal cuando el problema era
+                el orden. Ahora se guarda y, solo cuando el servidor confirma, se prueba.
+              */}
+              <button
+                className="btn btn-sec"
+                disabled={!(tokenNuevo[p.id] ?? '').trim() || actualizar.isPending}
+                onClick={() =>
+                  actualizar.mutate(
+                    { id: p.id, datos: { accessToken: (tokenNuevo[p.id] ?? '').trim() } },
+                    {
+                      onSuccess: () => {
+                        setTokenNuevo((t) => ({ ...t, [p.id]: '' }));
+                        probar.mutate(p.id);
+                      },
+                    }
+                  )
+                }
+              >
+                {actualizar.isPending ? 'Guardando…' : 'Guardar token y probar'}
+              </button>
+              <button
+                className="btn btn-sec"
+                onClick={() => probar.mutate(p.id)}
+                disabled={probar.isPending || actualizar.isPending}
+              >
                 {probar.isPending ? 'Probando…' : 'Probar conexión'}
               </button>
               <button
