@@ -18,7 +18,7 @@
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { normalizePhonePE } from '@lucuma-crm/shared';
-import { descifrar } from '../lib/secretos.js';
+import { descifrar, redactarSecretos } from '../lib/secretos.js';
 import { logError, logLine } from '../lib/log.js';
 import { enqueue } from '../lib/jobs.js';
 import { partirNombre } from '../lib/nombres.js';
@@ -308,13 +308,14 @@ export async function despacharMensaje(messageId) {
     }
     catch (err) {
         const e = err;
+        const detalle = redactarSecretos(e.message);
         await prisma.waMessage.update({
             where: { id: mensaje.id },
-            data: { status: 'fallido', error: e.message.slice(0, 1000) },
+            data: { status: 'fallido', error: detalle.slice(0, 1000) },
         });
         await prisma.waNumber.update({
             where: { id: numero.id },
-            data: { lastError: e.message.slice(0, 1000) },
+            data: { lastError: detalle.slice(0, 1000) },
         });
         // Un error del propio mensaje no mejora repitiéndolo.
         if (e.statusCode && e.statusCode >= 400 && e.statusCode < 500) {
@@ -335,7 +336,7 @@ export async function plantillasDe(phoneNumberId) {
         return { ok: true, templates: res.data ?? [] };
     }
     catch (err) {
-        const mensaje = err instanceof Error ? err.message : String(err);
+        const mensaje = redactarSecretos(err instanceof Error ? err.message : String(err));
         await prisma.waNumber.update({
             where: { id: numero.id },
             data: { lastError: mensaje.slice(0, 1000) },

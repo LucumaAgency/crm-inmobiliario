@@ -15,7 +15,7 @@
 import crypto from 'node:crypto';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
-import { descifrar } from '../lib/secretos.js';
+import { descifrar, redactarSecretos } from '../lib/secretos.js';
 import { logLine } from '../lib/log.js';
 import { partirNombre } from '../lib/nombres.js';
 import { captureLead } from './capture.js';
@@ -83,7 +83,7 @@ export async function procesarLeadgen(leadgenId) {
         datos = await traerDelGraph(leadgenId, descifrar(pagina.accessTokenEnc));
     }
     catch (err) {
-        const mensaje = err instanceof Error ? err.message : String(err);
+        const mensaje = redactarSecretos(err instanceof Error ? err.message : String(err));
         await prisma.$transaction([
             prisma.metaLead.update({
                 where: { id: registro.id },
@@ -242,7 +242,7 @@ export async function probarPagina(pageId) {
         return { ok: true, pageName, forms: formularios.data ?? [] };
     }
     catch (err) {
-        const mensaje = err instanceof Error ? err.message : String(err);
+        const mensaje = redactarSecretos(err instanceof Error ? err.message : String(err));
         await prisma.metaPage.update({
             where: { id: pagina.id },
             data: { lastError: mensaje.slice(0, 1000) },

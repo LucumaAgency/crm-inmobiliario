@@ -63,3 +63,18 @@ export function pista(valorCifrado) {
         return null;
     }
 }
+/**
+ * Quita credenciales de un texto antes de guardarlo o mostrarlo.
+ *
+ * Los errores del Graph API incluyen el token entero en el mensaje («Malformed access token
+ * EAAO…»). Ese mensaje se guardaba en `lastError` y se pintaba en Ajustes, así que el token
+ * acababa en claro en la base y en pantalla: exactamente lo que el cifrado existe para
+ * evitar. Un secreto protegido en una columna y filtrado en la de al lado no está protegido.
+ */
+export function redactarSecretos(texto) {
+    return texto
+        // Tokens de Meta: empiezan por EAA y siguen con base64url.
+        .replace(/\bEAA[A-Za-z0-9_-]{20,}/g, 'EAA…<oculto>')
+        .replace(/(access_token=)[^&\s]+/gi, '$1<oculto>')
+        .replace(/(Bearer\s+)[A-Za-z0-9._-]{20,}/gi, '$1<oculto>');
+}

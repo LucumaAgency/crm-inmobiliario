@@ -548,7 +548,9 @@ export default async function adminRoutes(app: FastifyInstance) {
   const paginaMeta = z.object({
     pageId: z.string().regex(/^\d{5,}$/, 'El ID de la página son solo dígitos'),
     pageName: z.string().min(1),
-    accessToken: z.string().min(20),
+    // Se limpian espacios y saltos: copiar un token de un correo o de un chat suele
+    // arrastrarlos, y Meta responde "Malformed access token" sin decir que sobra un espacio.
+    accessToken: z.string().transform((v) => v.replace(/\s+/g, '')).pipe(z.string().min(20)),
     projectId: z.string().optional().nullable(),
     formMap: z.record(z.string()).optional(),
     notifyEmails: z.array(z.string().email()).optional(),
@@ -695,7 +697,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     phoneNumberId: z.string().regex(/^\d{5,}$/, 'El ID del número son solo dígitos'),
     wabaId: z.string().regex(/^\d{5,}$/, 'El ID de la cuenta son solo dígitos'),
     displayNumber: z.string().min(6),
-    accessToken: z.string().min(20),
+    accessToken: z.string().transform((v) => v.replace(/\s+/g, '')).pipe(z.string().min(20)),
     projectId: z.string().optional().nullable(),
   });
 
