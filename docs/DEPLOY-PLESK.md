@@ -235,10 +235,12 @@ Después define la contraseña del admin, sin depender del correo:
 npm run password:prod -- admin@lucuma.agency                 # genera una y la imprime una vez
 npm run password:prod -- admin@lucuma.agency 'MiClave2026!'  # o la que tú elijas (mínimo 10)
 npm run password:prod -- admin@lucuma.agency '' bastion      # si el correo está en varias organizaciones
+npm run admin:prod -- correo@dominio.com 'SuClave2026' bastion  # CREA el admin si no existe
 ```
 
 Es también la **puerta de emergencia** si el SMTP se cae: solo la tiene quien entra al servidor.
-Desde **Node.js → Run script** se escribe `password:prod -- correo@dominio [clave] [slug]`.
+Desde **Node.js → Run script** se escribe `password:prod -- correo@dominio [clave] [slug]`, o
+`admin:prod -- correo@dominio clave [slug]` para crear el admin si todavía no existe.
 
 Cada usuario puede crear o cambiar la suya en **Mi cuenta** (pie del menú lateral). Quien aún no
 tiene contraseña sigue entrando con el enlace al correo, que queda como respaldo.

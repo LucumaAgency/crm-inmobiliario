@@ -23,7 +23,9 @@
     "typecheck": "tsc -b packages/shared packages/api packages/web",
     "seed:prod": "node packages/api/dist/seed.js",
     "password": "tsx packages/api/src/set-password.ts",
-    "password:prod": "node packages/api/dist/set-password.js"
+    "password:prod": "node packages/api/dist/set-password.js",
+    "admin:prod": "node packages/api/dist/set-password.js --admin",
+    "admin": "tsx packages/api/src/set-password.ts --admin"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
