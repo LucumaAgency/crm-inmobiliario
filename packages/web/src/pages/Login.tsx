@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
-/** Magic link: los asesores no gestionan contraseñas. */
+/**
+ * Correo y contraseña. El enlace al correo queda como respaldo: para quien aún no tiene
+ * contraseña o la olvidó.
+ */
 export default function Login() {
+  const qc = useQueryClient();
   // Quién es el cliente de este subdominio. Se muestra para que nadie dude de en qué
   // CRM está entrando cuando administra varios.
   const tenant = useQuery({
@@ -12,18 +16,40 @@ export default function Login() {
     retry: false,
   });
 
+  const [modo, setModo] = useState<'password' | 'enlace'>('password');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [estado, setEstado] = useState<'idle' | 'enviando' | 'enviado' | 'error'>('idle');
+  const [error, setError] = useState('');
 
-  async function enviar(e: React.FormEvent) {
+  async function entrar(e: React.FormEvent) {
+    e.preventDefault();
+    setEstado('enviando');
+    try {
+      await api.post('/auth/login', { email, password });
+      await qc.invalidateQueries({ queryKey: ['me'] });
+    } catch (err) {
+      setError((err as Error).message);
+      setEstado('error');
+    }
+  }
+
+  async function pedirEnlace(e: React.FormEvent) {
     e.preventDefault();
     setEstado('enviando');
     try {
       await api.post('/auth/magic-link', { email });
       setEstado('enviado');
     } catch {
+      setError('No se pudo enviar. Intenta de nuevo.');
       setEstado('error');
     }
+  }
+
+  function cambiarModo(m: 'password' | 'enlace') {
+    setModo(m);
+    setEstado('idle');
+    setError('');
   }
 
   return (
@@ -32,8 +58,8 @@ export default function Login() {
       {tenant.data?.tenant && (
         <p className="nombre" style={{ marginTop: 0 }}>{tenant.data.tenant.name}</p>
       )}
-      <p className="meta">Te enviamos un enlace de acceso a tu correo.</p>
-      <form onSubmit={enviar}>
+
+      <form onSubmit={modo === 'password' ? entrar : pedirEnlace}>
         <label htmlFor="email">Correo</label>
         <input
           id="email"
@@ -44,14 +70,42 @@ export default function Login() {
           required
           autoComplete="email"
         />
+        {modo === 'password' && (
+          <>
+            <label htmlFor="password">Contraseña</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </>
+        )}
         <button className="btn btn-bloque" style={{ marginTop: 16 }} disabled={estado === 'enviando'}>
-          {estado === 'enviando' ? 'Enviando…' : 'Enviar enlace'}
+          {estado === 'enviando'
+            ? modo === 'password' ? 'Entrando…' : 'Enviando…'
+            : modo === 'password' ? 'Entrar' : 'Enviar enlace'}
         </button>
       </form>
+
       {estado === 'enviado' && (
         <p className="ok">Si el correo existe, te llegará un enlace. Vence en 20 minutos.</p>
       )}
-      {estado === 'error' && <p className="error">No se pudo enviar. Intenta de nuevo.</p>}
+      {estado === 'error' && <p className="error">{error}</p>}
+
+      <p className="meta" style={{ marginTop: 16, textAlign: 'center' }}>
+        {modo === 'password' ? (
+          <a href="#" onClick={(e) => { e.preventDefault(); cambiarModo('enlace'); }}>
+            ¿Sin contraseña u olvidada? Entra con enlace al correo
+          </a>
+        ) : (
+          <a href="#" onClick={(e) => { e.preventDefault(); cambiarModo('password'); }}>
+            Entrar con contraseña
+          </a>
+        )}
+      </p>
     </div>
   );
 }

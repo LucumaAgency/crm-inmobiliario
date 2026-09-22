@@ -192,3 +192,27 @@ export declare const magicLinkInput: z.ZodObject<{
 }, {
     email: string;
 }>;
+/** Mínimo 10: sin segundo factor, la longitud es lo único que frena un diccionario. */
+export declare const PASSWORD_MIN = 10;
+export declare const passwordSchema: z.ZodString;
+export declare const loginInput: z.ZodObject<{
+    email: z.ZodString;
+    password: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+    password: string;
+}, {
+    email: string;
+    password: string;
+}>;
+export declare const cambiarPasswordInput: z.ZodObject<{
+    /** Obligatoria si el usuario ya tiene una: una sesión robada no basta para cambiarla. */
+    actual: z.ZodOptional<z.ZodString>;
+    nueva: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    nueva: string;
+    actual?: string | undefined;
+}, {
+    nueva: string;
+    actual?: string | undefined;
+}>;

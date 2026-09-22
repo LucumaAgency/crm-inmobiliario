@@ -64,3 +64,18 @@ export const activityInput = z.object({
 });
 
 export const magicLinkInput = z.object({ email: z.string().email() });
+
+/** Mínimo 10: sin segundo factor, la longitud es lo único que frena un diccionario. */
+export const PASSWORD_MIN = 10;
+export const passwordSchema = z.string().min(PASSWORD_MIN).max(200);
+
+export const loginInput = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(200),
+});
+
+export const cambiarPasswordInput = z.object({
+  /** Obligatoria si el usuario ya tiene una: una sesión robada no basta para cambiarla. */
+  actual: z.string().max(200).optional(),
+  nueva: passwordSchema,
+});

@@ -227,12 +227,26 @@ npm run seed:prod
 Corre desde `packages/api/dist/seed.js`, sin `tsx`: en el servidor no hay devDependencies.
 
 Crea la organización, las etapas, el usuario admin y el sitio con sus llaves. **Anota la secret
-key: se muestra una sola vez.** Después entra al CRM con magic link.
+key: se muestra una sola vez.**
+
+Después define la contraseña del admin, sin depender del correo:
+
+```bash
+npm run password:prod -- admin@lucuma.agency                 # genera una y la imprime una vez
+npm run password:prod -- admin@lucuma.agency 'MiClave2026!'  # o la que tú elijas (mínimo 10)
+npm run password:prod -- admin@lucuma.agency '' bastion      # si el correo está en varias organizaciones
+```
+
+Es también la **puerta de emergencia** si el SMTP se cae: solo la tiene quien entra al servidor.
+Desde **Node.js → Run script** se escribe `password:prod -- correo@dominio [clave] [slug]`.
+
+Cada usuario puede crear o cambiar la suya en **Mi cuenta** (pie del menú lateral). Quien aún no
+tiene contraseña sigue entrando con el enlace al correo, que queda como respaldo.
 
 ## 6. Verificación
 
 - `GET /api/health` responde `{ ok: true }`.
-- Se recibe el magic link y se entra.
+- Se entra con correo y contraseña; el enlace al correo también funciona.
 - Un envío de prueba desde el sitio crea el lead y llega el correo.
 - El mismo envío repetido con la misma `idempotencyKey` **no** crea un segundo lead.
 - Un envío con la public key desde un dominio no autorizado devuelve `401`.

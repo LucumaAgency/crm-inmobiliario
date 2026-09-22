@@ -113,15 +113,15 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     id: string;
     createdAt: Date;
     userId: string | null;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     body: string | null;
+    type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
     waMessageId: string | null;
-    type: string;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
@@ -129,15 +129,15 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     id: string;
     createdAt: Date;
     userId: string | null;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     body: string | null;
+    type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
     waMessageId: string | null;
-    type: string;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
 }>;
 /**

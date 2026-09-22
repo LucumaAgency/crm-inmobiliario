@@ -12,10 +12,12 @@ import ProyectoDetail from './pages/ProyectoDetail.js';
 import Formularios from './pages/Formularios.js';
 import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
+import Cuenta from './pages/Cuenta.js';
 
 interface Me {
   user: { id: string; name: string; role: string; organizationId: string };
   organization: { id: string; name: string } | null;
+  tienePassword: boolean;
 }
 
 const ROLES: Record<string, string> = {
@@ -76,6 +78,9 @@ export default function App() {
         <div className="lateral-pie">
           <div className="nombre">{data.user.name}</div>
           <div className="meta">{ROLES[data.user.role] ?? data.user.role}</div>
+          <NavLink to="/cuenta" className={enlace} style={{ fontSize: 13 }}>
+            Mi cuenta{!data.tienePassword && ' · crear contraseña'}
+          </NavLink>
         </div>
       </aside>
 
@@ -107,6 +112,7 @@ export default function App() {
             {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
             {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
             {puedeGestionar && <Route path="/ajustes" element={<Ajustes rol={data.user.role} />} />}
+            <Route path="/cuenta" element={<Cuenta tienePassword={data.tienePassword} />} />
             <Route path="*" element={<div className="vacio">Página no encontrada</div>} />
           </Routes>
         </main>
