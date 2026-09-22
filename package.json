@@ -21,7 +21,9 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx packages/api/src/seed.ts",
     "typecheck": "tsc -b packages/shared packages/api packages/web",
-    "seed:prod": "node packages/api/dist/seed.js"
+    "seed:prod": "node packages/api/dist/seed.js",
+    "password": "tsx packages/api/src/set-password.ts",
+    "password:prod": "node packages/api/dist/set-password.js"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

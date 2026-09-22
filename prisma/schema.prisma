@@ -51,6 +51,10 @@ model User {
   name           String
   role           Role         @default(asesor)
   active         Boolean      @default(true)
+  /// scrypt, formato `scrypt$N$r$p$sal$hash` (lib/password.ts). Null = aún sin contraseña:
+  /// entra por enlace al correo y la define en Ajustes.
+  passwordHash      String?
+  passwordChangedAt DateTime?
   lastLoginAt    DateTime?
   createdAt      DateTime     @default(now())
 

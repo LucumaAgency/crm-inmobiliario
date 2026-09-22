@@ -8,7 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "worker": "node dist/worker.js",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "password": "tsx src/set-password.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
