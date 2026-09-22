@@ -15,6 +15,7 @@ import { resolverTenant } from './lib/tenant.js';
 import { MAX_BYTES, MEDIA_PREFIX, uploadsDir } from './lib/media.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
+import reportesRoutes from './routes/reportes.js';
 import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
@@ -122,6 +123,7 @@ export async function buildApp() {
     { prefix: '/api/v1/cron', logLevel: 'silent' });
     await app.register(authRoutes, { prefix: '/api/v1/auth' });
     await app.register(leadRoutes, { prefix: '/api/v1/leads' });
+    await app.register(reportesRoutes, { prefix: '/api/v1/reportes' });
     await app.register(adminRoutes, { prefix: '/api/v1' });
     /**
      * `logLevel: 'silent'`: el visor se refresca solo cada pocos segundos y cada refresco

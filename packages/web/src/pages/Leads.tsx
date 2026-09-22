@@ -1,23 +1,10 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
-import { desde } from '../lib/format.js';
 import NuevoLead from './NuevoLead.js';
-
-interface Lead {
-  id: string;
-  createdAt: string;
-  firstContactAt: string | null;
-  source: string;
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null };
-  project: { name: string } | null;
-  unit: { code: string } | null;
-  stage: { name: string; color: string | null } | null;
-  owner: { name: string } | null;
-  /** Conversación de WhatsApp del contacto, si tiene. */
-  whatsapp: { unread: number; lastInboundAt: string | null } | null;
-}
+import Icono from '../components/Icono.js';
+import Kpi from '../components/Kpi.js';
+import TablaLeads, { type LeadFila as Lead } from '../components/TablaLeads.js';
 
 interface Stats { total: number; ultimos30: number; sinContactar: number }
 
@@ -55,20 +42,26 @@ export default function Leads() {
 
   return (
     <>
-      <div className="stats">
-        <div className="stat"><div className="n">{stats.data?.total ?? '—'}</div><div className="t">Leads activos</div></div>
-        <div className="stat"><div className="n">{stats.data?.ultimos30 ?? '—'}</div><div className="t">Últimos 30 días</div></div>
-        <div className="stat"><div className="n">{stats.data?.sinContactar ?? '—'}</div><div className="t">Sin contactar</div></div>
-        <div className="stat"><div className="n">{leads.data?.total ?? '—'}</div><div className="t">En esta vista</div></div>
+      <div className="kpis">
+        <Kpi titulo="Leads activos" icono="leads" tono="solido" valor={String(stats.data?.total ?? '—')} nota="en todas las etapas abiertas" />
+        <Kpi titulo="Últimos 30 días" icono="calendario" valor={String(stats.data?.ultimos30 ?? '—')} nota="leads que entraron" />
+        <Kpi titulo="Sin contactar" icono="alerta" tono="ambar" valor={String(stats.data?.sinContactar ?? '—')} nota="esperando la primera llamada" />
+        <Kpi titulo="En esta vista" icono="buscar" tono="navy" valor={String(leads.data?.total ?? '—')} nota="con los filtros actuales" />
       </div>
 
-      <div className="barra-acciones">
-        <div className="filtros">
+      <div className="herramientas">
+        <div className="buscador">
+          <Icono nombre="buscar" tam={15} />
           <input placeholder="Buscar nombre, teléfono, DNI…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select value={stageId} onChange={(e) => setStageId(e.target.value)}>
+        </div>
+        <label className="control" style={{ margin: 0 }}>
+          <select value={stageId} onChange={(e) => setStageId(e.target.value)} aria-label="Etapa">
             <option value="">Todas las etapas</option>
             {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+          <Icono nombre="abajo" tam={14} />
+        </label>
+        <label className="control" style={{ margin: 0 }}>
           <select
             value={orden}
             onChange={(e) => setOrden(e.target.value as typeof orden)}
@@ -77,8 +70,12 @@ export default function Leads() {
             <option value="actividad">Actividad reciente</option>
             <option value="creacion">Fecha de creación</option>
           </select>
-        </div>
-        <button type="button" className="btn" onClick={() => setCreando(true)}>+ Nuevo lead</button>
+          <Icono nombre="abajo" tam={14} />
+        </label>
+        <span className="empuja" />
+        <button type="button" className="btn" onClick={() => setCreando(true)}>
+          <Icono nombre="mas" tam={15} />Nuevo lead
+        </button>
       </div>
 
       {creando && <NuevoLead onCerrar={() => setCreando(false)} />}
@@ -87,51 +84,11 @@ export default function Leads() {
       {leads.data?.leads.length === 0 && (
         <div className="vacio">No hay leads con estos filtros.</div>
       )}
-
-      {leads.data?.leads.map((l) => {
-        const minutos = (Date.now() - new Date(l.createdAt).getTime()) / 60000;
-        const enRiesgo = !l.firstContactAt && minutos > 15;
-        const sinLeer = l.whatsapp?.unread ?? 0;
-        return (
-          <Link
-            key={l.id}
-            to={`/leads/${l.id}`}
-            className={sinLeer > 0 ? 'card card-lead card-sin-leer' : 'card card-lead'}
-          >
-            <div className="fila">
-              <span className="nombre">
-                {sinLeer > 0 && <span className="punto" aria-hidden="true" />}
-                {l.contact.fname} {l.contact.lname ?? ''}
-              </span>
-              {l.stage && (
-                <span className="chip" style={l.stage.color ? { background: l.stage.color + '22', color: l.stage.color } : undefined}>
-                  {l.stage.name}
-                </span>
-              )}
-            </div>
-            <div className="meta" style={{ marginTop: 4 }}>
-              {[l.project?.name, l.unit?.code && `Unidad ${l.unit.code}`, l.contact.phone]
-                .filter(Boolean)
-                .join(' · ')}
-            </div>
-            <div className="fila" style={{ marginTop: 8 }}>
-              <span className="meta">{desde(l.createdAt)} · {l.owner?.name ?? 'sin asignar'}</span>
-              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {sinLeer > 0 ? (
-                  <span className="chip chip-verde">
-                    {sinLeer === 1 ? '1 mensaje sin leer' : `${sinLeer} mensajes sin leer`}
-                  </span>
-                ) : (
-                  l.whatsapp?.lastInboundAt && (
-                    <span className="meta">escribió {desde(l.whatsapp.lastInboundAt)}</span>
-                  )
-                )}
-                {enRiesgo && <span className="chip chip-alerta">Sin contactar</span>}
-              </span>
-            </div>
-          </Link>
-        );
-      })}
+      {leads.data && leads.data.leads.length > 0 && (
+        <div className="tabla-marco panel-lista">
+          <TablaLeads leads={leads.data.leads} />
+        </div>
+      )}
     </>
   );
 }

@@ -53,59 +53,87 @@ export default function Login() {
   }
 
   return (
-    <div className="login card">
-      <div className="marca" style={{ fontSize: 22, marginBottom: 4 }}>Lucuma CRM</div>
-      {tenant.data?.tenant && (
-        <p className="nombre" style={{ marginTop: 0 }}>{tenant.data.tenant.name}</p>
-      )}
+    <div className="login-pagina">
+      <div className="login card">
+        <div className="lateral-marca" style={{ padding: 0 }}>
+          <span className="wordmark">Lucuma Agency</span>
+          <span className="producto">CRM</span>
+        </div>
+        <h2>{modo === 'password' ? 'Inicia sesión' : 'Entrar con enlace'}</h2>
+        <p className="meta" style={{ marginTop: 0 }}>
+          {tenant.data?.tenant
+            ? `CRM de ${tenant.data.tenant.name}`
+            : 'Gestión comercial inmobiliaria'}
+        </p>
 
-      <form onSubmit={modo === 'password' ? entrar : pedirEnlace}>
-        <label htmlFor="email">Correo</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@empresa.com"
-          required
-          autoComplete="email"
-        />
-        {modo === 'password' && (
-          <>
-            <label htmlFor="password">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </>
+        <form onSubmit={modo === 'password' ? entrar : pedirEnlace}>
+          <label htmlFor="email">Correo</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@empresa.com"
+            required
+            autoComplete="email"
+          />
+          {modo === 'password' && (
+            <>
+              <label htmlFor="password">Contraseña</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </>
+          )}
+          <button
+            className="btn btn-bloque"
+            style={{ marginTop: 16 }}
+            disabled={estado === 'enviando'}
+          >
+            {estado === 'enviando'
+              ? modo === 'password'
+                ? 'Entrando…'
+                : 'Enviando…'
+              : modo === 'password'
+                ? 'Entrar'
+                : 'Enviar enlace'}
+          </button>
+        </form>
+
+        {estado === 'enviado' && (
+          <p className="ok">Si el correo existe, te llegará un enlace. Vence en 20 minutos.</p>
         )}
-        <button className="btn btn-bloque" style={{ marginTop: 16 }} disabled={estado === 'enviando'}>
-          {estado === 'enviando'
-            ? modo === 'password' ? 'Entrando…' : 'Enviando…'
-            : modo === 'password' ? 'Entrar' : 'Enviar enlace'}
-        </button>
-      </form>
+        {estado === 'error' && <p className="error">{error}</p>}
 
-      {estado === 'enviado' && (
-        <p className="ok">Si el correo existe, te llegará un enlace. Vence en 20 minutos.</p>
-      )}
-      {estado === 'error' && <p className="error">{error}</p>}
-
-      <p className="meta" style={{ marginTop: 16, textAlign: 'center' }}>
-        {modo === 'password' ? (
-          <a href="#" onClick={(e) => { e.preventDefault(); cambiarModo('enlace'); }}>
-            ¿Sin contraseña u olvidada? Entra con enlace al correo
-          </a>
-        ) : (
-          <a href="#" onClick={(e) => { e.preventDefault(); cambiarModo('password'); }}>
-            Entrar con contraseña
-          </a>
-        )}
-      </p>
+        <p className="meta" style={{ marginTop: 16, textAlign: 'center' }}>
+          {modo === 'password' ? (
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                cambiarModo('enlace');
+              }}
+            >
+              ¿Sin contraseña u olvidada? Entra con enlace al correo
+            </a>
+          ) : (
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                cambiarModo('password');
+              }}
+            >
+              Entrar con contraseña
+            </a>
+          )}
+        </p>
+      </div>
     </div>
   );
 }
