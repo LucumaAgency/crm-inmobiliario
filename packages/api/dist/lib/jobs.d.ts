@@ -14,8 +14,8 @@ export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lea
 export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): Promise<{
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.JobStatus;
     lastError: string | null;
+    status: import(".prisma/client").$Enums.JobStatus;
     type: string;
     payload: import("@prisma/client/runtime/library").JsonValue;
     attempts: number;
