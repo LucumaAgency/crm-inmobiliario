@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { activityInput, leadListQuery } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
-import { audit, requireAuth, scopeForUser } from '../lib/auth.js';
+import { audit, requireAuth, requireRole, scopeForUser } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
 import { z } from 'zod';
 import {
@@ -12,6 +12,16 @@ import {
 
 export default async function leadRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+
+  /**
+   * Escribir exige un rol que pueda hacerlo.
+   *
+   * `requireAuth` solo comprueba que hay sesión. Sin esto, un usuario creado como «solo
+   * lectura» podía registrar actividades, mover etapas y escribir por WhatsApp al cliente:
+   * el rol existía en la interfaz y no en el servidor, que es donde cuenta. El caso real
+   * no es el malicioso sino el jefe de obra al que se le da acceso «para que mire».
+   */
+  const escritura = requireRole('admin_lucuma', 'gerente', 'asesor');
 
   app.get('/', async (req, reply) => {
     const q = leadListQuery.safeParse(req.query);
@@ -177,7 +187,7 @@ export default async function leadRoutes(app: FastifyInstance) {
   });
 
   /** Enviar. Texto dentro de la ventana de 24 h, plantilla fuera de ella. */
-  app.post<{ Params: { id: string } }>('/:id/whatsapp', async (req, reply) => {
+  app.post<{ Params: { id: string } }>('/:id/whatsapp', { preHandler: escritura }, async (req, reply) => {
     const user = req.user!;
     const parsed = z
       .union([
@@ -233,7 +243,7 @@ export default async function leadRoutes(app: FastifyInstance) {
   });
 
   /** Registrar actividad. Si se agenda la siguiente, se crea pendiente en el mismo paso. */
-  app.post<{ Params: { id: string } }>('/:id/activities', async (req, reply) => {
+  app.post<{ Params: { id: string } }>('/:id/activities', { preHandler: escritura }, async (req, reply) => {
     const user = req.user!;
     const parsed = activityInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
@@ -273,6 +283,7 @@ export default async function leadRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string }; Body: { stageId?: string; status?: string; ownerId?: string } }>(
     '/:id',
+    { preHandler: escritura },
     async (req, reply) => {
       const user = req.user!;
       const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });

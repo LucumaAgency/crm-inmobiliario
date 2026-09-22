@@ -70,14 +70,26 @@ export default async function publicRoutes(app) {
         });
         return { forms };
     });
-    /** Unidades disponibles, para el select dinámico y para mostrar disponibilidad en la web. */
+    /**
+     * Unidades para el select dinámico y para mostrar disponibilidad en la web.
+     *
+     * Con la **public key** solo se devuelven las DISPONIBLES. Esa llave va en el HTML del
+     * sitio por diseño, así que cualquiera puede leerla y llamar aquí: devolver el inventario
+     * entero publicaba qué se vendió, cuándo y a qué precio, que es información comercial del
+     * cliente y no tiene por qué estar en la calle.
+     *
+     * Con la **secret key** —que vive solo en el servidor de WordPress— se devuelve todo, que
+     * es lo que necesita un listado propio que quiera marcar las vendidas.
+     */
     app.get('/units', async (req, reply) => {
-        const site = (await sitePorPublicKey(req)) ?? (await sitePorSecret(req));
+        const porSecret = await sitePorSecret(req);
+        const site = porSecret ?? (await sitePorPublicKey(req));
         if (!site)
             return reply.code(401).send({ error: 'Llave o dominio no autorizado' });
         const units = await prisma.unit.findMany({
             where: {
                 project: { organizationId: site.organizationId, active: true },
+                ...(porSecret ? {} : { status: 'disponible' }),
                 ...(req.query.projectId ? { projectId: req.query.projectId } : {}),
             },
             select: {

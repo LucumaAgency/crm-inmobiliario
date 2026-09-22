@@ -737,7 +737,8 @@ export default async function adminRoutes(app) {
         return p ? p.id : null;
     }
     // -------------------------------------------------------- alta manual
-    app.post('/leads', async (req, reply) => {
+    // Alta manual: también es escritura, así que «solo lectura» no pasa de aquí.
+    app.post('/leads', { preHandler: requireRole('admin_lucuma', 'gerente', 'asesor') }, async (req, reply) => {
         const parsed = z
             .object({
             fname: z.string().min(1),

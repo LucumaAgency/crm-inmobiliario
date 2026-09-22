@@ -23,7 +23,28 @@ export async function pickOwner(organizationId: string): Promise<string | null> 
   return asesores[0].id;
 }
 
+/**
+ * Asigna un lead a un asesor.
+ *
+ * La comprobación de que ambos son del mismo cliente va AQUÍ y no en la ruta, porque esta
+ * función la llaman la captura, el round robin y la reasignación manual: en el borde se
+ * olvida en alguna. Y lo que estaba en juego no era solo un dato descuadrado: el aviso de
+ * lead nuevo se manda al correo del dueño, así que un `ownerId` de otra organización
+ * recibía el nombre y el teléfono de una persona que no es suya (Ley 29733).
+ */
 export async function assignLead(leadId: string, userId: string, reason = 'round_robin') {
+  const [lead, usuario] = await Promise.all([
+    prisma.lead.findUnique({ where: { id: leadId }, select: { organizationId: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { organizationId: true, active: true } }),
+  ]);
+  if (!lead) throw new Error(`assignLead: no existe el lead ${leadId}`);
+  if (!usuario || usuario.organizationId !== lead.organizationId) {
+    throw Object.assign(new Error('El asesor no pertenece a esta organización'), { statusCode: 400 });
+  }
+  if (!usuario.active) {
+    throw Object.assign(new Error('Ese asesor está desactivado'), { statusCode: 400 });
+  }
+
   await prisma.$transaction([
     prisma.assignment.updateMany({
       where: { leadId, endedAt: null },
