@@ -110,34 +110,34 @@ export declare function ventanaAbierta(conv: {
  */
 export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
-    body: string | null;
     id: string;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     createdAt: Date;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
-    type: string;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
-    body: string | null;
     id: string;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     createdAt: Date;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
-    type: string;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
 }>;
 /**
