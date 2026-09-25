@@ -483,3 +483,18 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 /* Un solo trazo de flecha para arriba y abajo. */
 .girar { transform: rotate(180deg); }
 .icono-btn:disabled { opacity: .35; cursor: default; }
+
+/* --- Seguimientos --------------------------------------------------------- */
+/* En el celular todo apilado: la hora arriba, el nombre con todo el ancho. */
+.seg-fila {
+  display: grid; grid-template-columns: 1fr; gap: 6px 12px; align-items: start;
+  padding: 12px 16px; border-bottom: 1px solid var(--borde-suave);
+}
+.seg-fila:last-child { border-bottom: 0; }
+.seg-cuando { padding-top: 1px; }
+.seg-nota { font-style: italic; }
+.seg-acciones { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (min-width: 760px) {
+  .seg-fila { grid-template-columns: 170px 1fr auto; align-items: center; }
+  .seg-acciones { grid-column: auto; }
+}

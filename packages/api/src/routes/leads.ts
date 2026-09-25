@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { activityInput, leadListQuery } from '@lucuma-crm/shared';
+import { activityInput, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requireRole, scopeForUser } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -9,6 +9,17 @@ import {
   enviarTexto,
   ventanaAbierta,
 } from '../services/whatsapp.js';
+
+/** Tipos que son contacto real con el cliente. Una nota interna no cumple un seguimiento. */
+const CONTACTO = new Set(['llamada', 'whatsapp', 'email', 'visita']);
+
+/** Fin del día de hoy en Lima (UTC-5, sin horario de verano). */
+function finDeHoyLima(): Date {
+  const offset = 5 * 60 * 60 * 1000;
+  const lima = new Date(Date.now() - offset);
+  lima.setUTCHours(23, 59, 59, 999);
+  return new Date(lima.getTime() + offset);
+}
 
 export default async function leadRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -252,6 +263,21 @@ export default async function leadRoutes(app: FastifyInstance) {
     if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
 
     const ahora = new Date();
+
+    /**
+     * Un contacto real cumple los seguimientos de hoy y los vencidos de este lead.
+     *
+     * Los futuros no: si el jueves hay visita agendada y hoy se manda un WhatsApp, la visita
+     * sigue en pie. Sin este cierre la lista de seguimientos solo crecía y todo acababa
+     * «vencido», que es lo mismo que no tener lista.
+     */
+    const cerrados = CONTACTO.has(parsed.data.type)
+      ? await prisma.activity.updateMany({
+          where: { leadId: lead.id, doneAt: null, dueAt: { not: null, lte: finDeHoyLima() } },
+          data: { doneAt: ahora },
+        })
+      : { count: 0 };
+
     const creada = await prisma.activity.create({
       data: {
         leadId: lead.id,
@@ -278,7 +304,47 @@ export default async function leadRoutes(app: FastifyInstance) {
       where: { id: lead.id },
       data: { lastActivityAt: ahora, firstContactAt: lead.firstContactAt ?? ahora },
     });
-    return creada;
+    return { ...creada, seguimientosCerrados: cerrados.count };
+  });
+
+  /** Agendar un seguimiento sin registrar antes una actividad. */
+  app.post<{ Params: { id: string } }>('/:id/seguimientos', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const parsed = seguimientoInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
+    if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
+
+    return prisma.activity.create({
+      data: {
+        leadId: lead.id,
+        userId: user.id,
+        type: parsed.data.type,
+        body: parsed.data.body || 'Seguimiento agendado',
+        dueAt: new Date(parsed.data.dueAt),
+      },
+    });
+  });
+
+  /** Marcar hecho o reprogramar. Solo sobre seguimientos de leads que el usuario puede ver. */
+  app.patch<{ Params: { id: string } }>('/seguimientos/:id', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const parsed = seguimientoPatch.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const seg = await prisma.activity.findFirst({
+      where: { id: req.params.id, dueAt: { not: null }, doneAt: null, lead: scopeForUser(user) },
+    });
+    if (!seg) return reply.code(404).send({ error: 'Seguimiento no encontrado o ya cerrado' });
+
+    const ahora = new Date();
+    const actualizado = await prisma.activity.update({
+      where: { id: seg.id },
+      data: parsed.data.hecho ? { doneAt: ahora } : { dueAt: new Date(parsed.data.dueAt!) },
+    });
+    if (parsed.data.hecho) {
+      await prisma.lead.update({ where: { id: seg.leadId }, data: { lastActivityAt: ahora } });
+    }
+    return actualizado;
   });
 
   app.patch<{ Params: { id: string }; Body: { stageId?: string; status?: string; ownerId?: string } }>(
@@ -322,19 +388,43 @@ export default async function leadRoutes(app: FastifyInstance) {
     }
   );
 
-  /** Tareas pendientes del usuario. Es la pantalla que abre el asesor al empezar el día. */
-  app.get('/tasks/pending', async (req) => {
+  /**
+   * Seguimientos pendientes.
+   *
+   * Pertenecen al asesor ACTUAL del lead, no a quien los agendó: si un lead se reasigna, sus
+   * seguimientos se van con él. Por eso se filtra por `lead.ownerId` y no por `userId`.
+   *
+   * El asesor ve siempre los suyos. Gerencia elige: los suyos, los de todo el equipo o los
+   * de un asesor (`asesor=sin` para leads sin asignar).
+   */
+  app.get<{ Querystring: { vista?: string; asesor?: string } }>('/seguimientos', async (req) => {
     const user = req.user!;
+    const gestiona = user.role !== 'asesor';
+    const equipo = gestiona && req.query.vista === 'equipo';
+
+    let dueno: Record<string, unknown> = { ownerId: user.id };
+    if (equipo) {
+      const a = req.query.asesor;
+      dueno = !a ? {} : a === 'sin' ? { ownerId: null } : { ownerId: a };
+    }
+
     return prisma.activity.findMany({
       where: {
-        userId: user.id,
         doneAt: null,
         dueAt: { not: null },
-        lead: { organizationId: user.organizationId, status: 'activo' },
+        lead: { organizationId: user.organizationId, status: 'activo', ...dueno },
       },
-      include: { lead: { include: { contact: true, project: { select: { name: true } } } } },
+      include: {
+        lead: {
+          include: {
+            contact: true,
+            project: { select: { name: true } },
+            owner: { select: { id: true, name: true } },
+          },
+        },
+      },
       orderBy: { dueAt: 'asc' },
-      take: 100,
+      take: 300,
     });
   });
 }

@@ -56,6 +56,16 @@ export const activityInput = z.object({
     nextDueAt: z.string().datetime().optional(),
     nextType: z.enum(['llamada', 'whatsapp', 'email', 'visita', 'nota']).optional(),
 });
+/** Seguimiento agendado a mano, sin registrar antes una actividad. */
+export const seguimientoInput = z.object({
+    type: z.enum(['llamada', 'whatsapp', 'email', 'visita']),
+    dueAt: z.string().datetime(),
+    body: z.string().max(2000).optional(),
+});
+/** Marcar hecho o reprogramar. */
+export const seguimientoPatch = z
+    .object({ hecho: z.literal(true).optional(), dueAt: z.string().datetime().optional() })
+    .refine((v) => v.hecho || v.dueAt, { message: 'Nada que cambiar' });
 export const magicLinkInput = z.object({ email: z.string().email() });
 /** Mínimo 10: sin segundo factor, la longitud es lo único que frena un diccionario. */
 export const PASSWORD_MIN = 10;

@@ -185,6 +185,37 @@ export declare const activityInput: z.ZodObject<{
     nextDueAt?: string | undefined;
     nextType?: "nota" | "llamada" | "whatsapp" | "email" | "visita" | undefined;
 }>;
+/** Seguimiento agendado a mano, sin registrar antes una actividad. */
+export declare const seguimientoInput: z.ZodObject<{
+    type: z.ZodEnum<["llamada", "whatsapp", "email", "visita"]>;
+    dueAt: z.ZodString;
+    body: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    type: "llamada" | "whatsapp" | "email" | "visita";
+    dueAt: string;
+    body?: string | undefined;
+}, {
+    type: "llamada" | "whatsapp" | "email" | "visita";
+    dueAt: string;
+    body?: string | undefined;
+}>;
+/** Marcar hecho o reprogramar. */
+export declare const seguimientoPatch: z.ZodEffects<z.ZodObject<{
+    hecho: z.ZodOptional<z.ZodLiteral<true>>;
+    dueAt: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    dueAt?: string | undefined;
+    hecho?: true | undefined;
+}, {
+    dueAt?: string | undefined;
+    hecho?: true | undefined;
+}>, {
+    dueAt?: string | undefined;
+    hecho?: true | undefined;
+}, {
+    dueAt?: string | undefined;
+    hecho?: true | undefined;
+}>;
 export declare const magicLinkInput: z.ZodObject<{
     email: z.ZodString;
 }, "strip", z.ZodTypeAny, {

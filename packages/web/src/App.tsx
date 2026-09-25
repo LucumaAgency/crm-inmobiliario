@@ -9,7 +9,7 @@ import Resumen from './pages/Resumen.js';
 import Reportes from './pages/Reportes.js';
 import Leads from './pages/Leads.js';
 import LeadDetail from './pages/LeadDetail.js';
-import Tareas from './pages/Tareas.js';
+import Seguimientos from './pages/Seguimientos.js';
 import Proyectos from './pages/Proyectos.js';
 import ProyectoDetail from './pages/ProyectoDetail.js';
 import Formularios from './pages/Formularios.js';
@@ -36,7 +36,7 @@ const TITULOS: [string, string][] = [
   ['/reportes', 'Reportes'],
   ['/leads/:id', 'Ficha del lead'],
   ['/leads', 'Leads'],
-  ['/tareas', 'Tareas'],
+  ['/seguimientos', 'Seguimientos'],
   ['/proyectos/:id', 'Proyecto'],
   ['/proyectos', 'Proyectos'],
   ['/formularios/:id', 'Editar formulario'],
@@ -109,8 +109,8 @@ export default function App() {
           <NavLink to="/leads" className={enlace}>
             <Icono nombre="leads" />Leads
           </NavLink>
-          <NavLink to="/tareas" className={enlace}>
-            <Icono nombre="tareas" />Tareas
+          <NavLink to="/seguimientos" className={enlace}>
+            <Icono nombre="tareas" />Seguimientos
           </NavLink>
           <NavLink to="/reportes" className={enlace}>
             <Icono nombre="reportes" />Reportes
@@ -207,7 +207,9 @@ export default function App() {
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/leads" element={<Leads />} />
             <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
-            <Route path="/tareas" element={<Tareas />} />
+            <Route path="/seguimientos" element={<Seguimientos rol={data.user.role} />} />
+            {/* Enlaces guardados y avisos antiguos apuntan a la ruta de antes. */}
+            <Route path="/tareas" element={<Navigate to="/seguimientos" replace />} />
             <Route path="/proyectos" element={<Proyectos />} />
             <Route path="/proyectos/:id" element={<ProyectoDetail />} />
             {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}

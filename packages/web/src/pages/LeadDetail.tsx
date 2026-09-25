@@ -21,6 +21,7 @@ interface Detalle {
 }
 
 const TIPOS = ['llamada', 'whatsapp', 'email', 'visita', 'nota'] as const;
+const TIPOS_SEGUIMIENTO = ['llamada', 'whatsapp', 'email', 'visita'] as const;
 
 export default function LeadDetail({ rol }: { rol: string }) {
   const { id } = useParams();
@@ -28,6 +29,11 @@ export default function LeadDetail({ rol }: { rol: string }) {
   const [tipo, setTipo] = useState<(typeof TIPOS)[number]>('llamada');
   const [body, setBody] = useState('');
   const [nextDueAt, setNextDueAt] = useState('');
+  const [nextType, setNextType] = useState<(typeof TIPOS_SEGUIMIENTO)[number]>('llamada');
+  const [segTipo, setSegTipo] = useState<(typeof TIPOS_SEGUIMIENTO)[number]>('llamada');
+  const [segFecha, setSegFecha] = useState('');
+  const [segNota, setSegNota] = useState('');
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', id],
@@ -44,14 +50,39 @@ export default function LeadDetail({ rol }: { rol: string }) {
         type: tipo,
         body: body || undefined,
         nextDueAt: nextDueAt ? new Date(nextDueAt).toISOString() : undefined,
-        nextType: nextDueAt ? 'llamada' : undefined,
+        nextType: nextDueAt ? nextType : undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       setBody(''); setNextDueAt('');
-      qc.invalidateQueries({ queryKey: ['lead', id] });
-      qc.invalidateQueries({ queryKey: ['leads'] });
+      const n = (res as { seguimientosCerrados?: number }).seguimientosCerrados ?? 0;
+      setAviso(n > 0 ? (n === 1 ? 'Se cerró 1 seguimiento pendiente.' : `Se cerraron ${n} seguimientos pendientes.`) : null);
+      refrescar();
     },
   });
+
+  const agendar = useMutation({
+    mutationFn: () =>
+      api.post(`/leads/${id}/seguimientos`, {
+        type: segTipo,
+        dueAt: new Date(segFecha).toISOString(),
+        body: segNota.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setSegFecha(''); setSegNota('');
+      refrescar();
+    },
+  });
+
+  const hecho = useMutation({
+    mutationFn: (segId: string) => api.patch(`/leads/seguimientos/${segId}`, { hecho: true }),
+    onSuccess: refrescar,
+  });
+
+  function refrescar() {
+    qc.invalidateQueries({ queryKey: ['lead', id] });
+    qc.invalidateQueries({ queryKey: ['leads'] });
+    qc.invalidateQueries({ queryKey: ['seguimientos'] });
+  }
 
   const cambiarEtapa = useMutation({
     mutationFn: (stageId: string) => api.patch(`/leads/${id}`, { stageId }),
@@ -61,6 +92,9 @@ export default function LeadDetail({ rol }: { rol: string }) {
   if (isLoading || !lead) return <div className="vacio">Cargando…</div>;
 
   const nombre = `${lead.contact.fname} ${lead.contact.lname ?? ''}`.trim();
+  const pendientes = lead.activities
+    .filter((a) => a.dueAt && !a.doneAt)
+    .sort((a, b) => a.dueAt!.localeCompare(b.dueAt!));
   const wa = whatsappUrl(
     lead.contact.phone,
     `Hola ${lead.contact.fname}, te escribo de ${lead.project?.name ?? 'la inmobiliaria'} por tu consulta.`
@@ -111,6 +145,68 @@ export default function LeadDetail({ rol }: { rol: string }) {
 
       {rol !== 'solo_lectura' && <ChatWhatsApp leadId={lead.id} />}
 
+      <div className="card">
+        <strong>Seguimientos</strong>
+        {pendientes.length === 0 ? (
+          <p className="meta" style={{ marginTop: 6 }}>
+            Sin próximo paso agendado. Un lead sin próxima acción se enfría.
+          </p>
+        ) : (
+          <div style={{ marginTop: 10 }}>
+            {pendientes.map((a) => {
+              const vencido = new Date(a.dueAt!).getTime() < Date.now();
+              return (
+                <div key={a.id} className="fila" style={{ padding: '8px 0', borderBottom: '1px solid var(--borde-suave)' }}>
+                  <span>
+                    <span className={vencido ? 'chip chip-alerta' : 'chip chip-gris'}>{fecha(a.dueAt)}</span>{' '}
+                    <span className="nombre" style={{ fontSize: 13.5 }}>{a.type}</span>
+                    {a.body && a.body !== 'Seguimiento agendado' && <span className="meta"> · {a.body}</span>}
+                  </span>
+                  {rol !== 'solo_lectura' && (
+                    <button
+                      type="button"
+                      className="btn btn-sec"
+                      style={{ padding: '5px 10px', fontSize: 12 }}
+                      disabled={hecho.isPending}
+                      onClick={() => hecho.mutate(a.id)}
+                    >
+                      Hecho
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {rol !== 'solo_lectura' && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (segFecha) agendar.mutate();
+            }}
+          >
+            <div className="rejilla-2">
+              <div>
+                <label>Agendar</label>
+                <select value={segTipo} onChange={(e) => setSegTipo(e.target.value as typeof segTipo)}>
+                  {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Cuándo</label>
+                <input type="datetime-local" value={segFecha} onChange={(e) => setSegFecha(e.target.value)} required />
+              </div>
+            </div>
+            <label>Nota (opcional)</label>
+            <input value={segNota} onChange={(e) => setSegNota(e.target.value)} placeholder="Ej.: enviar cotización del depa 302" maxLength={200} />
+            <button className="btn" style={{ marginTop: 12 }} disabled={!segFecha || agendar.isPending}>
+              Agendar seguimiento
+            </button>
+          </form>
+        )}
+      </div>
+
       {rol !== 'solo_lectura' && (
         <div className="card">
           <strong>Registrar actividad</strong>
@@ -120,10 +216,21 @@ export default function LeadDetail({ rol }: { rol: string }) {
           </select>
           <label>Detalle</label>
           <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Qué se conversó" />
-          <label>Siguiente seguimiento</label>
-          <input type="datetime-local" value={nextDueAt} onChange={(e) => setNextDueAt(e.target.value)} />
+          <div className="rejilla-2">
+            <div>
+              <label>Siguiente seguimiento</label>
+              <input type="datetime-local" value={nextDueAt} onChange={(e) => setNextDueAt(e.target.value)} />
+            </div>
+            <div>
+              <label>Tipo</label>
+              <select value={nextType} onChange={(e) => setNextType(e.target.value as typeof nextType)}>
+                {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
           <p className="meta" style={{ marginTop: 6 }}>
-            Agenda siempre el siguiente paso: un lead sin próxima acción se enfría.
+            Registrar una llamada, WhatsApp, correo o visita cierra los seguimientos de hoy y los
+            vencidos de este lead. Agenda siempre el siguiente paso.
           </p>
           <button
             className="btn btn-bloque"
@@ -132,6 +239,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
           >
             {registrar.isPending ? 'Guardando…' : 'Guardar'}
           </button>
+          {aviso && <p className="ok">{aviso}</p>}
         </div>
       )}
 
@@ -147,6 +255,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
               </div>
               {a.body && <div className="meta" style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>}
               {a.dueAt && !a.doneAt && <span className="chip chip-alerta">Pendiente {fecha(a.dueAt)}</span>}
+              {a.dueAt && a.doneAt && <span className="chip chip-verde">Cumplido {fecha(a.doneAt)}</span>}
               {a.user && <div className="meta">{a.user.name}</div>}
             </div>
           ))}
