@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import MetaLeadAds from './MetaLeadAds.js';
 import WhatsAppNumeros from './WhatsAppNumeros.js';
 import Registro from './Registro.js';
+import EtapasEditor from './EtapasEditor.js';
 
 interface Site {
   id: string;
@@ -73,6 +74,8 @@ export default function Ajustes({ rol }: { rol: string }) {
 
   return (
     <>
+      <EtapasEditor />
+
       <div className="card">
         <strong>Sitios conectados</strong>
         <p className="meta" style={{ marginTop: 6 }}>

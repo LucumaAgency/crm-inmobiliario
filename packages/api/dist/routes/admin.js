@@ -14,7 +14,168 @@ export default async function adminRoutes(app) {
     app.get('/stages', async (req) => prisma.stage.findMany({
         where: { organizationId: req.user.organizationId },
         orderBy: { position: 'asc' },
+        include: { _count: { select: { leads: true } } },
     }));
+    /**
+     * Las etapas son del cliente, no del código: una inmobiliaria vende con «Visita» y
+     * «Separación», una agencia con «Reunión» y «Propuesta enviada».
+     *
+     * Reglas que el CRM necesita para no romperse:
+     * - La PRIMERA etapa es la que recibe los leads nuevos (`captureLead` toma la de menor
+     *   posición), así que reordenar cambia a dónde entran.
+     * - Ganada y perdida son excluyentes; los reportes cuentan como ganado lo que está en una
+     *   etapa ganada.
+     * - El slug se fija al crearla y no cambia al renombrar: es el nombre estable de la etapa.
+     */
+    const stageInput = z
+        .object({
+        name: z.string().trim().min(1).max(60),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+        isWon: z.boolean().optional(),
+        isLost: z.boolean().optional(),
+    })
+        .refine((v) => !(v.isWon && v.isLost), { message: 'Una etapa no puede ser ganada y perdida' });
+    const ENTRADA_CERRADA = 'La primera etapa recibe los leads nuevos: no puede ser ganada ni perdida, o cada lead que entre contaría como cerrado.';
+    /** La etapa de menor posición de la organización, que es por donde entran los leads. */
+    async function etapaDeEntrada(orgId) {
+        return prisma.stage.findFirst({ where: { organizationId: orgId }, orderBy: { position: 'asc' } });
+    }
+    function slugDe(nombre) {
+        return (nombre
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 50) || 'etapa');
+    }
+    app.post('/stages', { preHandler: gestion }, async (req, reply) => {
+        const parsed = stageInput.safeParse(req.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
+        }
+        const orgId = req.user.organizationId;
+        const existentes = await prisma.stage.findMany({
+            where: { organizationId: orgId },
+            select: { slug: true, position: true },
+        });
+        const base = slugDe(parsed.data.name);
+        let slug = base;
+        for (let i = 2; existentes.some((e) => e.slug === slug); i++)
+            slug = `${base}-${i}`;
+        const etapa = await prisma.stage.create({
+            data: {
+                organizationId: orgId,
+                slug,
+                name: parsed.data.name,
+                color: parsed.data.color ?? null,
+                isWon: parsed.data.isWon ?? false,
+                isLost: parsed.data.isLost ?? false,
+                position: Math.max(0, ...existentes.map((e) => e.position)) + 1,
+            },
+        });
+        await audit(orgId, req.user.id, 'stage.create', { entity: 'stage', entityId: etapa.id });
+        return etapa;
+    });
+    app.patch('/stages/:id', { preHandler: gestion }, async (req, reply) => {
+        const parsed = stageInput.innerType().partial().safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const etapa = await prisma.stage.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!etapa)
+            return reply.code(404).send({ error: 'Etapa no encontrada' });
+        // Marcar una apaga la otra, en vez de rechazar: es lo que quien hace clic quiere decir.
+        const data = { ...parsed.data };
+        if (data.isWon)
+            data.isLost = false;
+        if (data.isLost)
+            data.isWon = false;
+        if ((data.isWon || data.isLost) && (await etapaDeEntrada(etapa.organizationId))?.id === etapa.id) {
+            return reply.code(409).send({ error: ENTRADA_CERRADA });
+        }
+        return prisma.stage.update({ where: { id: etapa.id }, data });
+    });
+    /** Nuevo orden: la lista completa de ids de la organización, de primera a última. */
+    app.put('/stages/order', { preHandler: gestion }, async (req, reply) => {
+        const parsed = z.object({ ids: z.array(z.string()).min(1) }).safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const orgId = req.user.organizationId;
+        const actuales = await prisma.stage.findMany({ where: { organizationId: orgId }, select: { id: true } });
+        const ids = parsed.data.ids;
+        // Tiene que ser exactamente el mismo conjunto: ni etapas de otro cliente ni huecos.
+        if (ids.length !== actuales.length || new Set(ids).size !== ids.length || !actuales.every((a) => ids.includes(a.id))) {
+            return reply.code(400).send({ error: 'El orden debe incluir todas las etapas una sola vez' });
+        }
+        const primera = await prisma.stage.findUnique({ where: { id: ids[0] } });
+        if (primera?.isWon || primera?.isLost)
+            return reply.code(409).send({ error: ENTRADA_CERRADA });
+        await prisma.$transaction(ids.map((id, i) => prisma.stage.update({ where: { id }, data: { position: i + 1 } })));
+        await audit(orgId, req.user.id, 'stage.reorder', { meta: { ids } });
+        return { ok: true };
+    });
+    /**
+     * Borrar una etapa. Si tiene leads, hay que decir a cuál pasan: la relación es `SetNull`
+     * y un lead sin etapa desaparece del embudo y de los reportes sin que nadie lo note.
+     */
+    app.delete('/stages/:id', { preHandler: gestion }, async (req, reply) => {
+        const orgId = req.user.organizationId;
+        const etapa = await prisma.stage.findFirst({
+            where: { id: req.params.id, organizationId: orgId },
+            include: { _count: { select: { leads: true } } },
+        });
+        if (!etapa)
+            return reply.code(404).send({ error: 'Etapa no encontrada' });
+        const orden = await prisma.stage.findMany({
+            where: { organizationId: orgId },
+            orderBy: { position: 'asc' },
+        });
+        if (orden.length <= 1)
+            return reply.code(409).send({ error: 'Tiene que quedar al menos una etapa' });
+        // Borrar la de entrada deja como entrada a la siguiente: tiene que poder serlo.
+        if (orden[0].id === etapa.id && (orden[1].isWon || orden[1].isLost)) {
+            return reply.code(409).send({ error: ENTRADA_CERRADA });
+        }
+        let destino = null;
+        if (etapa._count.leads > 0) {
+            const moverA = req.query.moverA;
+            if (!moverA || moverA === etapa.id) {
+                return reply.code(409).send({
+                    error: `La etapa tiene ${etapa._count.leads} leads. Elige a qué etapa pasan.`,
+                });
+            }
+            destino = await prisma.stage.findFirst({
+                where: { id: moverA, organizationId: orgId },
+                select: { id: true, name: true },
+            });
+            if (!destino)
+                return reply.code(400).send({ error: 'Etapa de destino inválida' });
+        }
+        await prisma.$transaction(async (tx) => {
+            if (destino) {
+                const leads = await tx.lead.findMany({ where: { stageId: etapa.id }, select: { id: true } });
+                await tx.lead.updateMany({ where: { stageId: etapa.id }, data: { stageId: destino.id } });
+                // Que el historial de cada lead explique por qué cambió de etapa.
+                await tx.activity.createMany({
+                    data: leads.map((l) => ({
+                        leadId: l.id,
+                        userId: req.user.id,
+                        type: 'cambio_etapa',
+                        body: `Etapa → ${destino.name} (se eliminó «${etapa.name}»)`,
+                    })),
+                });
+            }
+            await tx.stage.delete({ where: { id: etapa.id } });
+        });
+        await audit(orgId, req.user.id, 'stage.delete', {
+            entity: 'stage',
+            entityId: etapa.id,
+            meta: { name: etapa.name, movidos: etapa._count.leads, destino: destino?.id },
+        });
+        return { ok: true, movidos: etapa._count.leads };
+    });
     // ---------------------------------------------------------- proyectos
     app.get('/projects', async (req) => prisma.project.findMany({
         where: { organizationId: req.user.organizationId },
