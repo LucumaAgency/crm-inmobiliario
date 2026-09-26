@@ -219,6 +219,8 @@ input, select, textarea {
   width: 100%; padding: 10px 12px; border: 1px solid var(--borde);
   border-radius: 8px; font: inherit; font-size: 14px; background: var(--blanco); color: var(--texto);
 }
+input[type='checkbox'], input[type='radio'], input[type='color'] { width: auto; }
+input[type='checkbox'], input[type='radio'] { accent-color: var(--azul); width: 16px; height: 16px; vertical-align: middle; }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px var(--azul-tinte);
 }
@@ -239,8 +241,9 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 .filtros select, .filtros input { min-width: 130px; }
 
 /* --- Indicadores (tarjetas KPI) ------------------------------------------- */
-.stats, .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+.stats, .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat, .kpi {
+  min-width: 0;
   background: var(--blanco); border: 1px solid var(--borde); border-radius: var(--radio);
   padding: 14px 16px;
 }
@@ -271,7 +274,7 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 }
 
 /* KPI como pestaña de un gráfico (Reportes). */
-.kpi-tabs { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--borde); }
+.kpi-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--borde); }
 .kpi-tab {
   background: none; border: 0; text-align: left; padding: 14px 16px;
   border-top: 2px solid transparent; margin-top: -1px;
@@ -390,9 +393,9 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 .solo-escritorio { display: none; }
 
 @media (min-width: 760px) {
-  .stats, .kpis { grid-template-columns: repeat(4, 1fr); }
-  .kpi-tabs { grid-template-columns: repeat(4, 1fr); }
-  .rejilla-paneles { grid-template-columns: 1fr 1fr; }
+  .stats, .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .kpi-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rejilla-paneles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 /* A partir de aquí el lateral es permanente y el cajón deja de existir. */
@@ -497,4 +500,117 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 @media (min-width: 760px) {
   .seg-fila { grid-template-columns: 170px 1fr auto; align-items: center; }
   .seg-acciones { grid-column: auto; }
+}
+
+/* =========================================================================
+   Celular. Todo lo de abajo aplica solo por debajo de 760 px: aire, objetivos
+   táctiles de 44 px y nada que obligue a desplazarse de lado.
+   ========================================================================= */
+@media (max-width: 759px) {
+  /* iOS agranda la pantalla al enfocar un campo con letra menor de 16 px. */
+  input, select, textarea, .control select, .buscador input { font-size: 16px; }
+
+  .contenido { padding: 12px 12px 28px; }
+  .card { padding: 14px; }
+  .panel-cab { padding: 14px 14px 0; }
+  .panel-cuerpo { padding: 14px; }
+  .topbar { padding: 10px 12px; min-height: 54px; }
+  .topbar h1 { font-size: 16px; }
+
+  .btn { min-height: 40px; }
+  .icono-btn { width: 36px; height: 36px; }
+
+  /* Indicadores compactos: el título en una línea y el número manda. */
+  .kpis, .stats { gap: 8px; margin-bottom: 12px; }
+  .kpi { padding: 12px; }
+  .kpi-cab {
+    border: 0; padding: 0; margin-bottom: 8px; font-size: 12px; gap: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex;
+  }
+  .kpi-cab > span:last-child, .kpi-cab { min-width: 0; }
+  .kpi-icono { width: 22px; height: 22px; }
+  .kpi-valor { font-size: 22px; }
+  .kpi-delta { font-size: 11px; margin-top: 4px; }
+  .kpi-delta > span:not(.vs) {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .kpi-tab { padding: 12px; }
+  .kpi-tab .kpi-valor { font-size: 19px; }
+
+  /* Barra de filtros: buscador a todo el ancho, lo demás en una fila que se desliza. */
+  .herramientas { gap: 8px; margin-bottom: 12px; }
+  .herramientas .control-txt { display: none; }
+  .herramientas .empuja { display: none; }
+  .buscador { flex: 1 1 100%; max-width: none; }
+  .buscador input { height: 42px; }
+  .control { height: 40px; }
+  .control select { height: 38px; }
+  .herramientas > .btn { margin-left: auto; }
+  /* Los filtros de una misma barra se reparten la fila en vez de apilarse. */
+  .herramientas > .control { flex: 1 1 140px; min-width: 0; }
+  .herramientas > .control select { flex: 1; min-width: 0; }
+
+  /* Listas de leads dentro de un panel: filas planas, no tarjetas dentro de tarjetas. */
+  .panel-lista .solo-movil { padding: 0; }
+  .panel-lista .card-lead {
+    border: 0; border-radius: 0; margin: 0; padding: 12px 14px;
+    border-bottom: 1px solid var(--borde-suave);
+  }
+  .panel-lista .card-lead:last-child { border-bottom: 0; }
+  .panel-lista .card-sin-leer { box-shadow: inset 3px 0 0 var(--verde); }
+
+  /* Barras horizontales: la etiqueta arriba, completa; la barra debajo con su valor. */
+  .barra-fila {
+    grid-template-columns: 1fr auto; grid-template-areas: 'etq val' 'pista pista';
+    gap: 4px 10px;
+  }
+  .barra-fila .etq { grid-area: etq; white-space: normal; }
+  .barra-fila .barra-pista { grid-area: pista; }
+  .barra-fila .val { grid-area: val; }
+  .cifra { font-size: 24px; }
+
+  /* Pestañas deslizables sin barra visible. */
+  .pestanas { scrollbar-width: none; margin-left: -12px; margin-right: -12px; padding: 0 12px; }
+  .pestanas::-webkit-scrollbar { display: none; }
+  .pestanas button { padding: 11px 12px; }
+
+  /* Acciones de la ficha: botones del mismo ancho, fáciles de tocar con el pulgar. */
+  .acciones > .btn, .acciones > a.btn { flex: 1 1 0; min-width: 0; }
+
+  /* Tablas que se apilan como fichas: cada fila es un bloque y cada dato lleva su rótulo. */
+  .tabla-movil thead { display: none; }
+  .tabla-movil, .tabla-movil tbody { display: block; width: 100%; }
+  .tabla-movil tr {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--borde-suave);
+  }
+  .tabla-movil tbody tr:last-child { border-bottom: 0; }
+  .tabla-movil td { display: block; padding: 0; border: 0; min-width: 0; text-align: left !important; }
+  .tabla-movil td[data-label]::before {
+    content: attr(data-label); display: block;
+    font-size: 11px; font-weight: 500; color: var(--tenue); margin-bottom: 3px;
+  }
+  .tabla-movil td.t-titulo { grid-column: 1 / -1; font-weight: 600; font-size: 14px; }
+  .tabla-movil td.ancho { grid-column: 1 / -1; }
+  .tabla-movil td.accion { grid-column: 1 / -1; }
+  .tabla-movil td.accion .btn { width: 100%; }
+  .tabla-movil select { width: 100%; min-width: 0; }
+
+  /* Etapas: nombre arriba; tipo y leads; orden, color y eliminar abajo. */
+  .tabla-etapas tr {
+    grid-template-columns: auto auto 1fr;
+    grid-template-areas: 'nombre nombre nombre' 'tipo tipo leads' 'orden color accion';
+    align-items: center;
+  }
+  .tabla-etapas .t-nombre { grid-area: nombre; }
+  .tabla-etapas .t-nombre input { width: 100%; min-width: 0 !important; }
+  .tabla-etapas .t-tipo { grid-area: tipo; }
+  .tabla-etapas .t-leads { grid-area: leads; }
+  .tabla-etapas .t-orden { grid-area: orden; }
+  .tabla-etapas .t-color { grid-area: color; }
+  .tabla-etapas .t-accion { grid-area: accion; text-align: right !important; }
+  .tabla-etapas .t-accion .btn { width: auto; }
+
+  .modal { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .login { padding: 22px 18px; }
 }

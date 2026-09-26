@@ -236,7 +236,7 @@ export default function MetaLeadAds() {
                       Cada formulario instantáneo puede ir a un proyecto distinto. Lo que se
                       deje sin elegir usa el proyecto por defecto de arriba.
                     </p>
-                    <table className="tabla" style={{ marginTop: 8 }}>
+                    <table className="tabla tabla-movil" style={{ marginTop: 8 }}>
                       <thead><tr><th>Formulario</th><th>Proyecto</th></tr></thead>
                       <tbody>
                         {prueba.resultado.forms?.map((f) => (
@@ -325,21 +325,21 @@ export default function MetaLeadAds() {
           Un aviso en <em>recibido</em> más de un minuto significa que el CRM no pudo traer los
           datos: casi siempre el token.
         </p>
-        <table className="tabla" style={{ marginTop: 10 }}>
+        <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
           <thead><tr><th>Cuándo</th><th>Origen</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {avisos.data?.avisos.map((a) => (
               <tr key={a.id}>
-                <td>{new Date(a.createdAt).toLocaleString('es-PE')}</td>
-                <td>
+                <td className="t-titulo">{new Date(a.createdAt).toLocaleString('es-PE')}</td>
+                <td data-label="Origen">
                   {a.platform === 'ig' ? 'Instagram' : 'Facebook'}
                   {a.campaignId && <span className="meta"> · campaña {a.campaignId}</span>}
                 </td>
-                <td>
+                <td data-label="Estado">
                   <span className={CHIP[a.status]}>{a.status}</span>
                   {a.error && <div className="meta">{a.error}</div>}
                 </td>
-                <td>
+                <td className="accion">
                   {a.leadId ? (
                     <a className="btn btn-sec" href={`/leads/${a.leadId}`}>Ver lead</a>
                   ) : (

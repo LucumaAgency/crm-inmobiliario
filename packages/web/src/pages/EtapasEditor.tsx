@@ -102,7 +102,7 @@ export default function EtapasEditor() {
       </p>
 
       <div className="tabla-scroll" style={{ marginTop: 12 }}>
-        <table className="tabla">
+        <table className="tabla tabla-movil tabla-etapas">
           <thead>
             <tr>
               <th style={{ width: 70 }}>Orden</th>
@@ -116,7 +116,7 @@ export default function EtapasEditor() {
           <tbody>
             {lista.map((e, i) => (
               <tr key={e.id}>
-                <td>
+                <td className="t-orden">
                   <span style={{ display: 'inline-flex', gap: 4 }}>
                     <button
                       type="button"
@@ -140,7 +140,7 @@ export default function EtapasEditor() {
                     </button>
                   </span>
                 </td>
-                <td>
+                <td className="t-color">
                   <input
                     type="color"
                     aria-label={`Color de ${e.name}`}
@@ -149,7 +149,7 @@ export default function EtapasEditor() {
                     style={{ width: 34, height: 28, padding: 2, cursor: 'pointer' }}
                   />
                 </td>
-                <td>
+                <td className="t-nombre">
                   <input
                     defaultValue={e.name}
                     aria-label="Nombre de la etapa"
@@ -163,7 +163,7 @@ export default function EtapasEditor() {
                   />
                   {i === 0 && <div className="meta" style={{ marginTop: 3 }}>Entrada de leads nuevos</div>}
                 </td>
-                <td>
+                <td className="t-tipo" data-label="Tipo">
                   <select
                     aria-label={`Tipo de ${e.name}`}
                     disabled={i === 0}
@@ -182,8 +182,8 @@ export default function EtapasEditor() {
                     <option value="perdida">Perdida</option>
                   </select>
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{e._count.leads}</td>
-                <td style={{ textAlign: 'right' }}>
+                <td className="t-leads" data-label="Leads" style={{ textAlign: 'right', fontWeight: 600 }}>{e._count.leads}</td>
+                <td className="t-accion" style={{ textAlign: 'right' }}>
                   <button
                     type="button"
                     className="btn btn-sec"

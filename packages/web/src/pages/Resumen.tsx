@@ -76,7 +76,7 @@ export default function Resumen() {
           delta={r ? variacion(r.actual.tasaContacto, r.previo.tasaContacto) : undefined}
         />
         <Kpi
-          titulo="Primer contacto (mediana)"
+          titulo="Primer contacto"
           icono="reloj"
           tono="navy"
           valor={tiempo.valor}
@@ -88,11 +88,11 @@ export default function Resumen() {
           }
         />
         <Kpi
-          titulo="Sin contactar ahora"
+          titulo="Sin contactar"
           icono="alerta"
           tono="ambar"
           valor={r ? String(r.sinContactar) : '—'}
-          nota="leads activos esperando la primera llamada"
+          nota="esperando hoy la primera llamada"
         />
       </div>
 

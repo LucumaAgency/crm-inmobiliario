@@ -211,21 +211,21 @@ export default function ProyectoDetail() {
 
             {(tipologias.data?.length ?? 0) > 0 && (
               <div style={{ overflowX: 'auto' }}>
-                <table className="tabla" style={{ marginTop: 10 }}>
+                <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
                   <thead>
                     <tr><th>Nombre</th><th>Dorm.</th><th>Área</th><th>Desde</th><th>Unidades</th><th>Plano</th><th>Render</th><th></th></tr>
                   </thead>
                   <tbody>
                     {tipologias.data?.map((t) => (
                       <tr key={t.id}>
-                        <td>{t.name}</td>
-                        <td>{t.bedrooms ?? '—'}</td>
-                        <td>{t.areaM2 ? `${t.areaM2} m²` : '—'}</td>
-                        <td>{t.priceFrom ? `${t.currency} ${t.priceFrom}` : '—'}</td>
-                        <td>{t._count?.units ?? 0}</td>
-                        <td><Archivo t={t} campo="planUrl" etiqueta="plano" subiendo={subiendo} subir={subir} /></td>
-                        <td><Archivo t={t} campo="imageUrl" etiqueta="render" subiendo={subiendo} subir={subir} /></td>
-                        <td>
+                        <td className="t-titulo">{t.name}</td>
+                        <td data-label="Dormitorios">{t.bedrooms ?? '—'}</td>
+                        <td data-label="Área">{t.areaM2 ? `${t.areaM2} m²` : '—'}</td>
+                        <td data-label="Desde">{t.priceFrom ? `${t.currency} ${t.priceFrom}` : '—'}</td>
+                        <td data-label="Unidades">{t._count?.units ?? 0}</td>
+                        <td data-label="Plano"><Archivo t={t} campo="planUrl" etiqueta="plano" subiendo={subiendo} subir={subir} /></td>
+                        <td data-label="Render"><Archivo t={t} campo="imageUrl" etiqueta="render" subiendo={subiendo} subir={subir} /></td>
+                        <td className="accion">
                           <button
                             type="button"
                             className="btn btn-sec"
@@ -311,15 +311,15 @@ export default function ProyectoDetail() {
             )}
             {(unidades.data?.length ?? 0) > 0 && (
               <div style={{ overflowX: 'auto' }}>
-                <table className="tabla" style={{ marginTop: 10 }}>
+                <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
                   <thead>
                     <tr><th>Código</th><th>Tipología</th><th>Piso</th><th>Precio</th><th>Tipo</th><th>Estado</th></tr>
                   </thead>
                   <tbody>
                     {unidades.data?.map((u) => (
                       <tr key={u.id}>
-                        <td>{u.code}</td>
-                        <td>
+                        <td className="t-titulo">Unidad {u.code}</td>
+                        <td className="ancho" data-label="Tipología">
                           <select
                             value={u.typologyId ?? ''}
                             onChange={(e) => cambiarUnidad.mutate({ id: u.id, typologyId: e.target.value })}
@@ -330,10 +330,10 @@ export default function ProyectoDetail() {
                             ))}
                           </select>
                         </td>
-                        <td>{u.floor ?? '—'}</td>
-                        <td>{u.price ? `${u.currency} ${u.price}` : '—'}</td>
-                        <td>{TIPOS[u.kind] ?? u.kind}</td>
-                        <td>
+                        <td data-label="Piso">{u.floor ?? '—'}</td>
+                        <td data-label="Precio">{u.price ? `${u.currency} ${u.price}` : '—'}</td>
+                        <td data-label="Tipo">{TIPOS[u.kind] ?? u.kind}</td>
+                        <td data-label="Estado">
                           <select
                             value={u.status}
                             onChange={(e) => cambiarUnidad.mutate({ id: u.id, status: e.target.value })}
