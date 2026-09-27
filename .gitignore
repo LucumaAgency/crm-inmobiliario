@@ -7,6 +7,9 @@ logs/
 # Planos y renders subidos. Fuera de public/ a propósito: ese directorio se borra
 # en cada build y llega versionado en cada despliegue.
 uploads/
+
+# Notas de voz y demás archivos que no se sirven por URL (lib/privados.ts).
+privados/
 .DS_Store
 
 # Los dist y el public/ SÍ se versionan: los compila GitHub Actions y Plesk solo

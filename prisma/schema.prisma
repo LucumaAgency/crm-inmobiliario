@@ -31,6 +31,7 @@ model Organization {
   metaLeads MetaLead[]
   waNumbers WaNumber[]
   waConversations WaConversation[]
+  notasVoz  NotaVoz[]
   settings  Json?
 
   @@map("organizations")
@@ -64,6 +65,7 @@ model User {
   loginTokens   LoginToken[]
   auditEntries  AuditLog[]
   waMessages    WaMessage[]
+  notasVoz      NotaVoz[]
 
   @@unique([organizationId, email])
   @@index([organizationId, role])
@@ -296,6 +298,7 @@ model Lead {
   submissions FormSubmission[]
   metaLeads   MetaLead[]
   waConversations WaConversation[]
+  notasVoz        NotaVoz[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -637,4 +640,46 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([action, createdAt])
   @@map("audit_log")
+}
+
+/// Nota de voz del asesor sobre un lead: lo que pasó en una llamada, dicho en 30 segundos.
+///
+/// Se transcribe (OpenAI) y se resume (Claude) en un job. El resultado es una PROPUESTA:
+/// el asesor la revisa y la registra como actividad; nada se escribe en el historial solo.
+/// El audio vive en `privados/`, fuera de lo que se sirve por URL: es la voz del asesor
+/// hablando de un cliente, dato personal (Ley 29733).
+model NotaVoz {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  audioPath   String // relativa a privados/
+  mime        String
+  bytes       Int
+  durationSec Int?
+
+  status      NotaVozStatus @default(pendiente)
+  transcript  String?       @db.Text
+  /// { resumen, tipo, siguientePaso: { tipo, cuando, descripcion } | null }
+  propuesta   Json?
+  error       String?       @db.Text
+  /// Actividad creada al confirmar. Null mientras la propuesta no se registre.
+  activityId  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leadId, createdAt])
+  @@map("notas_voz")
+}
+
+enum NotaVozStatus {
+  pendiente
+  transcrita
+  lista
+  error
 }

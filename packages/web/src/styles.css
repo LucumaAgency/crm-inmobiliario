@@ -502,6 +502,30 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
   .seg-acciones { grid-column: auto; }
 }
 
+/* --- Notas de voz --------------------------------------------------------- */
+.voz-grabando {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: var(--rojo-tinte); color: #A32424;
+}
+.voz-punto {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--rojo);
+  animation: voz-latido 1s ease-in-out infinite;
+}
+@keyframes voz-latido { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .voz-punto { animation: none; } }
+.voz-nota { border-top: 1px solid var(--borde-suave); margin-top: 12px; padding-top: 12px; }
+.voz-audio { width: 100%; height: 36px; margin-top: 8px; }
+.voz-transcripcion {
+  background: var(--fondo); border-radius: 8px; padding: 10px 12px; margin: 6px 0 0;
+  font-size: 13px; white-space: pre-wrap; color: var(--suave);
+}
+.voz-revision { margin-top: 6px; }
+.enlace-btn {
+  background: none; border: 0; padding: 6px 0 0; color: var(--azul);
+  font-size: 12.5px; font-weight: 600;
+}
+
 /* =========================================================================
    Celular. Todo lo de abajo aplica solo por debajo de 760 px: aire, objetivos
    táctiles de 44 px y nada que obligue a desplazarse de lado.

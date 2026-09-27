@@ -82,5 +82,17 @@ export const env = {
         verifyToken: process.env.META_VERIFY_TOKEN?.trim() || '',
         graphVersion: process.env.META_GRAPH_VERSION?.trim() || 'v21.0',
     },
+    /**
+     * Notas de voz: OpenAI transcribe, Claude resume. Las dos son opcionales: sin la de
+     * OpenAI la nota se guarda y avisa de que no se pudo transcribir; sin la de Anthropic
+     * queda la transcripción sin propuesta. El SDK de Anthropic lee `ANTHROPIC_API_KEY`
+     * por su cuenta; aquí solo se mira si existe.
+     */
+    voz: {
+        openaiKey: process.env.OPENAI_API_KEY?.trim() || '',
+        modeloTranscripcion: process.env.OPENAI_TRANSCRIBE_MODEL?.trim() || 'gpt-4o-mini-transcribe',
+        claudeActivo: !!process.env.ANTHROPIC_API_KEY?.trim(),
+        modeloResumen: process.env.CLAUDE_MODEL?.trim() || 'claude-opus-5',
+    },
     isProd: (process.env.NODE_ENV ?? 'development') === 'production',
 };

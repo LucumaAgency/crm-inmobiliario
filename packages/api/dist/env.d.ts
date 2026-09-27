@@ -35,5 +35,17 @@ export declare const env: {
         verifyToken: string;
         graphVersion: string;
     };
+    /**
+     * Notas de voz: OpenAI transcribe, Claude resume. Las dos son opcionales: sin la de
+     * OpenAI la nota se guarda y avisa de que no se pudo transcribir; sin la de Anthropic
+     * queda la transcripción sin propuesta. El SDK de Anthropic lee `ANTHROPIC_API_KEY`
+     * por su cuenta; aquí solo se mira si existe.
+     */
+    voz: {
+        openaiKey: string;
+        modeloTranscripcion: string;
+        claudeActivo: boolean;
+        modeloResumen: string;
+    };
     isProd: boolean;
 };

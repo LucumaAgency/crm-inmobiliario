@@ -6,6 +6,7 @@ export type JobType =
   | 'sla.check'
   | 'meta.lead.fetch'
   | 'wa.send'
+  | 'voz.procesar'
   | 'conversion.push'
   | 'retention.purge';
 

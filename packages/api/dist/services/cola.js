@@ -77,6 +77,10 @@ async function procesar(job) {
             const { despacharMensaje } = await import('./whatsapp.js');
             return despacharMensaje(String(job.payload.messageId));
         }
+        case 'voz.procesar': {
+            const { procesarNotaVoz } = await import('./notas-voz.js');
+            return procesarNotaVoz(String(job.payload.notaId));
+        }
         case 'retention.purge':
             return; // Fase 2: purga según política de retención
         case 'webhook.deliver':

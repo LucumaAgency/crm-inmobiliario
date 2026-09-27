@@ -174,16 +174,20 @@ export declare const activityInput: z.ZodObject<{
     /** Regla del diseño: toda actividad cerrada agenda la siguiente. */
     nextDueAt: z.ZodOptional<z.ZodString>;
     nextType: z.ZodOptional<z.ZodEnum<["llamada", "whatsapp", "email", "visita", "nota"]>>;
+    /** Qué hay que hacer en el siguiente seguimiento («visita al piloto»). */
+    nextBody: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     type: "nota" | "llamada" | "whatsapp" | "email" | "visita";
     body?: string | undefined;
     nextDueAt?: string | undefined;
     nextType?: "nota" | "llamada" | "whatsapp" | "email" | "visita" | undefined;
+    nextBody?: string | undefined;
 }, {
     type: "nota" | "llamada" | "whatsapp" | "email" | "visita";
     body?: string | undefined;
     nextDueAt?: string | undefined;
     nextType?: "nota" | "llamada" | "whatsapp" | "email" | "visita" | undefined;
+    nextBody?: string | undefined;
 }>;
 /** Seguimiento agendado a mano, sin registrar antes una actividad. */
 export declare const seguimientoInput: z.ZodObject<{

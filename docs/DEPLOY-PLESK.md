@@ -90,6 +90,7 @@ hay que hacerlo a mano desde **Node.js → Run script**, y el orden importa:
 | # | Paso | Qué toca |
 |---|---|---|
 | 1 | Desplegar desde Git | el código y `public/` |
+| 1b | **NPM install** (botón del panel de Node.js) | **solo si cambió `package.json`**: sin él, un paquete nuevo da `Cannot find package` al arrancar |
 | 2 | `prisma:generate` | **`node_modules`**: reescribe el cliente tipado |
 | 3 | `prisma:deploy` | **la base**: aplica las migraciones |
 | 4 | Reiniciar la aplicación | el proceso en memoria |
@@ -217,6 +218,32 @@ las notificaciones de lead no, que es la peor combinación posible: parece que t
 Para entregabilidad real conviene una cuenta externa (Google Workspace, Zoho, un servicio
 transaccional) en vez del correo del hosting, y configurar SPF y DKIM del dominio. Un correo de
 lead nuevo que cae en spam equivale a no tenerlo.
+
+## 4c. Notas de voz (OpenAI + Claude)
+
+El asesor graba en la ficha cómo le fue con el cliente; OpenAI lo transcribe y Claude
+propone la actividad y el siguiente seguimiento, que el asesor revisa antes de registrar.
+
+Variables (en el `.env` de la raíz o en el panel de Node.js):
+
+| Variable | Obligatoria | Para qué |
+|---|---|---|
+| `OPENAI_API_KEY` | para transcribir | Sin ella la nota se guarda y avisa «transcripción no configurada» |
+| `ANTHROPIC_API_KEY` | para la propuesta | Sin ella queda solo la transcripción, sin resumen ni fecha |
+| `OPENAI_TRANSCRIBE_MODEL` | no | Por defecto `gpt-4o-mini-transcribe` |
+| `CLAUDE_MODEL` | no | Por defecto `claude-opus-5` |
+| `PRIVADOS_DIR` | no | Carpeta del audio. Por defecto `privados/` en la raíz |
+
+Tras añadirlas, **reiniciar la aplicación**. Las notas que fallaron antes se recuperan con
+el botón **Reintentar** de cada una.
+
+- El audio vive en `privados/`, **no** en `uploads/`: no se sirve por URL, solo por
+  `/api/v1/leads/notas-voz/:id/audio` y a quien puede ver el lead.
+- **Backup:** `privados/` entra en el backup de archivos, no en el volcado de la base.
+- **Micrófono:** el navegador solo lo permite con HTTPS.
+- **Ley 29733:** el audio y el texto se envían a OpenAI y Anthropic (EE. UU.). Es una
+  transferencia internacional de datos personales y tiene que figurar en la política de
+  privacidad y en el contrato con el cliente.
 
 ## 5. Primer arranque
 

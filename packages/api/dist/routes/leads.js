@@ -2,6 +2,9 @@ import { activityInput, leadListQuery, seguimientoInput, seguimientoPatch } from
 import { prisma } from '../db.js';
 import { audit, requireAuth, requireRole, scopeForUser } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
+import { enqueue } from '../lib/jobs.js';
+import { guardarAudio, rutaPrivada } from '../lib/privados.js';
+import fs from 'node:fs';
 import { z } from 'zod';
 import { enviarPlantilla, enviarTexto, ventanaAbierta, } from '../services/whatsapp.js';
 /** Tipos que son contacto real con el cliente. Una nota interna no cumple un seguimiento. */
@@ -12,6 +15,11 @@ function finDeHoyLima() {
     const lima = new Date(Date.now() - offset);
     lima.setUTCHours(23, 59, 59, 999);
     return new Date(lima.getTime() + offset);
+}
+/** La ruta en disco no sale de la API: el audio se pide por su endpoint. */
+function sinRuta(nota) {
+    const { audioPath: _ruta, ...resto } = nota;
+    return resto;
 }
 export default async function leadRoutes(app) {
     app.addHook('preHandler', requireAuth);
@@ -229,15 +237,12 @@ export default async function leadRoutes(app) {
         });
         return mensaje;
     });
-    /** Registrar actividad. Si se agenda la siguiente, se crea pendiente en el mismo paso. */
-    app.post('/:id/activities', { preHandler: escritura }, async (req, reply) => {
-        const user = req.user;
-        const parsed = activityInput.safeParse(req.body);
-        if (!parsed.success)
-            return reply.code(400).send({ error: 'Datos inválidos' });
-        const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
-        if (!lead)
-            return reply.code(404).send({ error: 'Lead no encontrado' });
+    /**
+     * Registra una actividad y, si se pide, agenda la siguiente. La usan el formulario de la
+     * ficha y la confirmación de una nota de voz: las dos tienen que cerrar seguimientos y
+     * marcar el primer contacto exactamente igual.
+     */
+    async function registrarActividad(user, lead, datos, meta) {
         const ahora = new Date();
         /**
          * Un contacto real cumple los seguimientos de hoy y los vencidos de este lead.
@@ -246,7 +251,7 @@ export default async function leadRoutes(app) {
          * sigue en pie. Sin este cierre la lista de seguimientos solo crecía y todo acababa
          * «vencido», que es lo mismo que no tener lista.
          */
-        const cerrados = CONTACTO.has(parsed.data.type)
+        const cerrados = CONTACTO.has(datos.type)
             ? await prisma.activity.updateMany({
                 where: { leadId: lead.id, doneAt: null, dueAt: { not: null, lte: finDeHoyLima() } },
                 data: { doneAt: ahora },
@@ -256,19 +261,20 @@ export default async function leadRoutes(app) {
             data: {
                 leadId: lead.id,
                 userId: user.id,
-                type: parsed.data.type,
-                body: parsed.data.body,
+                type: datos.type,
+                body: datos.body,
+                meta: meta,
                 doneAt: ahora,
             },
         });
-        if (parsed.data.nextDueAt) {
+        if (datos.nextDueAt) {
             await prisma.activity.create({
                 data: {
                     leadId: lead.id,
                     userId: user.id,
-                    type: parsed.data.nextType ?? 'llamada',
-                    body: 'Seguimiento agendado',
-                    dueAt: new Date(parsed.data.nextDueAt),
+                    type: (datos.nextType ?? 'llamada'),
+                    body: datos.nextBody?.trim() || 'Seguimiento agendado',
+                    dueAt: new Date(datos.nextDueAt),
                 },
             });
         }
@@ -277,7 +283,108 @@ export default async function leadRoutes(app) {
             data: { lastActivityAt: ahora, firstContactAt: lead.firstContactAt ?? ahora },
         });
         return { ...creada, seguimientosCerrados: cerrados.count };
+    }
+    /** Registrar actividad. Si se agenda la siguiente, se crea pendiente en el mismo paso. */
+    app.post('/:id/activities', { preHandler: escritura }, async (req, reply) => {
+        const user = req.user;
+        const parsed = activityInput.safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
+        if (!lead)
+            return reply.code(404).send({ error: 'Lead no encontrado' });
+        return registrarActividad(user, lead, parsed.data);
     });
+    // ------------------------------------------------------------ notas de voz
+    /** Subir una nota de voz. Se procesa en un job; la respuesta no espera a la transcripción. */
+    app.post('/:id/notas-voz', { preHandler: escritura }, async (req, reply) => {
+        const user = req.user;
+        const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
+        if (!lead)
+            return reply.code(404).send({ error: 'Lead no encontrado' });
+        const archivo = await req.file();
+        if (!archivo)
+            return reply.code(400).send({ error: 'No llegó la grabación.' });
+        let contenido;
+        try {
+            contenido = await archivo.toBuffer();
+        }
+        catch {
+            return reply.code(413).send({ error: 'La grabación es demasiado larga.' });
+        }
+        const duracion = Number(archivo.fields.duracion?.value);
+        const res = await guardarAudio(user.organizationId, contenido, archivo.mimetype);
+        if ('error' in res)
+            return reply.code(400).send({ error: res.error });
+        const nota = await prisma.notaVoz.create({
+            data: {
+                organizationId: user.organizationId,
+                leadId: lead.id,
+                userId: user.id,
+                audioPath: res.ruta,
+                mime: res.mime,
+                bytes: res.bytes,
+                durationSec: Number.isFinite(duracion) ? Math.round(duracion) : null,
+            },
+        });
+        await enqueue('voz.procesar', { notaId: nota.id });
+        return sinRuta(nota);
+    });
+    /** Notas de voz del lead, la más reciente primero. */
+    app.get('/:id/notas-voz', async (req, reply) => {
+        const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(req.user) } });
+        if (!lead)
+            return reply.code(404).send({ error: 'Lead no encontrado' });
+        const notas = await prisma.notaVoz.findMany({
+            where: { leadId: lead.id },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+            include: { user: { select: { name: true } } },
+        });
+        return notas.map(sinRuta);
+    });
+    /** El audio, solo para quien puede ver el lead. Nunca por una URL pública. */
+    app.get('/notas-voz/:id/audio', async (req, reply) => {
+        const nota = await buscarNota(req.params.id, req.user);
+        if (!nota)
+            return reply.code(404).send({ error: 'Nota no encontrada' });
+        reply.header('Content-Type', nota.mime);
+        reply.header('Cache-Control', 'private, no-store');
+        return reply.send(fs.createReadStream(rutaPrivada(nota.audioPath)));
+    });
+    /** Volver a intentar una nota que falló (por ejemplo, tras configurar la clave). */
+    app.post('/notas-voz/:id/reintentar', { preHandler: escritura }, async (req, reply) => {
+        const nota = await buscarNota(req.params.id, req.user);
+        if (!nota)
+            return reply.code(404).send({ error: 'Nota no encontrada' });
+        if (nota.status === 'lista')
+            return reply.code(409).send({ error: 'La nota ya está lista.' });
+        await prisma.notaVoz.update({ where: { id: nota.id }, data: { status: nota.transcript ? 'transcrita' : 'pendiente', error: null } });
+        await enqueue('voz.procesar', { notaId: nota.id });
+        return { ok: true };
+    });
+    /**
+     * Registrar la propuesta, ya revisada por el asesor. Lo que llega es lo que el asesor
+     * dejó en pantalla, no la propuesta original: puede haber corregido la fecha o el texto.
+     */
+    app.post('/notas-voz/:id/registrar', { preHandler: escritura }, async (req, reply) => {
+        const user = req.user;
+        const parsed = activityInput.safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const nota = await buscarNota(req.params.id, user);
+        if (!nota)
+            return reply.code(404).send({ error: 'Nota no encontrada' });
+        if (nota.activityId)
+            return reply.code(409).send({ error: 'Esta nota ya se registró.' });
+        const lead = await prisma.lead.findUniqueOrThrow({ where: { id: nota.leadId } });
+        const res = await registrarActividad(user, lead, parsed.data, { notaVozId: nota.id });
+        await prisma.notaVoz.update({ where: { id: nota.id }, data: { activityId: res.id } });
+        return res;
+    });
+    async function buscarNota(id, user) {
+        return prisma.notaVoz.findFirst({ where: { id, lead: scopeForUser(user) } });
+    }
     /** Agendar un seguimiento sin registrar antes una actividad. */
     app.post('/:id/seguimientos', { preHandler: escritura }, async (req, reply) => {
         const user = req.user;

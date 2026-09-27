@@ -61,6 +61,8 @@ export const activityInput = z.object({
   /** Regla del diseño: toda actividad cerrada agenda la siguiente. */
   nextDueAt: z.string().datetime().optional(),
   nextType: z.enum(['llamada', 'whatsapp', 'email', 'visita', 'nota']).optional(),
+  /** Qué hay que hacer en el siguiente seguimiento («visita al piloto»). */
+  nextBody: z.string().max(500).optional(),
 });
 
 /** Seguimiento agendado a mano, sin registrar antes una actividad. */

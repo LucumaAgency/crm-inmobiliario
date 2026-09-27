@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
 import ChatWhatsApp from './ChatWhatsApp.js';
+import NotasVoz from '../components/NotasVoz.js';
 
 interface Detalle {
   id: string;
@@ -144,6 +145,8 @@ export default function LeadDetail({ rol }: { rol: string }) {
       )}
 
       {rol !== 'solo_lectura' && <ChatWhatsApp leadId={lead.id} />}
+
+      <NotasVoz leadId={lead.id} puedeEditar={rol !== 'solo_lectura'} />
 
       <div className="card">
         <strong>Seguimientos</strong>
