@@ -221,10 +221,12 @@ lead nuevo que cae en spam equivale a no tenerlo.
 
 ## 4c. Notas de voz (OpenAI + Claude)
 
-El asesor graba en la ficha cómo le fue con el cliente; OpenAI lo transcribe y Claude
-propone la actividad y el siguiente seguimiento, que el asesor revisa antes de registrar.
+El asesor graba en la ficha cómo le fue con el cliente. Por defecto se guarda **solo el
+audio** (32 kbps, ~120 KB por nota de 30 s) y no hace falta configurar nada.
 
-Variables (en el `.env` de la raíz o en el panel de Node.js):
+Si en **Ajustes → Notas de voz** se prende «Transcribir y proponer la actividad», OpenAI lo
+transcribe y Claude propone la actividad y el siguiente seguimiento, que el asesor revisa
+antes de registrar. Para eso hacen falta estas variables:
 
 | Variable | Obligatoria | Para qué |
 |---|---|---|

@@ -6,6 +6,8 @@ import { audit, requireAuth, requireRole } from '../lib/auth.js';
 import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
 import { cifrar, pista } from '../lib/secretos.js';
+import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
+import { env } from '../env.js';
 /** Gestión: proyectos, unidades, formularios, sitios, usuarios, etapas. */
 export default async function adminRoutes(app) {
     app.addHook('preHandler', requireAuth);
@@ -175,6 +177,23 @@ export default async function adminRoutes(app) {
             meta: { name: etapa.name, movidos: etapa._count.leads, destino: destino?.id },
         });
         return { ok: true, movidos: etapa._count.leads };
+    });
+    // ------------------------------------------------------ preferencias
+    /**
+     * Preferencias de la organización. Con ellas va si el servidor tiene las claves: prender
+     * la transcripción sin `OPENAI_API_KEY` solo produciría notas con error.
+     */
+    app.get('/ajustes', { preHandler: gestion }, async (req) => ({
+        ...(await leerAjustes(req.user.organizationId)),
+        servidor: { openai: !!env.voz.openaiKey, claude: env.voz.claudeActivo },
+    }));
+    app.patch('/ajustes', { preHandler: gestion }, async (req, reply) => {
+        const parsed = z.object({ transcribirVoz: z.boolean().optional() }).strict().safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const ajustes = await guardarAjustes(req.user.organizationId, parsed.data);
+        await audit(req.user.organizationId, req.user.id, 'org.ajustes', { meta: parsed.data });
+        return ajustes;
     });
     // ---------------------------------------------------------- proyectos
     app.get('/projects', async (req) => prisma.project.findMany({

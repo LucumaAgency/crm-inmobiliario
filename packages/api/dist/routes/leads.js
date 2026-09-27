@@ -4,6 +4,7 @@ import { audit, requireAuth, requireRole, scopeForUser } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
 import { enqueue } from '../lib/jobs.js';
 import { guardarAudio, rutaPrivada } from '../lib/privados.js';
+import { leerAjustes } from '../lib/ajustes.js';
 import fs from 'node:fs';
 import { z } from 'zod';
 import { enviarPlantilla, enviarTexto, ventanaAbierta, } from '../services/whatsapp.js';
@@ -316,6 +317,7 @@ export default async function leadRoutes(app) {
         const res = await guardarAudio(user.organizationId, contenido, archivo.mimetype);
         if ('error' in res)
             return reply.code(400).send({ error: res.error });
+        const { transcribirVoz } = await leerAjustes(user.organizationId);
         const nota = await prisma.notaVoz.create({
             data: {
                 organizationId: user.organizationId,
@@ -325,9 +327,12 @@ export default async function leadRoutes(app) {
                 mime: res.mime,
                 bytes: res.bytes,
                 durationSec: Number.isFinite(duracion) ? Math.round(duracion) : null,
+                // Con la transcripción apagada la nota es solo audio: no sale nada del servidor.
+                status: transcribirVoz ? 'pendiente' : 'guardada',
             },
         });
-        await enqueue('voz.procesar', { notaId: nota.id });
+        if (transcribirVoz)
+            await enqueue('voz.procesar', { notaId: nota.id });
         return sinRuta(nota);
     });
     /** Notas de voz del lead, la más reciente primero. */
@@ -335,13 +340,16 @@ export default async function leadRoutes(app) {
         const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(req.user) } });
         if (!lead)
             return reply.code(404).send({ error: 'Lead no encontrado' });
-        const notas = await prisma.notaVoz.findMany({
-            where: { leadId: lead.id },
-            orderBy: { createdAt: 'desc' },
-            take: 20,
-            include: { user: { select: { name: true } } },
-        });
-        return notas.map(sinRuta);
+        const [notas, ajustes] = await Promise.all([
+            prisma.notaVoz.findMany({
+                where: { leadId: lead.id },
+                orderBy: { createdAt: 'desc' },
+                take: 20,
+                include: { user: { select: { name: true } } },
+            }),
+            leerAjustes(req.user.organizationId),
+        ]);
+        return { transcribir: ajustes.transcribirVoz, notas: notas.map(sinRuta) };
     });
     /** El audio, solo para quien puede ver el lead. Nunca por una URL pública. */
     app.get('/notas-voz/:id/audio', async (req, reply) => {
@@ -352,13 +360,19 @@ export default async function leadRoutes(app) {
         reply.header('Cache-Control', 'private, no-store');
         return reply.send(fs.createReadStream(rutaPrivada(nota.audioPath)));
     });
-    /** Volver a intentar una nota que falló (por ejemplo, tras configurar la clave). */
+    /**
+     * Transcribir una nota: la que falló (por ejemplo, antes de configurar la clave) o una
+     * guardada solo como audio cuando la transcripción estaba apagada.
+     */
     app.post('/notas-voz/:id/reintentar', { preHandler: escritura }, async (req, reply) => {
         const nota = await buscarNota(req.params.id, req.user);
         if (!nota)
             return reply.code(404).send({ error: 'Nota no encontrada' });
         if (nota.status === 'lista')
             return reply.code(409).send({ error: 'La nota ya está lista.' });
+        if (!(await leerAjustes(nota.organizationId)).transcribirVoz) {
+            return reply.code(409).send({ error: 'La transcripción está apagada en Ajustes.' });
+        }
         await prisma.notaVoz.update({ where: { id: nota.id }, data: { status: nota.transcript ? 'transcrita' : 'pendiente', error: null } });
         await enqueue('voz.procesar', { notaId: nota.id });
         return { ok: true };

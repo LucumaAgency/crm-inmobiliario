@@ -8,7 +8,7 @@ type Tipo = 'llamada' | 'whatsapp' | 'email' | 'visita' | 'nota';
 
 interface Nota {
   id: string;
-  status: 'pendiente' | 'transcrita' | 'lista' | 'error';
+  status: 'guardada' | 'pendiente' | 'transcrita' | 'lista' | 'error';
   transcript: string | null;
   propuesta: {
     resumen: string;
@@ -23,6 +23,11 @@ interface Nota {
 }
 
 const MAX_SEGUNDOS = 180;
+/**
+ * 32 kbps: de sobra para voz. El navegador graba a calidad de música (~128 kbps) si no se
+ * le dice nada, y una nota de 30 s pasaba de ~120 KB a ~450 KB sin oírse mejor.
+ */
+const BITS_POR_SEGUNDO = 32_000;
 const TIPOS: Tipo[] = ['llamada', 'whatsapp', 'email', 'visita', 'nota'];
 const TIPOS_SEGUIMIENTO = ['llamada', 'whatsapp', 'email', 'visita'] as const;
 
@@ -53,6 +58,7 @@ const enProceso = (n: Nota) =>
 /** La propuesta, editable. El asesor corrige lo que haga falta y la registra. */
 function Revision({ nota, alRegistrar }: { nota: Nota; alRegistrar: () => void }) {
   const p = nota.propuesta;
+  const soloAudio = nota.status === 'guardada' || !nota.transcript;
   const [tipo, setTipo] = useState<Tipo>(p?.tipo ?? 'llamada');
   const [texto, setTexto] = useState(p?.resumen ?? nota.transcript ?? '');
   const [sigTipo, setSigTipo] = useState<(typeof TIPOS_SEGUIMIENTO)[number]>(p?.siguientePaso?.tipo ?? 'llamada');
@@ -63,7 +69,8 @@ function Revision({ nota, alRegistrar }: { nota: Nota; alRegistrar: () => void }
     mutationFn: () =>
       api.post(`/leads/notas-voz/${nota.id}/registrar`, {
         type: tipo,
-        body: texto.trim(),
+        // Sin texto, el audio es el registro: la actividad lo dice para que se sepa dónde mirar.
+        body: texto.trim() || 'Nota de voz (escuchar el audio)',
         nextDueAt: sigCuando ? new Date(sigCuando).toISOString() : undefined,
         nextType: sigCuando ? sigTipo : undefined,
         nextBody: sigCuando ? sigDesc.trim() || undefined : undefined,
@@ -82,8 +89,13 @@ function Revision({ nota, alRegistrar }: { nota: Nota; alRegistrar: () => void }
         </div>
         <div />
       </div>
-      <label>Resumen</label>
-      <textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} />
+      <label>{soloAudio ? 'Nota escrita (opcional)' : 'Resumen'}</label>
+      <textarea
+        rows={soloAudio ? 2 : 3}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder={soloAudio ? 'Una línea para encontrarla después, o déjalo en blanco' : undefined}
+      />
       <div className="rejilla-2">
         <div>
           <label>Siguiente seguimiento</label>
@@ -102,7 +114,7 @@ function Revision({ nota, alRegistrar }: { nota: Nota; alRegistrar: () => void }
         <p className="meta" style={{ marginTop: 6 }}>La nota no dice cuándo: elige la fecha.</p>
       )}
       <div className="acciones">
-        <button type="button" className="btn" disabled={!texto.trim() || registrar.isPending} onClick={() => registrar.mutate()}>
+        <button type="button" className="btn" disabled={(!soloAudio && !texto.trim()) || registrar.isPending} onClick={() => registrar.mutate()}>
           <Icono nombre="check" tam={15} />Registrar actividad
         </button>
       </div>
@@ -127,9 +139,9 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
 
   const notas = useQuery({
     queryKey: ['notas-voz', leadId],
-    queryFn: () => api.get<Nota[]>(`/leads/${leadId}/notas-voz`),
+    queryFn: () => api.get<{ transcribir: boolean; notas: Nota[] }>(`/leads/${leadId}/notas-voz`),
     // Mientras alguna se procesa, se pregunta cada 3 s; el resto del tiempo, nada.
-    refetchInterval: (q) => ((q.state.data ?? []).some(enProceso) ? 3000 : false),
+    refetchInterval: (q) => ((q.state.data?.notas ?? []).some(enProceso) ? 3000 : false),
   });
 
   const subir = useMutation({
@@ -173,7 +185,7 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream, { mimeType: tipo });
+      const rec = new MediaRecorder(stream, { mimeType: tipo, audioBitsPerSecond: BITS_POR_SEGUNDO });
       trozos.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && trozos.current.push(e.data);
       rec.onstop = () => {
@@ -208,7 +220,8 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
     qc.invalidateQueries({ queryKey: ['seguimientos'] });
   }
 
-  const lista = notas.data ?? [];
+  const lista = notas.data?.notas ?? [];
+  const transcribe = notas.data?.transcribir ?? false;
 
   return (
     <div className="card">
@@ -221,8 +234,9 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
         )}
       </div>
       <p className="meta" style={{ marginTop: 6 }}>
-        Después de hablar con el cliente, cuenta en voz alta cómo te fue y qué quedaron. El CRM
-        lo transcribe y te propone la actividad y el siguiente seguimiento para que la revises.
+        {transcribe
+          ? 'Después de hablar con el cliente, cuenta en voz alta cómo te fue y qué quedaron. El CRM lo transcribe y te propone la actividad y el siguiente seguimiento para que la revises.'
+          : 'Después de hablar con el cliente, cuenta en voz alta cómo te fue y qué quedaron. El audio queda guardado en la ficha; agenda el siguiente seguimiento al registrarla.'}
       </p>
 
       {grabando && (
@@ -247,6 +261,8 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
               <span className="chip chip-verde">Registrada</span>
             ) : enProceso(n) ? (
               <span className="chip chip-gris">{n.status === 'pendiente' ? 'Transcribiendo…' : 'Preparando propuesta…'}</span>
+            ) : n.status === 'guardada' ? (
+              <span className="chip chip-gris">Solo audio</span>
             ) : n.status === 'error' ? (
               <span className="chip chip-rojo">No se pudo transcribir</span>
             ) : (
@@ -266,6 +282,11 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
             </p>
           )}
 
+          {n.status === 'guardada' && transcribe && puedeEditar && !n.activityId && (
+            <button type="button" className="enlace-btn" onClick={() => reintentar.mutate(n.id)}>
+              Transcribir esta nota
+            </button>
+          )}
           {n.transcript && (
             <button type="button" className="enlace-btn" onClick={() => setVerTexto(verTexto === n.id ? null : n.id)}>
               {verTexto === n.id ? 'Ocultar transcripción' : 'Ver transcripción'}
@@ -273,7 +294,7 @@ export default function NotasVoz({ leadId, puedeEditar }: { leadId: string; pued
           )}
           {verTexto === n.id && <p className="voz-transcripcion">{n.transcript}</p>}
 
-          {puedeEditar && !n.activityId && !enProceso(n) && n.transcript && (
+          {puedeEditar && !n.activityId && !enProceso(n) && (n.transcript || n.status === 'guardada' || n.status === 'error') && (
             <Revision nota={n} alRegistrar={registrada} />
           )}
         </div>

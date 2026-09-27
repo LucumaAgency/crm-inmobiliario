@@ -678,6 +678,8 @@ model NotaVoz {
 }
 
 enum NotaVozStatus {
+  /// Solo audio: la organización tiene la transcripción apagada.
+  guardada
   pendiente
   transcrita
   lista

@@ -6,6 +6,7 @@ import MetaLeadAds from './MetaLeadAds.js';
 import WhatsAppNumeros from './WhatsAppNumeros.js';
 import Registro from './Registro.js';
 import EtapasEditor from './EtapasEditor.js';
+import AjustesVoz from './AjustesVoz.js';
 
 interface Site {
   id: string;
@@ -28,6 +29,7 @@ const SECCIONES = [
   { id: 'usuarios', texto: 'Usuarios' },
   { id: 'meta', texto: 'Meta Lead Ads' },
   { id: 'whatsapp', texto: 'WhatsApp' },
+  { id: 'voz', texto: 'Notas de voz' },
   { id: 'registro', texto: 'Registro', soloAdmin: true },
   { id: 'exportar', texto: 'Exportar' },
 ];
@@ -294,6 +296,8 @@ export default function Ajustes({ rol }: { rol: string }) {
       {seccion === 'meta' && <MetaLeadAds />}
 
       {seccion === 'whatsapp' && <WhatsAppNumeros />}
+
+      {seccion === 'voz' && <AjustesVoz />}
 
       {seccion === 'registro' && rol === 'admin_lucuma' && <Registro />}
 
