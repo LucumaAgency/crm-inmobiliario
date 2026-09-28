@@ -189,6 +189,8 @@ export async function buildApp() {
      * estática a propósito: tiene que abrir sin sesión y sin JavaScript.
      */
     app.get('/privacidad', (_req, reply) => reply.sendFile('privacidad.html'));
+    // Lo mismo para las condiciones: Meta las pide como «URL de las Condiciones del servicio».
+    app.get('/terminos', (_req, reply) => reply.sendFile('terminos.html'));
 
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.code(404).send({ error: 'No encontrado' });
