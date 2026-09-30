@@ -19,6 +19,7 @@ import reportesRoutes from './routes/reportes.js';
 import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
+import metaOAuthRoutes from './routes/meta-oauth.js';
 import cronRoutes from './routes/cron.js';
 import logRoutes from './routes/logs.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,6 +111,9 @@ export async function buildApp() {
         await scope.register(rateLimit, { max: 600, timeWindow: '1 minute' });
         await metaRoutes(scope);
     }, { prefix: '/api/v1/meta' });
+    // Botón «Conectar con Facebook». Ámbito aparte: son navegaciones del navegador con
+    // sesión, no avisos firmados, y no deben heredar el parser crudo del webhook.
+    await app.register(metaOAuthRoutes, { prefix: '/api/v1/meta/oauth' });
     /**
      * Latido de la cola, llamado por un cron externo. Límite propio y holgado: es una ruta
      * sin sesión, y su tráfico legítimo es una llamada por minuto.

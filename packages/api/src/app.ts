@@ -19,6 +19,7 @@ import reportesRoutes from './routes/reportes.js';
 import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
+import metaOAuthRoutes from './routes/meta-oauth.js';
 import cronRoutes from './routes/cron.js';
 import logRoutes from './routes/logs.js';
 
@@ -126,6 +127,10 @@ export async function buildApp() {
     },
     { prefix: '/api/v1/meta' }
   );
+
+  // Botón «Conectar con Facebook». Ámbito aparte: son navegaciones del navegador con
+  // sesión, no avisos firmados, y no deben heredar el parser crudo del webhook.
+  await app.register(metaOAuthRoutes, { prefix: '/api/v1/meta/oauth' });
 
   /**
    * Latido de la cola, llamado por un cron externo. Límite propio y holgado: es una ruta

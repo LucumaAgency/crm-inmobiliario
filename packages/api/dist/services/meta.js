@@ -250,6 +250,26 @@ export async function probarPagina(pageId) {
         return { ok: false, error: mensaje };
     }
 }
+/**
+ * Suscribe la aplicación a la página para recibir `leadgen`.
+ *
+ * Es la tercera de las cuatro capas que hay que activar para que lleguen los leads, y la
+ * única que se hacía a mano con `POST /{page}/subscribed_apps` en el Explorador. Se hace
+ * aquí con el token de página ya canjeado. Devuelve el error como texto en vez de
+ * lanzarlo: que falle esto no debe impedir guardar la página; el aviso sale en el panel.
+ */
+export async function suscribirAppAPagina(pageId, tokenPagina) {
+    try {
+        await llamarGraph(`${pageId}/subscribed_apps`, { subscribed_fields: 'leadgen' }, tokenPagina, 'POST');
+        logLine(`meta: app suscrita a la página ${pageId} (leadgen)`);
+        return null;
+    }
+    catch (err) {
+        const mensaje = redactarSecretos(err instanceof Error ? err.message : String(err));
+        logLine(`meta: no se pudo suscribir la app a la página ${pageId}: ${mensaje}`);
+        return mensaje;
+    }
+}
 // ---------------------------------------------------------------------------
 function traerDelGraph(leadgenId, token) {
     return llamarGraph(leadgenId, { fields: 'id,created_time,ad_id,adset_id,campaign_id,form_id,platform,field_data' }, token);
@@ -261,7 +281,7 @@ function traerDelGraph(leadgenId, token) {
  * y un Graph API colgado dejaría el job bloqueado con su fila tomada hasta que venza el
  * candado, diez minutos después.
  */
-async function llamarGraph(ruta, params, token) {
+export async function llamarGraph(ruta, params, token, metodo = 'GET') {
     const url = new URL(`https://graph.facebook.com/${env.meta.graphVersion}/${ruta}`);
     for (const [k, v] of Object.entries(params))
         url.searchParams.set(k, v);
@@ -277,7 +297,7 @@ async function llamarGraph(ruta, params, token) {
     const control = new AbortController();
     const corte = setTimeout(() => control.abort(), 15_000);
     try {
-        const res = await fetch(url, { signal: control.signal });
+        const res = await fetch(url, { method: metodo, signal: control.signal });
         const cuerpo = (await res.json().catch(() => ({})));
         if (!res.ok || cuerpo.error) {
             const e = cuerpo.error;

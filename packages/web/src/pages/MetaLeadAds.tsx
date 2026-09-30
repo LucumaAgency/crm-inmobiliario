@@ -7,6 +7,7 @@
  * probar y la lista de últimos avisos con su estado.
  */
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
@@ -52,6 +53,20 @@ const CHIP: Record<Aviso['status'], string> = {
 
 export default function MetaLeadAds() {
   const qc = useQueryClient();
+  // El retorno de Facebook llega como navegación a esta misma URL con el resultado en los
+  // parámetros; se muestra una vez y se limpia para que recargar no lo repita.
+  const [params, setParams] = useSearchParams();
+  const retorno = params.get('meta');
+  const [proyectoOAuth, setProyectoOAuth] = useState('');
+  const oauth = useQuery({
+    queryKey: ['meta-oauth-estado'],
+    queryFn: () => api.get<{ disponible: boolean; redirectUri: string }>('/meta/oauth/estado'),
+  });
+  const cerrarRetorno = () => {
+    const p = new URLSearchParams(params);
+    for (const k of ['meta', 'conectadas', 'ajenas', 'sinSuscribir', 'detalle']) p.delete(k);
+    setParams(p, { replace: true });
+  };
   const [pageId, setPageId] = useState('');
   const [pageName, setPageName] = useState('');
   const [token, setToken] = useState('');
@@ -124,6 +139,68 @@ export default function MetaLeadAds() {
           {' '}de la página, que se guarda cifrado y no se vuelve a mostrar.
         </p>
 
+        {retorno === 'ok' && (
+          <div className="card" style={{ marginTop: 10, borderColor: '#10b981' }}>
+            <strong>Página conectada: {(params.get('conectadas') ?? '').split('|').filter(Boolean).join(', ')}</strong>
+            <p className="meta" style={{ marginTop: 6 }}>
+              El CRM ya tiene el token y quedó suscrito a los formularios instantáneos. Pulsa
+              «Probar conexión» para ver los formularios y asignarlos a sus proyectos.
+            </p>
+            {params.get('ajenas') && (
+              <p className="error">
+                {params.get('ajenas')} página(s) no se conectaron porque ya están en uso en otra cuenta.
+              </p>
+            )}
+            {params.get('sinSuscribir') && (
+              <p className="error">
+                No se pudo suscribir la app a: {(params.get('sinSuscribir') ?? '').split('|').join(', ')}.
+                Los leads no llegarán hasta resolverlo; el detalle está en la ficha de la página.
+              </p>
+            )}
+            <div className="acciones" style={{ marginTop: 8 }}>
+              <button className="btn btn-sec" onClick={cerrarRetorno}>Entendido</button>
+            </div>
+          </div>
+        )}
+        {retorno === 'error' && (
+          <div className="card" style={{ marginTop: 10, borderColor: '#dc2626' }}>
+            <p className="error">No se pudo conectar con Facebook: {params.get('detalle')}</p>
+            <div className="acciones" style={{ marginTop: 8 }}>
+              <button className="btn btn-sec" onClick={cerrarRetorno}>Cerrar</button>
+            </div>
+          </div>
+        )}
+
+        {oauth.data?.disponible && (
+          <div className="card" style={{ background: '#f4f7fd', marginTop: 10 }}>
+            <strong>Conectar una página</strong>
+            <p className="meta" style={{ marginTop: 6 }}>
+              Se abre una ventana de Facebook donde eliges la página y aceptas los permisos.
+              El CRM guarda el acceso cifrado y se suscribe solo a los formularios: no hay
+              que copiar ningún token.
+            </p>
+            <label htmlFor="m-oauth-proyecto">Proyecto por defecto para sus leads</label>
+            <select
+              id="m-oauth-proyecto"
+              value={proyectoOAuth}
+              onChange={(e) => setProyectoOAuth(e.target.value)}
+            >
+              <option value="">Sin proyecto</option>
+              {proyectos.data?.map((pr) => (
+                <option key={pr.id} value={pr.id}>{pr.name}</option>
+              ))}
+            </select>
+            <div className="acciones" style={{ marginTop: 12 }}>
+              <a
+                className="btn"
+                href={`/api/v1/meta/oauth/start${proyectoOAuth ? `?projectId=${encodeURIComponent(proyectoOAuth)}` : ''}`}
+              >
+                Conectar con Facebook
+              </a>
+            </div>
+          </div>
+        )}
+
         {paginas.data?.length === 0 && (
           <p className="meta">Todavía no hay ninguna página conectada.</p>
         )}
@@ -173,9 +250,8 @@ export default function MetaLeadAds() {
               onChange={(e) => setTokenNuevo((t) => ({ ...t, [p.id]: e.target.value }))}
             />
             <p className="meta">
-              Tiene que ser un <strong>token de página</strong>, no de usuario. En el Explorador
-              de Meta, elige la página en «Usuario o página» y vuelve a pulsar «Generate Access
-              Token»: cambiar el desplegable no regenera el token de arriba.
+              Sirve un token de usuario o de página del Explorador de Meta: el CRM canjea el de
+              la página. {oauth.data?.disponible && 'Más fácil: volver a pulsar «Conectar con Facebook» arriba renueva el token sin pegar nada.'}
             </p>
 
             <div className="acciones" style={{ marginTop: 12 }}>
@@ -281,8 +357,17 @@ export default function MetaLeadAds() {
           </div>
         ))}
 
-        <form
+        <details
+          open={!oauth.data?.disponible}
           style={{ marginTop: 14, borderTop: '1px solid var(--borde)', paddingTop: 12 }}
+        >
+          <summary className="meta" style={{ cursor: 'pointer' }}>
+            {oauth.data?.disponible
+              ? 'Conectar a mano con un token (respaldo)'
+              : 'Conectar una página con su token'}
+          </summary>
+        <form
+          style={{ marginTop: 10 }}
           onSubmit={(e) => { e.preventDefault(); conectar.mutate(); }}
         >
           <div className="rejilla-2">
@@ -317,6 +402,7 @@ export default function MetaLeadAds() {
             </button>
           </div>
         </form>
+        </details>
       </div>
 
       <div className="card">

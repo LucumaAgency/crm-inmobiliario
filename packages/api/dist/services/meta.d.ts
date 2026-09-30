@@ -60,6 +60,23 @@ export declare function probarPagina(pageId: string): Promise<{
         status?: string;
     }>;
 }>;
+/**
+ * Suscribe la aplicación a la página para recibir `leadgen`.
+ *
+ * Es la tercera de las cuatro capas que hay que activar para que lleguen los leads, y la
+ * única que se hacía a mano con `POST /{page}/subscribed_apps` en el Explorador. Se hace
+ * aquí con el token de página ya canjeado. Devuelve el error como texto en vez de
+ * lanzarlo: que falle esto no debe impedir guardar la página; el aviso sale en el panel.
+ */
+export declare function suscribirAppAPagina(pageId: string, tokenPagina: string): Promise<string | null>;
+/**
+ * Llamada al Graph API.
+ *
+ * El corte a los 15 segundos es deliberado: sin `signal`, `fetch` espera indefinidamente
+ * y un Graph API colgado dejaría el job bloqueado con su fila tomada hasta que venza el
+ * candado, diez minutos después.
+ */
+export declare function llamarGraph(ruta: string, params: Record<string, string>, token: string, metodo?: 'GET' | 'POST'): Promise<unknown>;
 declare function mapear(campos: CampoMeta[]): {
     values: Record<string, string>;
 };

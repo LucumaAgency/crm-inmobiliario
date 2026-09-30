@@ -38,13 +38,52 @@ En [developers.facebook.com](https://developers.facebook.com), sobre la app de l
 
 ## Conectar un cliente
 
-En el CRM, **Ajustes → Meta Lead Ads**:
+### Con el botón «Conectar con Facebook» (recomendado)
+
+En el CRM, **Ajustes → Meta Lead Ads → Conectar con Facebook**. Se abre el diálogo de Meta,
+el cliente elige su página y acepta; al volver, la página queda guardada con su token
+cifrado y la app **ya suscrita** a `leadgen`. Después, «Probar conexión» para asignar cada
+formulario a su proyecto. Volver a pulsar el botón sobre una página ya conectada **renueva
+el token** sin desconectar nada.
+
+Detrás es *Facebook Login for Business* con una configuración de tipo **usuario del
+sistema**: el token que vuelve no depende de la persona que hizo clic ni caduca. Requiere
+que la página del cliente esté en un portafolio empresarial (Business Manager).
+
+Configuración en Meta, una vez por app:
+
+1. **Casos de uso → Inicio de sesión con Facebook para empresas → Configuraciones → Crear**:
+   variación *General*, token de **usuario del sistema**, activo **Páginas**, permisos
+   `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `leads_retrieval`,
+   `pages_manage_ads`, `ads_management`. El **ID del ajuste** va en `META_LOGIN_CONFIG_ID`.
+2. **Inicio de sesión con Facebook para empresas → Configuración**: OAuth de cliente y web
+   en Sí, modo estricto en Sí, y en *URI de redireccionamiento de OAuth válidos*
+   `https://<dominio del CRM>/api/v1/meta/oauth/callback`. Con varios clientes por
+   subdominio hay que registrar el callback de **cada** subdominio: Meta no admite comodín.
+3. **Configuración → Básica → Dominios de la app**: el dominio del CRM. Sin esto el canje
+   del código falla con `(#191) El dominio de esta URL no está incluido en los dominios de
+   la app`, aunque el diálogo se haya abierto bien.
+4. `META_APP_ID` en el entorno (el secreto es el mismo `META_APP_SECRET` del webhook).
+
+Seguridad del flujo: el `state` va firmado (HMAC con `JWT_SECRET`) con la organización, el
+usuario, el proyecto elegido y un nonce que también viaja en una cookie de diez minutos.
+El retorno solo vale en el navegador que lo empezó y con la misma sesión. Una página que
+ya está conectada en **otra** organización no se toca: el `pageId` es único en toda la
+instalación, y el diálogo no prueba que la página cambió de dueño.
+
+Hasta que Meta apruebe el acceso avanzado, el botón solo funciona con páginas de
+administradores, desarrolladores o probadores de la app.
+
+### A mano, con un token (respaldo)
+
+En **Ajustes → Meta Lead Ads → Conectar a mano con un token**:
 
 1. ID de la página, nombre y **page access token** de esa página.
    El token se guarda cifrado (AES-256-GCM) y no se vuelve a mostrar: solo sus últimos
    cuatro caracteres, para saber cuál está cargado.
 2. **Probar conexión**: confirma que el token vive y lista los formularios instantáneos de
-   la página.
+   la página. Al conectar, el CRM también suscribe la app a la página (`subscribed_apps`,
+   campo `leadgen`); si eso falla, queda anotado como último error de la página.
 3. Asignar cada formulario a su proyecto. Lo que se deje sin asignar usa el proyecto por
    defecto de la página.
 4. Correos de aviso de lead nuevo, igual que en un formulario web.

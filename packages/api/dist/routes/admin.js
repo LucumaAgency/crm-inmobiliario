@@ -704,14 +704,17 @@ export default async function adminRoutes(app) {
         if (ocupada)
             return reply.code(409).send({ error: 'Esa página ya está conectada.' });
         // Acepta también un token de usuario: el CRM canjea el de la página (ver services/meta.ts).
-        const { resolverTokenDePagina } = await import('../services/meta.js');
+        const { resolverTokenDePagina, suscribirAppAPagina } = await import('../services/meta.js');
         const tokenPagina = await resolverTokenDePagina(resto.pageId, accessToken);
+        // Tercera capa de las cuatro: antes se hacía a mano en el Explorador y se olvidaba.
+        const errorSuscripcion = await suscribirAppAPagina(resto.pageId, tokenPagina);
         const pagina = await prisma.metaPage.create({
             data: {
                 organizationId: req.user.organizationId,
                 ...resto,
                 projectId: await proyectoValido(req.user.organizationId, projectId),
                 accessTokenEnc: cifrar(tokenPagina),
+                lastError: errorSuscripcion ? `No se pudo suscribir la app a la página: ${errorSuscripcion}` : null,
                 formMap: (resto.formMap ?? undefined),
                 notifyEmails: (resto.notifyEmails ?? undefined),
             },

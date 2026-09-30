@@ -34,6 +34,14 @@ export declare const env: {
         /** Cadena que Meta devuelve en el alta del webhook (hub.verify_token). */
         verifyToken: string;
         graphVersion: string;
+        /**
+         * Botón «Conectar con Facebook» (Facebook Login for Business). Sin las dos, el botón
+         * no aparece y queda el alta a mano con el token pegado. `appId` es público; el
+         * secreto es el mismo `appSecret` del webhook. `loginConfigId` es el «ID del ajuste»
+         * creado en Inicio de sesión con Facebook para empresas → Configuraciones.
+         */
+        appId: string;
+        loginConfigId: string;
     };
     /**
      * Notas de voz: OpenAI transcribe, Claude resume. Las dos son opcionales: sin la de
