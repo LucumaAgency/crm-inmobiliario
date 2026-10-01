@@ -23,6 +23,11 @@ interface Numero {
   tokenHint: string | null;
 }
 
+/** Los números de prueba de Meta son estadounidenses del prefijo ficticio 555. */
+function esNumeroDePrueba(numero: string) {
+  return /^\+?1\s*555/.test(numero.replace(/[\s().-]/g, '').replace(/^\+?1/, '+1 '));
+}
+
 export default function WhatsAppNumeros() {
   const qc = useQueryClient();
   const [phoneNumberId, setPhoneNumberId] = useState('');
@@ -99,7 +104,13 @@ export default function WhatsAppNumeros() {
         se entiende mejor como una elección que como un aviso.
       */}
       {(() => {
-        const conNumero = (numeros.data?.length ?? 0) > 0;
+        /**
+         * El número de prueba que Meta da a cada app (+1 555…) no cuenta como «trabajar con
+         * un número de la empresa»: solo escribe a cinco destinatarios registrados y nadie
+         * del público puede escribirle. Marcarlo como modo 2 hacía creer que el canal ya
+         * estaba operando.
+         */
+        const conNumero = (numeros.data ?? []).some((n) => n.active && !esNumeroDePrueba(n.displayNumber));
         const Modo = ({ actual, titulo, children }: { actual: boolean; titulo: string; children: React.ReactNode }) => (
           <div
             className="card"
@@ -153,6 +164,11 @@ export default function WhatsAppNumeros() {
         <div key={n.id} className="card" style={{ background: '#fafbfc', marginTop: 10 }}>
           <div className="fila">
             <span className="nombre">{n.displayNumber}</span>
+            {esNumeroDePrueba(n.displayNumber) && (
+              <span className="chip chip-gris" title="Número que Meta da a cada app para desarrollar: solo escribe a 5 destinatarios registrados y nadie del público puede escribirle.">
+                número de prueba de Meta
+              </span>
+            )}
             <span className={n.active ? 'chip' : 'chip chip-gris'}>{n.active ? 'activo' : 'pausado'}</span>
           </div>
           <p className="meta">
