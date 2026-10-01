@@ -16,6 +16,33 @@ un detalle de configuración: es lo que define si este canal sirve o estorba.
 - Si ya existe un **número central de ventas**, ese es el caso limpio: se migra y todo el
   canal queda dentro del CRM.
 
+### Las tres formas de trabajar (lo que ve el cliente en Ajustes → WhatsApp)
+
+La pregunta que hace todo cliente es «¿tengo que comprar un chip?». La respuesta depende
+de cómo quiera trabajar, así que el panel lo muestra como una elección con el modo actual
+marcado, no como un aviso (2026-10-01):
+
+| Modo | Qué pasa | Qué requiere |
+|---|---|---|
+| **1 · Cada asesor desde su celular** | El CRM capta por web y Facebook; el asesor escribe desde su WhatsApp con el botón de la ficha. Se registra la actividad, no el chat. | Nada. Es el estado inicial de todo cliente. |
+| **2 · Un número de la empresa en el CRM** | Número comercial (anuncios, web, letrero) cuyos chats entran como leads y se reparten. Los asesores conservan su WhatsApp personal para lo demás. | Un número **que no esté en ningún celular**: un chip nuevo, o el corporativo actual aceptando que deja de verse en la app y que el historial no se traslada. |
+| **3 · Todo el WhatsApp desde el CRM** | Como la 2, pero el equipo deja la app por completo. | Pasar antes unos meses por la 2. |
+
+Lo que **no existe** en ninguna plataforma: que el asesor siga chateando desde su celular y
+el CRM vea esos chats. Meta no lo permite. Sperant tampoco lo tiene.
+
+Secuencia comercial: el cliente entra en la 1 sin fricción. Cuando ve que los leads de web y
+Facebook llegan solos, pregunta por WhatsApp, y la 2 se vende con el argumento de que el
+número debe ser de la empresa y no del asesor que se va con sus contactos. El chip es un
+detalle operativo de ese paso, no una condición para empezar.
+
+### El número de prueba de Meta
+
+Cada app recibe un número `+1 555…` para desarrollar. Solo escribe a cinco destinatarios
+registrados a mano, nadie del público puede escribirle, no tiene perfil de empresa y Meta
+puede retirarlo. Sirvió para probar el canal el 2026-09-20. El panel lo etiqueta «número
+de prueba de Meta» y **no cuenta** como modo 2.
+
 ## Cómo funciona
 
 Entra por el **mismo webhook** que Meta Lead Ads: Meta manda todos los avisos de una app a
@@ -55,6 +82,37 @@ Sobre la misma app que ya usa Meta Lead Ads:
 2. Permisos: `whatsapp_business_messaging` y `whatsapp_business_management`.
 3. Sacar el **phone number ID**, el **WABA ID** y un **token de larga duración**.
 4. En el CRM, **Ajustes → WhatsApp**, conectar el número y probar la conexión.
+
+### Alta de un número real, paso a paso (hasta que exista el alta incrustada)
+
+Hoy el alta la hacemos nosotros con el cliente en una llamada de unos 20 minutos. Cuando
+seamos Tech Provider con Embedded Signup, el cliente pulsará «Conectar WhatsApp» y elegirá
+su número en una ventana de Meta, como hoy con Facebook, y este formulario desaparece.
+
+**Antes**: un número que no esté en ningún celular (si tuvo WhatsApp, eliminar la cuenta
+desde la app primero) y el **nombre visible** decidido: Meta lo revisa en 1 o 2 días y debe
+coincidir con la marca verificada.
+
+1. Panel de la app → **WhatsApp → Configuración de la API → Agregar número de teléfono**.
+   Elegir o crear la WABA del cliente; completar nombre visible, categoría y descripción.
+2. Verificar el número con el código por SMS o llamada.
+3. En esa pantalla, bajo el desplegable de números, copiar el **Identificador del número de
+   teléfono** y el **Identificador de la cuenta de WhatsApp Business**.
+4. Si queda «pendiente» o «sin registrar»: `POST /{phone_number_id}/register` con
+   `{"messaging_product":"whatsapp","pin":"123456"}` (PIN propio de 6 dígitos, guardarlo).
+5. **Suscribir la app a la WABA**: `POST /{WABA_ID}/subscribed_apps`. Es el paso que se
+   olvida; sin él el número se conecta pero no llega ningún mensaje.
+6. Método de pago en el Administrador de WhatsApp. Sin él Meta no deja enviar. Responder
+   dentro de las 24 h es gratis; solo se cobran los mensajes iniciados con plantilla.
+7. En el CRM, **Ajustes → WhatsApp → Conectar**: phone number ID, WABA ID, número como lo ve
+   el cliente, token y proyecto por defecto (a dónde entran los chats que no vienen de un
+   anuncio). Luego **Probar conexión**.
+8. Escribir al número desde otro celular: debe aparecer un lead con el chat, y la respuesta
+   desde la ficha tiene que llegar.
+
+**El token**: hasta tener el usuario del sistema, el extendido de 60 días. Para WhatsApp no
+hay canje que lo salve (a diferencia de Lead Ads, donde el token de página derivado no
+vence): el día que venza hay que pegar otro. Anotar la fecha al conectar.
 
 Usar siempre token de larga duración. El de sesión caduca en horas y el canal se queda
 mudo: los mensajes entrantes se siguen guardando, pero los envíos fallan y el error queda
