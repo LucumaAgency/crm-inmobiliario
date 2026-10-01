@@ -37,6 +37,33 @@ interface Aviso {
   createdAt: string;
 }
 
+interface Diagnostico {
+  valido: boolean;
+  tipo: string | null;
+  venceEl: string | null;
+  accesoDatosVenceEl: string | null;
+  permisos: string[];
+  faltan: string[];
+  error?: string;
+}
+
+/**
+ * El error (#3) no es un token roto: es el acceso estándar de Meta, que solo deja leer
+ * leads enviados por personas con rol en la app. Pasa con el token del botón «Conectar
+ * con Facebook» hasta que Meta apruebe el acceso avanzado. Decir «vuelve a generar el
+ * token» aquí manda a la persona a arreglar lo que no está roto.
+ */
+function esAccesoEstandar(error: string | null | undefined) {
+  return !!error && /\(#3\)|dev mode|special roles/i.test(error);
+}
+
+const TIPO_TOKEN: Record<string, string> = {
+  PAGE: 'de página',
+  USER: 'de usuario',
+  SYSTEM_USER: 'de usuario del sistema',
+  APP: 'de aplicación',
+};
+
 interface Prueba {
   ok: boolean;
   error?: string;
@@ -75,6 +102,11 @@ export default function MetaLeadAds() {
   const [prueba, setPrueba] = useState<{ id: string; resultado: Prueba } | null>(null);
   /** Token nuevo escrito por página, hasta que se guarda explícitamente. */
   const [tokenNuevo, setTokenNuevo] = useState<Record<string, string>>({});
+  const [diagnostico, setDiagnostico] = useState<{ id: string; datos: Diagnostico } | null>(null);
+  const diagnosticar = useMutation({
+    mutationFn: (id: string) => api.get<Diagnostico>(`/meta/pages/${id}/token`),
+    onSuccess: (datos, id) => setDiagnostico({ id, datos }),
+  });
 
   const paginas = useQuery({ queryKey: ['meta-pages'], queryFn: () => api.get<Pagina[]>('/meta/pages') });
   const proyectos = useQuery({
@@ -226,8 +258,42 @@ export default function MetaLeadAds() {
               <p className="error">
                 Último error de Meta: {p.lastError}
                 <br />
-                Suele ser el token: vuelve a generarlo en Meta y pégalo abajo.
+                {esAccesoEstandar(p.lastError) ? (
+                  <>
+                    No es el token: es el <strong>acceso estándar</strong> de Meta, que solo deja
+                    leer leads enviados por administradores, desarrolladores o probadores de la
+                    app. Pasa con el token de «Conectar con Facebook» hasta que Meta apruebe el
+                    acceso avanzado. Mientras tanto, pega abajo un token de un administrador de
+                    la app (el CRM lo canjea por el de la página) y reintenta los avisos fallidos.
+                  </>
+                ) : (
+                  'Suele ser el token: vuelve a generarlo en Meta y pégalo abajo, o pulsa «Conectar con Facebook».'
+                )}
               </p>
+            )}
+
+            {diagnostico?.id === p.id && (
+              <div className="card" style={{ marginTop: 8, borderColor: diagnostico.datos.valido ? '#10b981' : '#dc2626' }}>
+                {diagnostico.datos.error && <p className="error">{diagnostico.datos.error}</p>}
+                <p className="meta" style={{ margin: 0 }}>
+                  Token {diagnostico.datos.valido ? 'válido' : 'NO válido'}
+                  {diagnostico.datos.tipo && ` · ${TIPO_TOKEN[diagnostico.datos.tipo] ?? diagnostico.datos.tipo}`}
+                  {' · '}
+                  {diagnostico.datos.venceEl
+                    ? `vence ${new Date(diagnostico.datos.venceEl).toLocaleDateString('es-PE')}`
+                    : 'no vence'}
+                  {diagnostico.datos.accesoDatosVenceEl &&
+                    ` · acceso a datos hasta ${new Date(diagnostico.datos.accesoDatosVenceEl).toLocaleDateString('es-PE')}`}
+                </p>
+                {diagnostico.datos.faltan.length > 0 && (
+                  <p className="error" style={{ marginTop: 6 }}>
+                    Le faltan permisos: {diagnostico.datos.faltan.join(', ')}
+                  </p>
+                )}
+                {diagnostico.datos.permisos.length > 0 && (
+                  <p className="meta" style={{ marginTop: 6 }}>Permisos: {diagnostico.datos.permisos.join(', ')}</p>
+                )}
+              </div>
             )}
 
             <label>Proyecto por defecto</label>
@@ -284,6 +350,13 @@ export default function MetaLeadAds() {
                 disabled={probar.isPending || actualizar.isPending}
               >
                 {probar.isPending ? 'Probando…' : 'Probar conexión'}
+              </button>
+              <button
+                className="btn btn-sec"
+                onClick={() => diagnosticar.mutate(p.id)}
+                disabled={diagnosticar.isPending}
+              >
+                {diagnosticar.isPending ? 'Consultando…' : 'Ver token'}
               </button>
               <button
                 className="btn btn-sec"

@@ -69,6 +69,26 @@ export declare function probarPagina(pageId: string): Promise<{
  * lanzarlo: que falle esto no debe impedir guardar la página; el aviso sale en el panel.
  */
 export declare function suscribirAppAPagina(pageId: string, tokenPagina: string): Promise<string | null>;
+export interface DiagnosticoToken {
+    valido: boolean;
+    tipo: string | null;
+    /** null = no vence (token de página derivado de uno largo, o usuario del sistema). */
+    venceEl: string | null;
+    accesoDatosVenceEl: string | null;
+    permisos: string[];
+    /** Permisos que el canal necesita y el token no trae. */
+    faltan: string[];
+    error?: string;
+}
+/**
+ * Qué token hay cargado en la página, sin mostrarlo: tipo, vencimiento y permisos.
+ *
+ * Es el panel de salud mínimo. El fallo típico del canal es invisible desde fuera (el
+ * webhook sigue llegando), y con varios clientes nadie va a abrir el Explorador de Meta a
+ * depurar token por token. `debug_token` se consulta con el token de la app
+ * (`app_id|app_secret`), que es la forma autorizada de inspeccionar uno ajeno.
+ */
+export declare function diagnosticarToken(pageId: string): Promise<DiagnosticoToken>;
 /**
  * Llamada al Graph API.
  *

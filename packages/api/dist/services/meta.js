@@ -270,6 +270,41 @@ export async function suscribirAppAPagina(pageId, tokenPagina) {
         return mensaje;
     }
 }
+const PERMISOS_NECESARIOS = ['leads_retrieval', 'pages_show_list', 'pages_manage_metadata'];
+/**
+ * Qué token hay cargado en la página, sin mostrarlo: tipo, vencimiento y permisos.
+ *
+ * Es el panel de salud mínimo. El fallo típico del canal es invisible desde fuera (el
+ * webhook sigue llegando), y con varios clientes nadie va a abrir el Explorador de Meta a
+ * depurar token por token. `debug_token` se consulta con el token de la app
+ * (`app_id|app_secret`), que es la forma autorizada de inspeccionar uno ajeno.
+ */
+export async function diagnosticarToken(pageId) {
+    const vacio = { valido: false, tipo: null, venceEl: null, accesoDatosVenceEl: null, permisos: [], faltan: PERMISOS_NECESARIOS };
+    const pagina = await prisma.metaPage.findUnique({ where: { pageId } });
+    if (!pagina)
+        return { ...vacio, error: 'La página no está conectada' };
+    if (!env.meta.appId || !env.meta.appSecret)
+        return { ...vacio, error: 'Falta META_APP_ID o META_APP_SECRET en el servidor' };
+    try {
+        const r = (await llamarGraph('debug_token', { input_token: descifrar(pagina.accessTokenEnc) }, `${env.meta.appId}|${env.meta.appSecret}`));
+        const d = r.data ?? {};
+        const permisos = d.scopes ?? [];
+        const fecha = (t) => (t && t > 0 ? new Date(t * 1000).toISOString() : null);
+        return {
+            valido: !!d.is_valid,
+            tipo: d.type ?? null,
+            venceEl: fecha(d.expires_at),
+            accesoDatosVenceEl: fecha(d.data_access_expires_at),
+            permisos,
+            faltan: PERMISOS_NECESARIOS.filter((x) => !permisos.includes(x)),
+            error: d.error?.message,
+        };
+    }
+    catch (err) {
+        return { ...vacio, error: redactarSecretos(err instanceof Error ? err.message : String(err)) };
+    }
+}
 // ---------------------------------------------------------------------------
 function traerDelGraph(leadgenId, token) {
     return llamarGraph(leadgenId, { fields: 'id,created_time,ad_id,adset_id,campaign_id,form_id,platform,field_data' }, token);

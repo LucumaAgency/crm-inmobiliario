@@ -787,6 +787,16 @@ export default async function adminRoutes(app) {
         const { probarPagina } = await import('../services/meta.js');
         return probarPagina(pagina.pageId);
     });
+    /** Tipo, vencimiento y permisos del token cargado, sin revelarlo. */
+    app.get('/meta/pages/:id/token', { preHandler: gestion }, async (req, reply) => {
+        const pagina = await prisma.metaPage.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!pagina)
+            return reply.code(404).send({ error: 'Página no encontrada' });
+        const { diagnosticarToken } = await import('../services/meta.js');
+        return diagnosticarToken(pagina.pageId);
+    });
     /** Últimos avisos recibidos: es el diagnóstico de «entró el lead o no». */
     app.get('/meta/leads', { preHandler: gestion }, async (req) => {
         const avisos = await prisma.metaLead.findMany({

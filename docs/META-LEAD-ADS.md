@@ -71,8 +71,14 @@ El retorno solo vale en el navegador que lo empezó y con la misma sesión. Una 
 ya está conectada en **otra** organización no se toca: el `pageId` es único en toda la
 instalación, y el diálogo no prueba que la página cambió de dueño.
 
-Hasta que Meta apruebe el acceso avanzado, el botón solo funciona con páginas de
-administradores, desarrolladores o probadores de la app.
+**Límite hasta el acceso avanzado.** Con acceso estándar, `leads_retrieval` solo lee leads
+enviados por personas con rol en la app. El token del botón es de un usuario del sistema
+sin rol, así que Meta responde `(#3) Apps in dev mode should only access leads submitted
+from App special roles` **aunque la app esté publicada** (comprobado el 2026-09-30 con la
+página de Lucuma). Mientras tanto: pegar a mano un token de un administrador de la app
+(el CRM lo canjea por el de página) y «Reintentar» los avisos fallidos. El panel lo
+explica cuando ve ese código. «Ver token» (`GET /meta/pages/:id/token`, vía `debug_token`
+con el token de la app) muestra tipo, vencimiento y permisos sin revelar el token.
 
 ### A mano, con un token (respaldo)
 
