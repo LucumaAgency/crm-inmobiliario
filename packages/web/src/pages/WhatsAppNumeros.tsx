@@ -6,6 +6,7 @@
  * vuelta atrás inmediata.
  */
 import { useState } from 'react';
+import type React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
@@ -86,15 +87,64 @@ export default function WhatsAppNumeros() {
     <div className="card">
       <strong>WhatsApp</strong>
       <p className="meta" style={{ marginTop: 6 }}>
-        Los chats que abre el cliente entran como leads, con la campaña del anuncio si vino
-        de un Click-to-WhatsApp, y el asesor responde desde la ficha.
+        Un número de WhatsApp vive en la app del celular <strong>o</strong> en el CRM, nunca en
+        los dos. Es una regla de Meta, igual para cualquier CRM. Por eso hay tres formas de
+        trabajar, y se puede empezar por la primera y pasar a la segunda cuando el equipo quiera.
       </p>
-      <p className="meta">
-        <strong>Antes de conectar un número:</strong> al pasarlo a la API deja de funcionar
-        en la app de WhatsApp del celular. Tiene que ser un número comercial de la empresa,
-        nunca el de un asesor. Si el equipo atiende hoy desde sus celulares, esos chats
-        quedan fuera del CRM y hay que acordar quién escribe por dónde para no contactar al
-        mismo cliente dos veces.
+
+      {/*
+        Las tres formas se muestran siempre, con la actual marcada. Antes había solo un párrafo
+        de advertencia, y la pregunta que llegaba de todos los clientes era la misma: «¿entonces
+        tengo que comprar un chip?». La respuesta es «depende de cómo quieras trabajar», y eso
+        se entiende mejor como una elección que como un aviso.
+      */}
+      {(() => {
+        const conNumero = (numeros.data?.length ?? 0) > 0;
+        const Modo = ({ actual, titulo, children }: { actual: boolean; titulo: string; children: React.ReactNode }) => (
+          <div
+            className="card"
+            style={{
+              marginTop: 8,
+              background: actual ? '#f4f7fd' : '#fafbfc',
+              borderColor: actual ? 'var(--acento, #174FCA)' : undefined,
+            }}
+          >
+            <div className="fila">
+              <strong>{titulo}</strong>
+              {actual && <span className="chip">así trabajas hoy</span>}
+            </div>
+            <p className="meta" style={{ marginTop: 4 }}>{children}</p>
+          </div>
+        );
+        return (
+          <>
+            <Modo actual={!conNumero} titulo="1 · Cada asesor desde su celular">
+              El CRM capta los leads por web y Facebook, y el asesor los escribe desde su propio
+              WhatsApp con el botón de la ficha. Lo que se registra es la actividad, no el chat:
+              la conversación se queda en el celular del asesor. No hace falta conectar nada.
+            </Modo>
+            <Modo actual={conNumero} titulo="2 · Un número de la empresa dentro del CRM">
+              Un número comercial (en los anuncios, la web y el letrero) cuyos chats entran como
+              leads y se reparten entre asesores. Queda registro de todo y el número no se va
+              con nadie. Los asesores pueden seguir usando su WhatsApp personal para lo demás.
+              Requiere un <strong>número que no esté en ningún celular</strong>: uno nuevo, o el
+              corporativo actual aceptando que deja de verse en la app y que el historial no se
+              traslada.
+            </Modo>
+            <Modo actual={false} titulo="3 · Todo el WhatsApp de la empresa desde el CRM">
+              Igual que la 2, pero el equipo deja la app por completo y atiende solo desde aquí.
+              Es a donde llegan las empresas que operan el CRM en serio; conviene pasar primero
+              por la 2 unos meses.
+            </Modo>
+          </>
+        );
+      })()}
+
+      <p className="meta" style={{ marginTop: 10 }}>
+        <strong>Antes de conectar un número:</strong> al pasarlo a la API deja de funcionar en la
+        app del celular y no hay vuelta atrás inmediata. Nunca el número de un asesor. Si el
+        equipo atiende hoy desde sus celulares, acuerden quién escribe por dónde para no
+        contactar al mismo cliente dos veces.
       </p>
 
       {numeros.data?.length === 0 && <p className="meta">No hay ningún número conectado.</p>}
