@@ -5,6 +5,7 @@ import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
 import ChatWhatsApp from './ChatWhatsApp.js';
 import NotasVoz from '../components/NotasVoz.js';
+import SelectorInteres from '../components/SelectorInteres.js';
 
 interface Detalle {
   id: string;
@@ -18,6 +19,8 @@ interface Detalle {
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
   stage: { id: string; name: string } | null;
   owner: { id: string; name: string } | null;
+  typologyInterests: { typologyId: string; typology: { id: string; name: string; bedrooms: number | null; areaM2: string | null; priceFrom: string | null; currency: string } }[];
+  unitInterests: { unitId: string; unit: { id: string; code: string; status: string; price: string | null; currency: string; typologyRef: { name: string } | null } }[];
   activities: { id: string; type: string; body: string | null; createdAt: string; dueAt: string | null; doneAt: string | null; user: { name: string } | null }[];
 }
 
@@ -35,6 +38,8 @@ export default function LeadDetail({ rol }: { rol: string }) {
   const [segFecha, setSegFecha] = useState('');
   const [segNota, setSegNota] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
+  // Edición del interés: null = solo lectura; con valor = formulario abierto.
+  const [edicion, setEdicion] = useState<{ projectId: string; typologyIds: string[]; unitIds: string[] } | null>(null);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', id],
@@ -85,6 +90,20 @@ export default function LeadDetail({ rol }: { rol: string }) {
     qc.invalidateQueries({ queryKey: ['seguimientos'] });
   }
 
+  const proyectos = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/projects'),
+  });
+
+  const guardarInteres = useMutation({
+    mutationFn: (v: { projectId: string; typologyIds: string[]; unitIds: string[] }) =>
+      api.patch(`/leads/${id}`, { projectId: v.projectId || null, typologyIds: v.typologyIds, unitIds: v.unitIds }),
+    onSuccess: () => {
+      setEdicion(null);
+      refrescar();
+    },
+  });
+
   const cambiarEtapa = useMutation({
     mutationFn: (stageId: string) => api.patch(`/leads/${id}`, { stageId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['lead', id] }),
@@ -133,16 +152,103 @@ export default function LeadDetail({ rol }: { rol: string }) {
         </div>
       </div>
 
-      {(lead.project || lead.unit) && (
-        <div className="card">
+      <div className="card">
+        <div className="fila">
           <strong>Interés</strong>
-          <div className="meta" style={{ marginTop: 6 }}>
-            {lead.project?.name}
-            {lead.unit && ` · Unidad ${lead.unit.code} · ${lead.unit.bedrooms ?? '?'} dorm · ${lead.unit.areaM2 ?? '?'} m² · ${precio(lead.unit.price, lead.unit.currency)}`}
-          </div>
-          {lead.message && <p style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>{lead.message}</p>}
+          {rol !== 'solo_lectura' && !edicion && (
+            <button
+              type="button"
+              className="btn btn-sec"
+              style={{ padding: '5px 10px', fontSize: 12 }}
+              onClick={() =>
+                setEdicion({
+                  projectId: lead.project?.id ?? '',
+                  typologyIds: lead.typologyInterests.map((t) => t.typologyId),
+                  unitIds: lead.unitInterests.map((u) => u.unitId),
+                })
+              }
+            >
+              Editar
+            </button>
+          )}
         </div>
-      )}
+
+        {!edicion ? (
+          <>
+            <div className="meta" style={{ marginTop: 6 }}>
+              {lead.project?.name ?? 'Sin proyecto'}
+              {lead.unit && ` · Última consulta: unidad ${lead.unit.code} · ${lead.unit.bedrooms ?? '?'} dorm · ${lead.unit.areaM2 ?? '?'} m² · ${precio(lead.unit.price, lead.unit.currency)}`}
+            </div>
+            {(lead.typologyInterests.length > 0 || lead.unitInterests.length > 0) ? (
+              <div className="interes-resumen">
+                {lead.typologyInterests.map((t) => (
+                  <span key={t.typologyId} className="chip" title="Tipología de interés">
+                    {t.typology.name}
+                    {t.typology.bedrooms != null && ` · ${t.typology.bedrooms} dorm`}
+                  </span>
+                ))}
+                {lead.unitInterests.map((u) => (
+                  <span
+                    key={u.unitId}
+                    className={u.unit.status === 'disponible' ? 'chip chip-verde' : 'chip chip-gris'}
+                    title={u.unit.status === 'disponible' ? 'Unidad disponible' : `Unidad ${u.unit.status.replace('_', ' ')}`}
+                  >
+                    Unidad {u.unit.code}
+                    {u.unit.price && ` · ${precio(u.unit.price, u.unit.currency)}`}
+                    {u.unit.status !== 'disponible' && ` · ${u.unit.status.replace('_', ' ')}`}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              lead.project && (
+                <p className="meta" style={{ marginTop: 6 }}>
+                  Sin tipologías ni unidades marcadas. Anota aquí lo que compara el cliente: es el
+                  insumo de la siguiente llamada.
+                </p>
+              )
+            )}
+            {lead.message && <p style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>{lead.message}</p>}
+          </>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              guardarInteres.mutate(edicion);
+            }}
+          >
+            <label>Proyecto</label>
+            <select
+              value={edicion.projectId}
+              onChange={(e) => {
+                const projectId = e.target.value;
+                // Cambiar de proyecto vacía las marcas: eran unidades del anterior.
+                setEdicion(projectId === edicion.projectId ? edicion : { projectId, typologyIds: [], unitIds: [] });
+              }}
+            >
+              <option value="">Sin proyecto</option>
+              {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {edicion.projectId && edicion.projectId !== (lead.project?.id ?? '') && (
+              <p className="meta" style={{ marginTop: 6 }}>
+                Al cambiar de proyecto se quitan las tipologías y unidades del anterior.
+              </p>
+            )}
+            <SelectorInteres
+              projectId={edicion.projectId}
+              typologyIds={edicion.typologyIds}
+              unitIds={edicion.unitIds}
+              onChange={(v) => setEdicion({ ...edicion, ...v })}
+            />
+            {guardarInteres.isError && <p className="error">{(guardarInteres.error as Error).message}</p>}
+            <div className="acciones">
+              <button className="btn" disabled={guardarInteres.isPending}>
+                {guardarInteres.isPending ? 'Guardando…' : 'Guardar interés'}
+              </button>
+              <button type="button" className="btn btn-sec" onClick={() => setEdicion(null)}>Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {rol !== 'solo_lectura' && <ChatWhatsApp leadId={lead.id} />}
 

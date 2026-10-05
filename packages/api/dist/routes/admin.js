@@ -5,6 +5,7 @@ import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, requireAuth, requireRole } from '../lib/auth.js';
 import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
+import { sumarIntereses, validarIntereses } from '../services/intereses.js';
 import { cifrar, pista } from '../lib/secretos.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
 import { env } from '../env.js';
@@ -941,16 +942,36 @@ export default async function adminRoutes(app) {
             document: z.string().optional(),
             message: z.string().optional(),
             projectId: z.string().optional(),
+            typologyIds: z.array(z.string()).optional(),
+            unitIds: z.array(z.string()).optional(),
             source: z.string().default('manual'),
         })
             .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
-        const { projectId, source, ...values } = parsed.data;
+        const { projectId, typologyIds, unitIds, source, ...values } = parsed.data;
+        if (projectId) {
+            const proyecto = await prisma.project.findFirst({
+                where: { id: projectId, organizationId: req.user.organizationId },
+            });
+            if (!proyecto)
+                return reply.code(400).send({ error: 'Proyecto inválido' });
+        }
+        try {
+            await validarIntereses(projectId ?? null, { typologyIds, unitIds });
+        }
+        catch (e) {
+            return reply.code(400).send({ error: e.message });
+        }
         const result = await captureLead({
             idempotencyKey: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
             values: values,
         }, null, { organizationId: req.user.organizationId, projectId: projectId ?? null, source, ip: req.ip });
+        // Se suma y no se reemplaza: si la persona ya tenía un lead abierto en el proyecto,
+        // lo marcado en el alta se agrega a lo que ya tenía.
+        if (result.leadId && (typologyIds?.length || unitIds?.length)) {
+            await sumarIntereses(prisma, result.leadId, { typologyIds, unitIds });
+        }
         return result;
     });
     // ---------------------------------------------------------- exportación
@@ -964,6 +985,8 @@ export default async function adminRoutes(app) {
                 unit: { select: { code: true } },
                 stage: { select: { name: true } },
                 owner: { select: { name: true } },
+                typologyInterests: { select: { typology: { select: { name: true } } } },
+                unitInterests: { select: { unit: { select: { code: true } } } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -972,11 +995,14 @@ export default async function adminRoutes(app) {
             meta: { count: leads.length },
             ip: req.ip,
         });
-        const cab = ['fecha', 'nombre', 'apellido', 'telefono', 'email', 'documento', 'proyecto', 'unidad', 'etapa', 'asesor', 'fuente', 'mensaje'];
+        const cab = ['fecha', 'nombre', 'apellido', 'telefono', 'email', 'documento', 'proyecto', 'unidad', 'tipologias_interes', 'unidades_interes', 'etapa', 'asesor', 'fuente', 'mensaje'];
         const filas = leads.map((l) => [
             l.createdAt.toISOString(),
             l.contact.fname, l.contact.lname ?? '', l.contact.phone ?? '', l.contact.email ?? '', l.contact.document ?? '',
-            l.project?.name ?? '', l.unit?.code ?? '', l.stage?.name ?? '', l.owner?.name ?? '', l.source, (l.message ?? '').replace(/\n/g, ' '),
+            l.project?.name ?? '', l.unit?.code ?? '',
+            l.typologyInterests.map((t) => t.typology.name).join(' | '),
+            l.unitInterests.map((u) => u.unit.code).join(' | '),
+            l.stage?.name ?? '', l.owner?.name ?? '', l.source, (l.message ?? '').replace(/\n/g, ' '),
         ]);
         const csv = [cab, ...filas]
             .map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))

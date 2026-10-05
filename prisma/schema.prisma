@@ -172,7 +172,8 @@ model Typology {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  units Unit[]
+  units     Unit[]
+  intereses LeadTypologyInterest[]
 
   @@unique([projectId, name])
   @@index([projectId, active])
@@ -199,7 +200,8 @@ model Unit {
   extra       Json?
   updatedAt   DateTime   @updatedAt
 
-  leads Lead[]
+  leads     Lead[]
+  intereses LeadUnitInterest[]
 
   @@unique([projectId, code])
   @@index([projectId, status])
@@ -299,12 +301,44 @@ model Lead {
   metaLeads   MetaLead[]
   waConversations WaConversation[]
   notasVoz        NotaVoz[]
+  typologyInterests LeadTypologyInterest[]
+  unitInterests     LeadUnitInterest[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
   @@index([organizationId, projectId])
   @@index([organizationId, stageId])
   @@map("leads")
+}
+
+// Interés del lead en tipologías y unidades concretas del proyecto.
+//
+// `lead.unitId` sigue siendo «la última unidad consultada» (lo que llega del formulario) y
+// no se toca por compatibilidad. Pero quien compra compara: pregunta por el 302 y el 502, o
+// por «cualquier 3 dormitorios». Eso es una lista, no una columna, y el asesor la edita
+// desde la ficha. La captura web alimenta la lista sola: cada unidad consultada se suma.
+model LeadTypologyInterest {
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  typologyId String
+  typology   Typology @relation(fields: [typologyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([leadId, typologyId])
+  @@index([typologyId])
+  @@map("lead_typology_interests")
+}
+
+model LeadUnitInterest {
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([leadId, unitId])
+  @@index([unitId])
+  @@map("lead_unit_interests")
 }
 
 enum ActivityType {

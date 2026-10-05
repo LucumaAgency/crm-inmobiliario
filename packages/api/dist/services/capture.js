@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { normalizeDocument, normalizeEmail, normalizePhonePE, } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
+import { sumarIntereses } from './intereses.js';
 import { enqueue } from '../lib/jobs.js';
 import { assignLead, pickOwner } from './assign.js';
 import { urlDeOrganizacion } from '../lib/tenant.js';
@@ -91,6 +92,13 @@ export async function captureLead(input, schema, ctx) {
                     message: campos.message ?? existente.message,
                 },
             });
+            // La unidad anterior ya no se pierde: las dos quedan en la lista de interés.
+            if (unidad) {
+                await sumarIntereses(tx, existente.id, {
+                    unitIds: [unidad.id],
+                    typologyIds: unidad.typologyId ? [unidad.typologyId] : [],
+                });
+            }
             await tx.activity.create({
                 data: {
                     leadId: existente.id,
@@ -126,6 +134,12 @@ export async function captureLead(input, schema, ctx) {
                 lastActivityAt: ahora,
             },
         });
+        if (unidad) {
+            await sumarIntereses(tx, lead.id, {
+                unitIds: [unidad.id],
+                typologyIds: unidad.typologyId ? [unidad.typologyId] : [],
+            });
+        }
         return { leadId: lead.id, duplicado: false, esNuevo: true };
     });
     // Asignación y SLA fuera de la transacción: encolar dispara el procesado de la cola
@@ -297,7 +311,7 @@ async function resolverUnidad(valor, projectId) {
         return null;
     return prisma.unit.findFirst({
         where: { projectId, OR: [{ id: valor }, { code: valor }] },
-        select: { id: true, code: true },
+        select: { id: true, code: true, typologyId: true },
     });
 }
 /**
