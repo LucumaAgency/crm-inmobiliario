@@ -7,6 +7,7 @@ import {
   type SubmissionInput,
 } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
+import { sumarIntereses } from './intereses.js';
 import { enqueue } from '../lib/jobs.js';
 import { assignLead, pickOwner } from './assign.js';
 import { env } from '../env.js';
@@ -130,6 +131,13 @@ export async function captureLead(
           message: campos.message ?? existente.message,
         },
       });
+      // La unidad anterior ya no se pierde: las dos quedan en la lista de interés.
+      if (unidad) {
+        await sumarIntereses(tx, existente.id, {
+          unitIds: [unidad.id],
+          typologyIds: unidad.typologyId ? [unidad.typologyId] : [],
+        });
+      }
       await tx.activity.create({
         data: {
           leadId: existente.id,
@@ -166,6 +174,12 @@ export async function captureLead(
         lastActivityAt: ahora,
       },
     });
+    if (unidad) {
+      await sumarIntereses(tx, lead.id, {
+        unitIds: [unidad.id],
+        typologyIds: unidad.typologyId ? [unidad.typologyId] : [],
+      });
+    }
     return { leadId: lead.id, duplicado: false, esNuevo: true };
   });
 
@@ -347,7 +361,7 @@ async function resolverUnidad(valor: string | undefined, projectId: string | nul
   if (!valor || !projectId) return null;
   return prisma.unit.findFirst({
     where: { projectId, OR: [{ id: valor }, { code: valor }] },
-    select: { id: true, code: true },
+    select: { id: true, code: true, typologyId: true },
   });
 }
 

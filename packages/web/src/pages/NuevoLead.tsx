@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import SelectorInteres from '../components/SelectorInteres.js';
 
 interface Props {
   onCerrar: () => void;
@@ -28,6 +29,8 @@ export default function NuevoLead({ onCerrar }: Props) {
   const [document, setDocument] = useState('');
   const [projectId, setProjectId] = useState('');
   const [message, setMessage] = useState('');
+  const [typologyIds, setTypologyIds] = useState<string[]>([]);
+  const [unitIds, setUnitIds] = useState<string[]>([]);
 
   const proyectos = useQuery({
     queryKey: ['projects'],
@@ -44,6 +47,8 @@ export default function NuevoLead({ onCerrar }: Props) {
         document: document.trim() || undefined,
         message: message.trim() || undefined,
         projectId: projectId || undefined,
+        typologyIds: projectId && typologyIds.length ? typologyIds : undefined,
+        unitIds: projectId && unitIds.length ? unitIds : undefined,
         source: 'manual',
       }),
     onSuccess: (r) => {
@@ -108,7 +113,15 @@ export default function NuevoLead({ onCerrar }: Props) {
             </div>
             <div>
               <label htmlFor="nl-proy">Proyecto</label>
-              <select id="nl-proy" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <select
+                id="nl-proy"
+                value={projectId}
+                onChange={(e) => {
+                  setProjectId(e.target.value);
+                  setTypologyIds([]);
+                  setUnitIds([]);
+                }}
+              >
                 <option value="">Sin proyecto</option>
                 {proyectos.data?.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -116,6 +129,15 @@ export default function NuevoLead({ onCerrar }: Props) {
               </select>
             </div>
           </div>
+
+          {projectId && (
+            <SelectorInteres
+              projectId={projectId}
+              typologyIds={typologyIds}
+              unitIds={unitIds}
+              onChange={(v) => { setTypologyIds(v.typologyIds); setUnitIds(v.unitIds); }}
+            />
+          )}
 
           <label htmlFor="nl-msg">Nota</label>
           <textarea

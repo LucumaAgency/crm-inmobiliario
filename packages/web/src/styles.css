@@ -642,3 +642,21 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
   .modal { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
   .login { padding: 22px 18px; }
 }
+
+/* --- Interés: tipologías y unidades ------------------------------------- */
+.casillas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.casilla {
+  display: inline-flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--borde); border-radius: 8px; background: #fff; cursor: pointer;
+  font-weight: 400; margin: 0; font-size: 13.5px;
+}
+.casilla input { margin: 3px 0 0; width: auto; accent-color: var(--azul); }
+.casilla > span { display: flex; flex-direction: column; gap: 1px; line-height: 1.25; }
+.casilla strong { font-weight: 600; font-size: 13.5px; }
+.casilla .meta { font-size: 11.5px; }
+.casilla.marcada { border-color: var(--azul); background: var(--azul-tinte); }
+.casilla.agotada strong { color: var(--tenue); text-decoration: line-through; }
+.casilla-unidad { padding: 6px 9px; min-width: 72px; }
+.grupo-unidades { margin-top: 6px; }
+.grupo-titulo { margin: 6px 0 2px; font-weight: 600; }
+.interes-resumen { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

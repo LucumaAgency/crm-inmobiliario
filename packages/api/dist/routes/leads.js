@@ -5,6 +5,7 @@ import { assignLead } from '../services/assign.js';
 import { enqueue } from '../lib/jobs.js';
 import { guardarAudio, rutaPrivada } from '../lib/privados.js';
 import { leerAjustes } from '../lib/ajustes.js';
+import { includeIntereses, reemplazarIntereses, validarIntereses, vaciarIntereses } from '../services/intereses.js';
 import fs from 'node:fs';
 import { z } from 'zod';
 import { enviarPlantilla, enviarTexto, ventanaAbierta, } from '../services/whatsapp.js';
@@ -137,6 +138,7 @@ export default async function leadRoutes(app) {
                 unit: true,
                 stage: true,
                 owner: { select: { id: true, name: true, email: true } },
+                ...includeIntereses,
                 activities: {
                     include: { user: { select: { id: true, name: true } } },
                     orderBy: { createdAt: 'desc' },
@@ -439,12 +441,48 @@ export default async function leadRoutes(app) {
         }
         return actualizado;
     });
+    /**
+     * Edición de la ficha: etapa, estado, asesor e interés (proyecto, tipologías, unidades).
+     *
+     * El interés es lo que el asesor va descubriendo en la conversación: entró por el 302 y
+     * resulta que compara con el 502 y le sirve cualquier 3 dormitorios. Se guarda como
+     * conjuntos completos (`typologyIds`, `unitIds`): lo que viene es lo que queda. Cambiar
+     * de proyecto vacía los intereses del anterior, porque sus unidades ya no aplican.
+     */
     app.patch('/:id', { preHandler: escritura }, async (req, reply) => {
         const user = req.user;
-        const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
+        const lead = await prisma.lead.findFirst({
+            where: { id: req.params.id, ...scopeForUser(user) },
+            include: includeIntereses,
+        });
         if (!lead)
             return reply.code(404).send({ error: 'Lead no encontrado' });
-        const { stageId, status, ownerId } = req.body ?? {};
+        const { stageId, status, ownerId, projectId, typologyIds, unitIds } = req.body ?? {};
+        const cambiaProyecto = projectId !== undefined && (projectId || null) !== lead.projectId;
+        const proyectoFinal = cambiaProyecto ? projectId || null : lead.projectId;
+        if (cambiaProyecto && proyectoFinal) {
+            const proyecto = await prisma.project.findFirst({
+                where: { id: proyectoFinal, organizationId: user.organizationId },
+            });
+            if (!proyecto)
+                return reply.code(400).send({ error: 'Proyecto inválido' });
+        }
+        const tocaInteres = cambiaProyecto || typologyIds !== undefined || unitIds !== undefined;
+        let intereses = null;
+        let validados = null;
+        if (tocaInteres) {
+            intereses = {
+                // Si cambia el proyecto y no mandan listas, se vacían: eran del proyecto anterior.
+                typologyIds: typologyIds ?? (cambiaProyecto ? [] : lead.typologyInterests.map((t) => t.typologyId)),
+                unitIds: unitIds ?? (cambiaProyecto ? [] : lead.unitInterests.map((u) => u.unitId)),
+            };
+            try {
+                validados = await validarIntereses(proyectoFinal, intereses);
+            }
+            catch (e) {
+                return reply.code(400).send({ error: e.message });
+            }
+        }
         if (stageId && stageId !== lead.stageId) {
             const etapa = await prisma.stage.findFirst({
                 where: { id: stageId, organizationId: user.organizationId },
@@ -465,13 +503,50 @@ export default async function leadRoutes(app) {
                 return reply.code(403).send({ error: 'Sin permisos para reasignar' });
             await assignLead(lead.id, ownerId, 'manual');
         }
+        if (tocaInteres && intereses && validados) {
+            const antes = new Set([
+                ...lead.typologyInterests.map((t) => `t:${t.typologyId}`),
+                ...lead.unitInterests.map((u) => `u:${u.unitId}`),
+            ]);
+            const despues = new Set([
+                ...intereses.typologyIds.map((t) => `t:${t}`),
+                ...intereses.unitIds.map((u) => `u:${u}`),
+            ]);
+            const hayCambio = cambiaProyecto || antes.size !== despues.size || [...antes].some((k) => !despues.has(k));
+            await prisma.$transaction(async (tx) => {
+                if (cambiaProyecto)
+                    await vaciarIntereses(tx, lead.id);
+                await reemplazarIntereses(tx, lead.id, intereses);
+                if (hayCambio) {
+                    const partes = [
+                        ...validados.tipologias.map((t) => t.name),
+                        ...validados.unidades.map((u) => `unidad ${u.code}`),
+                    ];
+                    await tx.activity.create({
+                        data: {
+                            leadId: lead.id,
+                            userId: user.id,
+                            type: 'sistema',
+                            body: cambiaProyecto
+                                ? `Proyecto → ${proyectoFinal ? 'otro proyecto' : 'sin proyecto'}${partes.length ? ` · interés: ${partes.join(', ')}` : ''}`
+                                : `Interés → ${partes.length ? partes.join(', ') : 'sin tipologías ni unidades marcadas'}`,
+                            meta: { projectId: proyectoFinal, ...intereses },
+                        },
+                    });
+                }
+            });
+        }
         return prisma.lead.update({
             where: { id: lead.id },
             data: {
                 stageId: stageId ?? undefined,
                 status: status ?? undefined,
+                projectId: cambiaProyecto ? proyectoFinal : undefined,
+                // La «última unidad consultada» deja de tener sentido si el proyecto cambia.
+                unitId: cambiaProyecto ? null : undefined,
+                lastActivityAt: tocaInteres ? new Date() : undefined,
             },
-            include: { stage: true, owner: { select: { id: true, name: true } } },
+            include: { stage: true, owner: { select: { id: true, name: true } }, project: true, ...includeIntereses },
         });
     });
     /**
