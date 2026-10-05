@@ -15,8 +15,8 @@ export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): 
     id: string;
     createdAt: Date;
     status: import(".prisma/client").$Enums.JobStatus;
-    type: string;
     lastError: string | null;
+    type: string;
     payload: import("@prisma/client/runtime/library").JsonValue;
     attempts: number;
     maxAttempts: number;

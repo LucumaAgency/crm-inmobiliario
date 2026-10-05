@@ -15,8 +15,9 @@ export interface InteresesInput {
 export declare function validarIntereses(projectId: string | null, input: InteresesInput): Promise<{
     tipologias: never[] | {
         id: string;
-        projectId: string;
         name: string;
+        createdAt: Date;
+        projectId: string;
         code: string | null;
         bedrooms: number | null;
         bathrooms: number | null;
@@ -28,12 +29,11 @@ export declare function validarIntereses(projectId: string | null, input: Intere
         imageUrl: string | null;
         position: number;
         active: boolean;
-        createdAt: Date;
         updatedAt: Date;
     }[];
     unidades: never[] | {
-        typology: string | null;
         id: string;
+        typology: string | null;
         projectId: string;
         code: string;
         bedrooms: number | null;
