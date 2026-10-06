@@ -17,9 +17,11 @@ import Formularios from './pages/Formularios.js';
 import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
+import { PermisosContext } from './lib/permisos.js';
+import type { Permiso } from '@lucuma-crm/shared';
 
 interface Me {
-  user: { id: string; name: string; email: string; role: string; organizationId: string };
+  user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string };
   organization: { id: string; name: string } | null;
   tienePassword: boolean;
 }
@@ -83,7 +85,12 @@ export default function App() {
   if (isLoading) return <div className="vacio">Cargando…</div>;
   if (isError || !data) return <Login />;
 
-  const puedeGestionar = data.user.role === 'admin_lucuma' || data.user.role === 'gerente';
+  const permisos = data.user.permissions ?? [];
+  const puede = (...p: Permiso[]) => p.some((x) => permisos.includes(x));
+  const puedeGestionar = puede('embudo.configurar', 'usuarios.gestionar', 'canales.configurar', 'leads.exportar');
+  const puedeFormularios = puede('canales.configurar');
+  const puedeInventario = puede('inventario.editar');
+  const puedeReportes = puede('reportes.ver');
   const enlace = ({ isActive }: { isActive: boolean }) => (isActive ? 'activo' : '');
   const titulo =
     TITULOS.find(([patron]) => matchPath(patron, location.pathname))?.[1] ?? 'Lucuma CRM';
@@ -95,6 +102,7 @@ export default function App() {
   }
 
   return (
+    <PermisosContext.Provider value={permisos}>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
         <div className="lateral-marca">
@@ -116,13 +124,15 @@ export default function App() {
           <NavLink to="/seguimientos" className={enlace}>
             <Icono nombre="tareas" />Seguimientos
           </NavLink>
-          <NavLink to="/reportes" className={enlace}>
-            <Icono nombre="reportes" />Reportes
-          </NavLink>
+          {puedeReportes && (
+            <NavLink to="/reportes" className={enlace}>
+              <Icono nombre="reportes" />Reportes
+            </NavLink>
+          )}
 
           <div className="nav-seccion">
             Proyectos
-            {puedeGestionar && (
+            {puedeInventario && (
               <NavLink to="/proyectos" aria-label="Gestionar proyectos" title="Gestionar proyectos">
                 <Icono nombre="mas" tam={15} />
               </NavLink>
@@ -147,9 +157,11 @@ export default function App() {
           {puedeGestionar && (
             <>
               <div className="nav-seccion">Configuración</div>
-              <NavLink to="/formularios" className={enlace}>
-                <Icono nombre="formularios" />Formularios
-              </NavLink>
+              {puedeFormularios && (
+                <NavLink to="/formularios" className={enlace}>
+                  <Icono nombre="formularios" />Formularios
+                </NavLink>
+              )}
               <NavLink to="/ajustes" className={enlace}>
                 <Icono nombre="ajustes" />Ajustes
               </NavLink>
@@ -178,7 +190,7 @@ export default function App() {
             <span className="datos">
               <div className="nombre">{data.user.name}</div>
               <div className="meta">
-                {ROLES[data.user.role] ?? data.user.role}
+                {data.user.roleName ?? ROLES[data.user.role] ?? data.user.role}
                 {!data.tienePassword && <span className="aviso-pass"> · sin contraseña</span>}
               </div>
             </span>
@@ -208,7 +220,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/resumen" replace />} />
             <Route path="/resumen" element={<Resumen />} />
-            <Route path="/reportes" element={<Reportes />} />
+            {puedeReportes && <Route path="/reportes" element={<Reportes />} />}
             <Route path="/leads" element={<Leads />} />
             <Route path="/tablero" element={<Tablero rol={data.user.role} />} />
             <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
@@ -217,8 +229,8 @@ export default function App() {
             <Route path="/tareas" element={<Navigate to="/seguimientos" replace />} />
             <Route path="/proyectos" element={<Proyectos />} />
             <Route path="/proyectos/:id" element={<ProyectoDetail />} />
-            {puedeGestionar && <Route path="/formularios" element={<Formularios />} />}
-            {puedeGestionar && <Route path="/formularios/:id" element={<FormularioEditor />} />}
+            {puedeFormularios && <Route path="/formularios" element={<Formularios />} />}
+            {puedeFormularios && <Route path="/formularios/:id" element={<FormularioEditor />} />}
             {puedeGestionar && <Route path="/ajustes" element={<Ajustes rol={data.user.role} />} />}
             <Route path="/cuenta" element={<Cuenta tienePassword={data.tienePassword} />} />
             <Route path="*" element={<div className="vacio">Página no encontrada</div>} />
@@ -226,5 +238,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </PermisosContext.Provider>
   );
 }

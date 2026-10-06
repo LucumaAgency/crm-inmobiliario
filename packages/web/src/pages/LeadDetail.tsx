@@ -9,6 +9,7 @@ import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import type { ApiError } from '../lib/api.js';
+import { usePuede } from '../lib/permisos.js';
 
 interface Detalle {
   id: string;
@@ -33,8 +34,10 @@ interface Detalle {
 const TIPOS = ['llamada', 'whatsapp', 'email', 'visita', 'nota'] as const;
 const TIPOS_SEGUIMIENTO = ['llamada', 'whatsapp', 'email', 'visita'] as const;
 
-export default function LeadDetail({ rol }: { rol: string }) {
+export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const { id } = useParams();
+  const puede = usePuede();
+  const soloLectura = !puede('leads.editar');
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<(typeof TIPOS)[number]>('llamada');
   const [body, setBody] = useState('');
@@ -170,7 +173,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
             <select
               value={lead.stage?.id ?? ''}
               onChange={(e) => elegirEtapa(e.target.value)}
-              disabled={rol === 'solo_lectura' || cambiarEtapa.isPending}
+              disabled={soloLectura || cambiarEtapa.isPending}
             >
               {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -183,7 +186,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
             <SelectorNivel
               valor={lead.interestLevel}
               onChange={(v) => cambiarInteres.mutate(v)}
-              disabled={rol === 'solo_lectura'}
+              disabled={soloLectura}
             />
           </div>
         </div>
@@ -199,7 +202,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
       <div className="card">
         <div className="fila">
           <strong>Interés</strong>
-          {rol !== 'solo_lectura' && !edicion && (
+          {!soloLectura && !edicion && (
             <button
               type="button"
               className="btn btn-sec"
@@ -294,9 +297,9 @@ export default function LeadDetail({ rol }: { rol: string }) {
         )}
       </div>
 
-      {rol !== 'solo_lectura' && <ChatWhatsApp leadId={lead.id} />}
+      {!soloLectura && <ChatWhatsApp leadId={lead.id} />}
 
-      <NotasVoz leadId={lead.id} puedeEditar={rol !== 'solo_lectura'} />
+      <NotasVoz leadId={lead.id} puedeEditar={!soloLectura} />
 
       <div className="card">
         <strong>Seguimientos</strong>
@@ -315,7 +318,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
                     <span className="nombre" style={{ fontSize: 13.5 }}>{a.type}</span>
                     {a.body && a.body !== 'Seguimiento agendado' && <span className="meta"> · {a.body}</span>}
                   </span>
-                  {rol !== 'solo_lectura' && (
+                  {!soloLectura && (
                     <button
                       type="button"
                       className="btn btn-sec"
@@ -332,7 +335,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
           </div>
         )}
 
-        {rol !== 'solo_lectura' && (
+        {!soloLectura && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -360,7 +363,7 @@ export default function LeadDetail({ rol }: { rol: string }) {
         )}
       </div>
 
-      {rol !== 'solo_lectura' && (
+      {!soloLectura && (
         <div className="card">
           <strong>Registrar actividad</strong>
           <label>Qué pasó</label>

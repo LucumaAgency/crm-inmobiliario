@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { usePuede } from '../lib/permisos.js';
 import Icono from '../components/Icono.js';
 import Kpi from '../components/Kpi.js';
 
@@ -141,16 +142,17 @@ function Fila({
  * Seguimientos: el próximo contacto con cada lead. Es la pantalla con la que el asesor
  * abre el día. Se cierran con «Hecho» o, solos, al registrar un contacto en la ficha.
  */
-export default function Seguimientos({ rol }: { rol: string }) {
-  const gestiona = rol !== 'asesor';
-  const puedeEditar = rol !== 'solo_lectura';
-  const [vista, setVista] = useState<'mios' | 'equipo'>(rol === 'solo_lectura' ? 'equipo' : 'mios');
+export default function Seguimientos({ rol: _rol }: { rol: string }) {
+  const puede = usePuede();
+  const gestiona = puede('leads.ver_todos');
+  const puedeEditar = puede('leads.editar');
+  const [vista, setVista] = useState<'mios' | 'equipo'>(!puedeEditar && gestiona ? 'equipo' : 'mios');
   const [asesor, setAsesor] = useState('');
 
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () => api.get<{ id: string; name: string; active: boolean }[]>('/users'),
-    enabled: gestiona && rol !== 'solo_lectura',
+    enabled: gestiona,
   });
   const { data, isLoading } = useQuery({
     queryKey: ['seguimientos', vista, asesor],
@@ -198,7 +200,7 @@ export default function Seguimientos({ rol }: { rol: string }) {
       {gestiona && (
         <div className="herramientas">
           <div className="pestanas" style={{ marginBottom: 0 }}>
-            {rol !== 'solo_lectura' && (
+            {puedeEditar && (
               <button type="button" className={vista === 'mios' ? 'activa' : ''} onClick={() => setVista('mios')}>
                 Míos
               </button>

@@ -18,7 +18,7 @@ export default async function metaOAuthRoutes(app) {
         const base = baseUrlDePeticion(req);
         if (!req.user)
             return reply.redirect(`${base}/`);
-        if (req.user.role !== 'admin_lucuma' && req.user.role !== 'gerente') {
+        if (!req.user.permissions.includes('canales.configurar')) {
             return volver(reply, base, { meta: 'error', detalle: 'Solo un gerente puede conectar páginas.' });
         }
         if (!oauthDisponible()) {
