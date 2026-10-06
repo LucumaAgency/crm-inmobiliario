@@ -6,6 +6,7 @@ import Icono from '../components/Icono.js';
 interface Ajustes {
   motivosPerdida: string[];
   descuentoMaximoPct: number | null;
+  nivelesInteres: [string, string, string];
 }
 
 /**
@@ -19,16 +20,26 @@ export default function AjustesEmbudo() {
     mutationFn: (cambios: Partial<Ajustes>) => api.patch('/ajustes', cambios),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ajustes'] });
-      qc.invalidateQueries({ queryKey: ['motivos-perdida'] });
+      qc.invalidateQueries({ queryKey: ['ajustes-operacion'] });
       qc.invalidateQueries({ queryKey: ['me'] });
     },
   });
 
   const [nuevo, setNuevo] = useState('');
   const [descuento, setDescuento] = useState('');
+  const [niveles, setNiveles] = useState<[string, string, string]>(['', '', '']);
   useEffect(() => {
-    if (ajustes.data) setDescuento(ajustes.data.descuentoMaximoPct == null ? '' : String(ajustes.data.descuentoMaximoPct));
+    if (ajustes.data) {
+      setDescuento(ajustes.data.descuentoMaximoPct == null ? '' : String(ajustes.data.descuentoMaximoPct));
+      setNiveles(ajustes.data.nivelesInteres);
+    }
   }, [ajustes.data]);
+
+  function guardarNiveles() {
+    const limpios = niveles.map((n) => n.trim()) as [string, string, string];
+    if (limpios.some((n) => !n)) { setNiveles(ajustes.data!.nivelesInteres); return; }
+    if (limpios.join('|') !== ajustes.data!.nivelesInteres.join('|')) guardar.mutate({ nivelesInteres: limpios });
+  }
 
   const motivos = ajustes.data?.motivosPerdida ?? [];
 
@@ -92,6 +103,29 @@ export default function AjustesEmbudo() {
           </button>
         </form>
         {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}
+      </div>
+
+      <div className="card">
+        <strong>Niveles de interés</strong>
+        <p className="meta" style={{ marginTop: 6 }}>
+          Cómo se llaman los tres niveles que el asesor marca en la ficha, de menor a mayor. Se
+          guarda el número, así que cambiar el nombre no toca los leads ya calificados.
+        </p>
+        <div className="niveles-editor">
+          {niveles.map((n, i) => (
+            <label key={i} className={`interes-boton interes-${i + 1} activo`} style={{ cursor: 'text' }}>
+              <span className="interes-puntos" aria-hidden="true">{'●'.repeat(i + 1)}</span>
+              <input
+                value={n}
+                maxLength={30}
+                aria-label={`Nombre del nivel ${i + 1}`}
+                onChange={(e) => setNiveles(niveles.map((x, j) => (j === i ? e.target.value : x)) as [string, string, string])}
+                onBlur={guardarNiveles}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="card">

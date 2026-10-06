@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../lib/api.js';
+import { useAjustesOperacion } from './NivelInteres.js';
 
 interface Props {
   nombre: string;
@@ -19,11 +18,7 @@ interface Props {
  * sin este diálogo el arrastre al Kanban fallaría en silencio.
  */
 export default function MotivoPerdida({ nombre, etapa, onConfirmar, onCancelar, pendiente, error }: Props) {
-  const motivos = useQuery({
-    queryKey: ['motivos-perdida'],
-    queryFn: () => api.get<{ motivosPerdida: string[] }>('/ajustes/operacion'),
-    staleTime: 5 * 60 * 1000,
-  });
+  const motivos = useAjustesOperacion();
   const lista = motivos.data?.motivosPerdida ?? [];
   const [elegido, setElegido] = useState('');
   const [otro, setOtro] = useState('');

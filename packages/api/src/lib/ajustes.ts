@@ -23,6 +23,11 @@ export interface AjustesOrg {
    * tope. Lo define el gerente; se aplica en la proforma.
    */
   descuentoMaximoPct: number | null;
+  /**
+   * Nombres de los tres niveles de interés (1, 2, 3). Cada inmobiliaria les llama distinto
+   * (frío/tibio/caliente, bajo/medio/alto, C/B/A); el número es lo que se guarda.
+   */
+  nivelesInteres: [string, string, string];
 }
 
 export const MOTIVOS_PERDIDA_DEFECTO = [
@@ -39,6 +44,7 @@ const POR_DEFECTO: AjustesOrg = {
   transcribirVoz: false,
   motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
   descuentoMaximoPct: null,
+  nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {

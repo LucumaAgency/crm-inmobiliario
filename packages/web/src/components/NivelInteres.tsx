@@ -1,23 +1,40 @@
 /**
- * Nivel de interés del lead: frío, tibio, caliente.
+ * Nivel de interés del lead, en tres niveles.
  *
  * Es el juicio del asesor después de hablar con la persona, no un cálculo. Tres niveles y no
- * cinco porque en caseta se decide rápido y «4 de 5» no significa nada para nadie; «caliente»
- * sí: hay que llamarlo hoy.
+ * cinco porque en caseta se decide rápido. Los NOMBRES los pone cada organización en Ajustes →
+ * Embudo (frío/tibio/caliente, bajo/medio/alto, C/B/A...); lo que se guarda es el número.
  */
-export const NIVELES: Record<number, { texto: string; clase: string; icono: string }> = {
-  1: { texto: 'Frío', clase: 'interes interes-1', icono: '●' },
-  2: { texto: 'Tibio', clase: 'interes interes-2', icono: '●●' },
-  3: { texto: 'Caliente', clase: 'interes interes-3', icono: '●●●' },
-};
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api.js';
+
+export interface AjustesOperacion { motivosPerdida: string[]; nivelesInteres: [string, string, string] }
+
+const PUNTOS: Record<number, string> = { 1: '●', 2: '●●', 3: '●●●' };
+const POR_DEFECTO: [string, string, string] = ['Frío', 'Tibio', 'Caliente'];
+
+/** Ajustes que cualquier rol necesita para operar; se cachean 5 min. */
+export function useAjustesOperacion() {
+  return useQuery({
+    queryKey: ['ajustes-operacion'],
+    queryFn: () => api.get<AjustesOperacion>('/ajustes/operacion'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useNivelesInteres(): [string, string, string] {
+  const q = useAjustesOperacion();
+  return q.data?.nivelesInteres ?? POR_DEFECTO;
+}
 
 export function ChipInteres({ nivel, compacto = false }: { nivel: number | null | undefined; compacto?: boolean }) {
-  if (!nivel || !NIVELES[nivel]) return null;
-  const n = NIVELES[nivel]!;
+  const nombres = useNivelesInteres();
+  if (!nivel || nivel < 1 || nivel > 3) return null;
+  const texto = nombres[nivel - 1]!;
   return (
-    <span className={n.clase} title={`Interés ${n.texto.toLowerCase()}`}>
-      <span className="interes-puntos" aria-hidden="true">{n.icono}</span>
-      {!compacto && n.texto}
+    <span className={`interes interes-${nivel}`} title={`Interés: ${texto}`}>
+      <span className="interes-puntos" aria-hidden="true">{PUNTOS[nivel]}</span>
+      {!compacto && texto}
     </span>
   );
 }
@@ -32,10 +49,10 @@ export function SelectorInteres({
   onChange: (v: number | null) => void;
   disabled?: boolean;
 }) {
+  const nombres = useNivelesInteres();
   return (
     <div className="interes-selector" role="radiogroup" aria-label="Nivel de interés">
       {[1, 2, 3].map((n) => {
-        const d = NIVELES[n]!;
         const activo = valor === n;
         return (
           <button
@@ -47,8 +64,8 @@ export function SelectorInteres({
             disabled={disabled}
             onClick={() => onChange(activo ? null : n)}
           >
-            <span className="interes-puntos" aria-hidden="true">{d.icono}</span>
-            {d.texto}
+            <span className="interes-puntos" aria-hidden="true">{PUNTOS[n]}</span>
+            {nombres[n - 1]}
           </button>
         );
       })}

@@ -18,6 +18,7 @@ const POR_DEFECTO = {
     transcribirVoz: false,
     motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
     descuentoMaximoPct: null,
+    nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
 };
 export async function leerAjustes(organizationId) {
     const org = await prisma.organization.findUnique({
