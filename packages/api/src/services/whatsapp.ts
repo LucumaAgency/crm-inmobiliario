@@ -436,7 +436,7 @@ export async function plantillasDe(phoneNumberId: string) {
   if (!numero) return { ok: false as const, error: 'El número no está conectado' };
   try {
     const res = (await llamarCloud(
-      `${numero.wabaId}/message_templates?fields=name,status,language,category,components&limit=100`,
+      `${numero.wabaId}/message_templates?fields=name,status,language,category,components,rejected_reasonmessage_templates?fields=name,status,language,category,components&limit=100limit=100`,
       descifrar(numero.accessTokenEnc)
     )) as { data?: unknown[] };
     await prisma.waNumber.update({ where: { id: numero.id }, data: { lastError: null } });
