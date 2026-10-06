@@ -109,35 +109,35 @@ export declare function ventanaAbierta(conv: {
  * sabe que mandó, y el asesor lo repetiría.
  */
 export declare function enviarTexto(datos: EnvioTexto): Promise<{
-    id: string;
     error: string | null;
+    id: string;
     createdAt: Date;
-    userId: string | null;
-    body: string | null;
-    type: string;
     status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
+    type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
+    userId: string | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
-    id: string;
     error: string | null;
+    id: string;
     createdAt: Date;
-    userId: string | null;
-    body: string | null;
-    type: string;
     status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
+    type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
+    userId: string | null;
     sentAt: Date | null;
 }>;
 /**
