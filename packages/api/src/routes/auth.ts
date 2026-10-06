@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { cambiarPasswordInput, loginInput, magicLinkInput } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
+import { leerAjustes } from '../lib/ajustes.js';
 import { env } from '../env.js';
 import { baseUrlDePeticion } from '../lib/tenant.js';
 import {
@@ -215,9 +216,13 @@ export default async function authRoutes(app: FastifyInstance) {
     });
     const propio = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { passwordHash: true },
+      select: { passwordHash: true, maxDiscountPct: true },
     });
-    return { user: req.user, organization: org, tienePassword: !!propio?.passwordHash };
+    const ajustes = await leerAjustes(req.user.organizationId);
+    // El tope propio manda; si no tiene, el de la organización; si tampoco, sin tope.
+    const descuentoMaximoPct =
+      propio?.maxDiscountPct != null ? Number(propio.maxDiscountPct) : ajustes.descuentoMaximoPct;
+    return { user: req.user, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
   });
 
   app.post('/logout', async (_req, reply) => {

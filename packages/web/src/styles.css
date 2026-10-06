@@ -664,3 +664,49 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 /* --- Plantillas de WhatsApp ---------------------------------------------- */
 .plantilla-cuerpo { font-size: 12.5px; line-height: 1.4; max-width: 420px; display: flex; flex-direction: column; gap: 3px; }
 .tabla code { font-size: 12px; background: #F0F2F6; padding: 1px 5px; border-radius: 4px; }
+
+/* --- Nivel de interés ---------------------------------------------------- */
+.interes { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.interes-puntos { letter-spacing: -1px; font-size: 9px; }
+.interes-1 { background: #EAF0FC; color: #3B5BA9; }
+.interes-2 { background: var(--ambar-tinte); color: #8A5A00; }
+.interes-3 { background: var(--rojo-tinte); color: #A32424; }
+.interes-selector { display: flex; gap: 6px; margin-top: 4px; }
+.interes-boton {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 8px 6px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--suave); cursor: pointer;
+}
+.interes-boton:disabled { cursor: default; opacity: .6; }
+.interes-boton.activo.interes-1 { background: #EAF0FC; color: #3B5BA9; border-color: #3B5BA9; }
+.interes-boton.activo.interes-2 { background: var(--ambar-tinte); color: #8A5A00; border-color: var(--ambar); }
+.interes-boton.activo.interes-3 { background: var(--rojo-tinte); color: #A32424; border-color: var(--rojo); }
+
+/* --- Tablero ------------------------------------------------------------- */
+.tablero { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px; min-height: 60vh; }
+.columna {
+  flex: 0 0 272px; background: var(--lateral); border-radius: var(--radio); padding: 8px;
+  display: flex; flex-direction: column; max-height: calc(100vh - 170px); border: 1px solid transparent;
+}
+.columna-sobre { border-color: var(--azul); background: var(--azul-tinte); }
+.columna-cerrada { background: #F3F4F7; }
+.columna-cab { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 8px; font-weight: 600; font-size: 13px; }
+.columna-nota { padding: 0 6px 8px; }
+.columna-cuerpo { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 40px; }
+.tarjeta {
+  background: var(--blanco); border-radius: 8px; padding: 10px 11px; box-shadow: var(--sombra);
+  border: 1px solid var(--borde-suave); cursor: grab; font-size: 13px;
+}
+.tarjeta:active { cursor: grabbing; }
+.tarjeta-arrastrando { opacity: .45; }
+.tarjeta-nombre { color: inherit; font-size: 13.5px; }
+.tarjeta-nombre:hover { color: var(--azul); }
+.tarjeta-mover { margin-top: 8px; width: 100%; padding: 6px 8px; font-size: 13px; }
+.lista-motivos { list-style: none; padding: 0; margin: 10px 0; }
+.lista-motivos li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--borde-suave); font-size: 13.5px; }
+.porcentaje { display: inline-flex; align-items: center; gap: 6px; }
+.porcentaje input { margin: 0; }
+@media (max-width: 760px) {
+  .columna { flex: 0 0 82vw; max-height: none; }
+  .tarjeta { cursor: default; }
+}

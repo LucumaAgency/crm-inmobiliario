@@ -8,6 +8,7 @@ import AuthCallback from './pages/AuthCallback.js';
 import Resumen from './pages/Resumen.js';
 import Reportes from './pages/Reportes.js';
 import Leads from './pages/Leads.js';
+import Tablero from './pages/Tablero.js';
 import LeadDetail from './pages/LeadDetail.js';
 import Seguimientos from './pages/Seguimientos.js';
 import Proyectos from './pages/Proyectos.js';
@@ -109,6 +110,9 @@ export default function App() {
           <NavLink to="/leads" className={enlace}>
             <Icono nombre="leads" />Leads
           </NavLink>
+          <NavLink to="/tablero" className={enlace}>
+            <Icono nombre="tablero" />Tablero
+          </NavLink>
           <NavLink to="/seguimientos" className={enlace}>
             <Icono nombre="tareas" />Seguimientos
           </NavLink>
@@ -206,6 +210,7 @@ export default function App() {
             <Route path="/resumen" element={<Resumen />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/leads" element={<Leads />} />
+            <Route path="/tablero" element={<Tablero rol={data.user.role} />} />
             <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />
             <Route path="/seguimientos" element={<Seguimientos rol={data.user.role} />} />
             {/* Enlaces guardados y avisos antiguos apuntan a la ruta de antes. */}

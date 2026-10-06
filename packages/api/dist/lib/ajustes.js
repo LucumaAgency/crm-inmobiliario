@@ -5,7 +5,20 @@
  * existiera no tiene nada guardado y tiene que comportarse de forma razonable igual.
  */
 import { prisma } from '../db.js';
-const POR_DEFECTO = { transcribirVoz: false };
+export const MOTIVOS_PERDIDA_DEFECTO = [
+    'Precio fuera de su presupuesto',
+    'No calificó al crédito',
+    'Compró en otro proyecto',
+    'Buscaba otra zona',
+    'Buscaba otra tipología o metraje',
+    'Dejó de responder',
+    'Solo estaba consultando',
+];
+const POR_DEFECTO = {
+    transcribirVoz: false,
+    motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
+    descuentoMaximoPct: null,
+};
 export async function leerAjustes(organizationId) {
     const org = await prisma.organization.findUnique({
         where: { id: organizationId },

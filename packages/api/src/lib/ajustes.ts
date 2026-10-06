@@ -12,9 +12,34 @@ export interface AjustesOrg {
    * Apagado por defecto: sin cuentas externas, sin costo y sin enviar audio fuera del país.
    */
   transcribirVoz: boolean;
+  /**
+   * Motivos de pérdida que se ofrecen al mover un lead a una etapa perdida. El asesor elige
+   * uno o escribe otro. Son por organización porque cada inmobiliaria pierde por razones
+   * distintas (precio, financiamiento, zona, compró a la competencia...).
+   */
+  motivosPerdida: string[];
+  /**
+   * Descuento máximo (%) que puede ofrecer un asesor que no tenga uno propio. Null = sin
+   * tope. Lo define el gerente; se aplica en la proforma.
+   */
+  descuentoMaximoPct: number | null;
 }
 
-const POR_DEFECTO: AjustesOrg = { transcribirVoz: false };
+export const MOTIVOS_PERDIDA_DEFECTO = [
+  'Precio fuera de su presupuesto',
+  'No calificó al crédito',
+  'Compró en otro proyecto',
+  'Buscaba otra zona',
+  'Buscaba otra tipología o metraje',
+  'Dejó de responder',
+  'Solo estaba consultando',
+];
+
+const POR_DEFECTO: AjustesOrg = {
+  transcribirVoz: false,
+  motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
+  descuentoMaximoPct: null,
+};
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {
   const org = await prisma.organization.findUnique({

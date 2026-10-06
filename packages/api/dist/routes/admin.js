@@ -188,8 +188,20 @@ export default async function adminRoutes(app) {
         ...(await leerAjustes(req.user.organizationId)),
         servidor: { openai: !!env.voz.openaiKey, claude: env.voz.claudeActivo },
     }));
+    /** Lo que cualquier usuario necesita de los ajustes para operar (el asesor mueve leads a perdido). */
+    app.get('/ajustes/operacion', async (req) => {
+        const a = await leerAjustes(req.user.organizationId);
+        return { motivosPerdida: a.motivosPerdida };
+    });
     app.patch('/ajustes', { preHandler: gestion }, async (req, reply) => {
-        const parsed = z.object({ transcribirVoz: z.boolean().optional() }).strict().safeParse(req.body);
+        const parsed = z
+            .object({
+            transcribirVoz: z.boolean().optional(),
+            motivosPerdida: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
+            descuentoMaximoPct: z.number().min(0).max(100).nullable().optional(),
+        })
+            .strict()
+            .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
         const ajustes = await guardarAjustes(req.user.organizationId, parsed.data);
@@ -264,7 +276,16 @@ export default async function adminRoutes(app) {
         });
         if (!tip)
             return reply.code(404).send({ error: 'Tipología no encontrada' });
-        return prisma.typology.update({ where: { id: tip.id }, data: parsed.data });
+        const actualizada = await prisma.typology.update({ where: { id: tip.id }, data: parsed.data });
+        if (parsed.data.priceFrom !== undefined && String(parsed.data.priceFrom) !== String(tip.priceFrom ?? '')) {
+            await audit(req.user.organizationId, req.user.id, 'typology.price', {
+                entity: 'typology',
+                entityId: tip.id,
+                meta: { name: tip.name, projectId: tip.projectId, de: tip.priceFrom, a: parsed.data.priceFrom },
+                ip: req.ip,
+            });
+        }
+        return actualizada;
     });
     /**
      * Borrar una tipología.
@@ -492,10 +513,24 @@ export default async function adminRoutes(app) {
         if (!unit)
             return reply.code(404).send({ error: 'Unidad no encontrada' });
         const { typologyId, ...resto } = parsed.data;
-        return prisma.unit.update({
+        const actualizada = await prisma.unit.update({
             where: { id: unit.id },
             data: { ...resto, ...(typologyId === undefined ? {} : { typologyId: typologyId || null }) },
         });
+        /**
+         * Quién cambió el precio de lista y de cuánto a cuánto. Sperant no deja al cliente tocar
+         * precios por una mala experiencia; aquí sí se puede, pero solo gerencia (`gestion`) y
+         * con rastro. Es lo que hace defendible la decisión ante el dueño del proyecto.
+         */
+        if (resto.price !== undefined && String(resto.price) !== String(unit.price ?? '')) {
+            await audit(req.user.organizationId, req.user.id, 'unit.price', {
+                entity: 'unit',
+                entityId: unit.id,
+                meta: { code: unit.code, projectId: unit.projectId, de: unit.price, a: resto.price },
+                ip: req.ip,
+            });
+        }
+        return actualizada;
     });
     // -------------------------------------------------------- formularios
     app.get('/forms', async (req) => prisma.form.findMany({
@@ -603,7 +638,7 @@ export default async function adminRoutes(app) {
     // ------------------------------------------------------------ usuarios
     app.get('/users', { preHandler: gestion }, async (req) => prisma.user.findMany({
         where: { organizationId: req.user.organizationId },
-        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true },
+        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true },
         orderBy: { name: 'asc' },
     }));
     app.post('/users', { preHandler: gestion }, async (req, reply) => {
@@ -638,6 +673,8 @@ export default async function adminRoutes(app) {
             .object({
             active: z.boolean().optional(),
             role: z.enum(['admin_lucuma', 'gerente', 'asesor', 'solo_lectura']).optional(),
+            // Tope de descuento en proformas. Null = usar el de la organización.
+            maxDiscountPct: z.number().min(0).max(100).nullable().optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)
@@ -668,7 +705,7 @@ export default async function adminRoutes(app) {
         return prisma.user.update({
             where: { id: objetivo.id },
             data: parsed.data,
-            select: { id: true, name: true, email: true, role: true, active: true },
+            select: { id: true, name: true, email: true, role: true, active: true, maxDiscountPct: true },
         });
     });
     // --------------------------------------------------- meta lead ads

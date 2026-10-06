@@ -1,12 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { desde } from '../lib/format.js';
 import { FUENTES } from '../lib/reportes.js';
+import { ChipInteres } from './NivelInteres.js';
 
 export interface LeadFila {
   id: string;
   createdAt: string;
   firstContactAt: string | null;
   source: string;
+  interestLevel?: number | null;
   contact: { fname: string; lname: string | null; phone: string | null; email: string | null };
   project: { name: string } | null;
   unit: { code: string } | null;
@@ -63,6 +65,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
               <th>Proyecto</th>
               {!compacta && <th>Fuente</th>}
               <th>Etapa</th>
+              <th>Interés</th>
               <th>Asesor</th>
               <th>Entró</th>
               <th />
@@ -87,6 +90,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
                 </td>
                 {!compacta && <td>{FUENTES[l.source] ?? l.source}</td>}
                 <td><Etapa stage={l.stage} /></td>
+                <td><ChipInteres nivel={l.interestLevel} /></td>
                 <td>{l.owner?.name ?? <span className="meta">Sin asignar</span>}</td>
                 <td className="meta" style={{ whiteSpace: 'nowrap' }}>{desde(l.createdAt)}</td>
                 <td style={{ textAlign: 'right' }}><Alertas l={l} /></td>
@@ -109,6 +113,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
                 <span className="nombre">
                   {sinLeer > 0 && <span className="punto" aria-hidden="true" />}
                   {l.contact.fname} {l.contact.lname ?? ''}
+                  {' '}<ChipInteres nivel={l.interestLevel} compacto />
                 </span>
                 <Etapa stage={l.stage} />
               </div>
