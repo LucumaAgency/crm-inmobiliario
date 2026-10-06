@@ -65,13 +65,115 @@ Un mensaje entrante:
 ## La ventana de 24 horas
 
 Desde el último mensaje del cliente se puede responder **texto libre**. Pasado ese plazo,
-solo se puede escribir con una **plantilla aprobada** por Meta, y esa se paga. Meta cobra
-por mensaje: las plantillas de servicio dentro de la ventana no se cobran, las de marketing
-siempre sí. La tarifa de Perú está en el tarifario oficial de Meta, que se actualiza cada
-trimestre.
+solo se puede escribir con una **plantilla aprobada** por Meta, y esa se paga por mensaje
+(detalle en «Qué se paga y qué no», más abajo).
 
 Por eso `windowExpiresAt` es una columna y no un cálculo escondido: decide qué puede hacer
 el asesor ahora mismo, y la ficha lo muestra como un estado, no como un error al enviar.
+
+## Quién entra al CRM por este número
+
+**Todo el que escriba al número conectado**, venga de donde venga. La captura no depende de
+anuncios: el webhook recibe cualquier mensaje entrante y crea o actualiza el lead. Lo que
+cambia según el origen es la **atribución**, no la captura:
+
+| Origen | Qué llega | Fuente / atribución |
+|---|---|---|
+| Anuncio Click-to-WhatsApp | Mensaje con `referral` del anuncio | `whatsapp`, campaña y anuncio en `attribution` |
+| Botón de la web, link `wa.me`, Instagram, ficha de Google | Mensaje normal | `whatsapp`, sin anuncio |
+| Alguien que tenía el número guardado | Mensaje normal | `whatsapp`, sin anuncio |
+| Persona que ya es lead | Mensaje normal | No crea otro lead: entra en su conversación y marca «sin leer» |
+
+Dos consecuencias del chip dedicado:
+
+- **El número deja de funcionar en la app de WhatsApp del celular.** Solo se atiende desde el
+  CRM, en la ficha. Por eso la regla de no instalarlo nunca en la app (ver alta paso a paso).
+- **Lo que sigue fuera del CRM** son los chats de los asesores en sus WhatsApp personales. El
+  CRM solo ve lo que pasa por el número comercial.
+
+## Qué se paga y qué no (al 2026-10-05)
+
+Desde julio de 2025 Meta cobra **por mensaje entregado**, según la **categoría de la
+plantilla** y el **país del destinatario**. Tarifas para Perú según terceros que replican el
+tarifario de Meta (confirmar en el rate card oficial antes de presupuestar; el 2026-10-01
+subieron utilidad y autenticación):
+
+| Categoría | Qué es | USD por mensaje |
+|---|---|---|
+| Servicio | Responder dentro de las 24 h a quien escribió | **1.000 gratis al mes por número**, luego 0,02 a 0,03 |
+| Utilidad | Recordatorio de visita, envío de cotización, confirmación de algo que la persona pidió | 0,02 a 0,03 |
+| Autenticación | Códigos de verificación | 0,02 a 0,03 |
+| Marketing | Primer acercamiento comercial, promociones, remarketing | 0,07 |
+
+Lo que importa para el CRM:
+
+- **Responder es gratis en la práctica.** 1.000 mensajes de servicio al mes no se agotan con
+  30 o 40 leads mensuales.
+- **Se paga cuando el CRM escribe primero** o cuando la ventana ya cerró: ahí va plantilla.
+- **Caso Bastión** (30-40 leads al mes, unos 20 cargados a mano donde el asesor inicia):
+  20 primeros mensajes × 0,03 a 0,07 = **USD 0,60 a 1,40 al mes**. El resto escribe primero
+  y entra en servicio gratis. El costo no es tema; lo operativo sí (abajo).
+- **Hace falta un método de pago** en el Administrador de WhatsApp aunque el gasto sea de un
+  dólar: sin tarjeta Meta no deja enviar plantillas.
+- **El botón «WhatsApp» de la ficha** (`wa.me` con saludo prearmado) sigue siendo gratis
+  porque sale del celular del asesor, pero esa conversación queda fuera del CRM. Es el
+  intercambio: centavos y todo en el CRM, o gratis y sin historial.
+
+### Límites de envío (los «250»)
+
+Aplican solo a **conversaciones que inicia la empresa** con plantilla, por usuarios únicos
+cada 24 h. Las respuestas y los mensajes entrantes no cuentan.
+
+- Nivel 0: **250** (arranque de un número nuevo o de un portafolio sin verificar).
+- Nivel 1: 1.000 · Nivel 2: 10.000 · Nivel 3: 100.000 · Nivel 4: ilimitado.
+- Se sube solo si la calidad del número es media o alta y se usa al menos la mitad del
+  límite durante 7 días; Meta revisa cada 6 h.
+- **Desde octubre de 2025 el límite es por portafolio de empresa, no por número**: más chips
+  no multiplican la capacidad.
+
+Con 20 inicios al mes, Bastión no se acerca al nivel 0. Solo pegaría con campañas masivas, y
+ahí frena antes el costo por mensaje que el límite.
+
+## Plantillas: qué son y cuáles hacen falta
+
+Una plantilla es un mensaje prearmado que Meta **revisa y aprueba** antes de poder usarlo.
+Es la única forma de escribirle primero a alguien por la API, o de retomar una conversación
+con la ventana cerrada. Existe para frenar el spam.
+
+Se redacta una vez con huecos que se rellenan por lead:
+
+> Hola {{1}}, soy {{2}} de Bastión. Vimos tu interés en el proyecto {{3}} y me gustaría
+> contarte sobre las opciones disponibles. ¿Te viene bien que conversemos?
+
+El cliente recibe un mensaje normal, no nota que es plantilla. Si responde, se abre la
+ventana de 24 h y el asesor escribe libre.
+
+**Dónde y cuánto tarda.** Se crean en el Administrador de WhatsApp de Meta, en la WABA del
+número conectado, con nombre, categoría e idioma. La aprobación suele tardar minutos u
+horas. Rechazan las que parecen engañosas o cuya categoría no coincide con el texto. Meta
+puede **recategorizar**: un «primer contacto» redactado como utilidad suele terminar en
+marketing; da igual para el costo (centavos), pero conviene saberlo para no pelear la
+categoría.
+
+**Qué hace el CRM.** Lista las plantillas aprobadas de la WABA (`GET /whatsapp/templates`,
+que lee `message_templates` de Graph) y, cuando la ventana está cerrada, la ficha las ofrece
+en vez del campo de texto (`enviarPlantilla` en `services/whatsapp.ts`). No hay nada que
+programar para una plantilla nueva: se crea en Meta y aparece.
+
+**Las tres para arrancar con un cliente:**
+
+1. **Primer contacto a lead manual** (la de arriba). Probablemente marketing.
+2. **Recordatorio de visita**: «Hola {{1}}, te recordamos tu visita a {{2}} el {{3}}. Si
+   necesitas cambiarla, respóndenos por aquí.» Utilidad.
+3. **Envío de cotización o plano**: «Hola {{1}}, te comparto la información del {{2}} que
+   conversamos. Quedo atento a tus dudas.» Utilidad.
+
+Hoy solo existe el número de prueba de Meta, así que **no hay plantillas propias**: crearlas
+es parte del alta del número real (ver más abajo) y del onboarding de cada cliente.
+
+**Lo operativo que sí hay que acordar con Bastión** antes de que sus 20 leads manuales pasen
+por el CRM: esos primeros mensajes salen del número comercial y la respuesta llega al CRM, no
+al celular del asesor. Es un cambio de hábito, no técnico.
 
 ## Configuración en Meta
 
