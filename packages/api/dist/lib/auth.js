@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../env.js';
 import { prisma } from '../db.js';
 import { sesionCoincide } from './tenant.js';
+import { logError } from './log.js';
 import { ROLES_BASE, esPermiso } from '@lucuma-crm/shared';
 /** Permisos de un usuario: los del rol personalizado si tiene, si no los del rol base. */
 export function permisosDe(user) {
@@ -80,8 +81,15 @@ export async function loadUser(req) {
             return;
         req.user = { ...sesion, ...actual.valor };
     }
-    catch {
-        /* cookie inválida o vencida: se ignora */
+    catch (err) {
+        /**
+         * Una cookie inválida o vencida se ignora en silencio. Pero si lo que falla es la
+         * consulta de permisos (migración sin aplicar, cliente de Prisma sin regenerar), el
+         * síntoma es «la página se recarga al entrar y no dice nada»: hay que dejarlo escrito.
+         */
+        if (!(err instanceof jwt.JsonWebTokenError)) {
+            logError('[auth] no se pudieron cargar los permisos de la sesión:', err instanceof Error ? err.message : err);
+        }
     }
 }
 /** Exige sesión. Usar como preHandler. */

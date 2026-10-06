@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '../env.js';
 import { prisma } from '../db.js';
 import { sesionCoincide } from './tenant.js';
+import { logError } from './log.js';
 import { ROLES_BASE, esPermiso, type Permiso, type RolBase } from '@lucuma-crm/shared';
 
 export interface SessionUser {
@@ -105,8 +106,15 @@ export async function loadUser(req: FastifyRequest) {
     if (!actual.valor) return;
 
     req.user = { ...sesion, ...actual.valor };
-  } catch {
-    /* cookie inválida o vencida: se ignora */
+  } catch (err) {
+    /**
+     * Una cookie inválida o vencida se ignora en silencio. Pero si lo que falla es la
+     * consulta de permisos (migración sin aplicar, cliente de Prisma sin regenerar), el
+     * síntoma es «la página se recarga al entrar y no dice nada»: hay que dejarlo escrito.
+     */
+    if (!(err instanceof jwt.JsonWebTokenError)) {
+      logError('[auth] no se pudieron cargar los permisos de la sesión:', err instanceof Error ? err.message : err);
+    }
   }
 }
 
