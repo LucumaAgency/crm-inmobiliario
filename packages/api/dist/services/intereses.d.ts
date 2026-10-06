@@ -17,10 +17,8 @@ export declare function validarIntereses(projectId: string | null, input: Intere
         id: string;
         name: string;
         createdAt: Date;
-        position: number;
-        code: string | null;
-        active: boolean;
         projectId: string;
+        code: string | null;
         bedrooms: number | null;
         bathrooms: number | null;
         areaM2: Prisma.Decimal | null;
@@ -29,20 +27,22 @@ export declare function validarIntereses(projectId: string | null, input: Intere
         description: string | null;
         planUrl: string | null;
         imageUrl: string | null;
+        position: number;
+        active: boolean;
         updatedAt: Date;
     }[];
     unidades: never[] | {
         id: string;
-        code: string;
-        status: import(".prisma/client").$Enums.UnitStatus;
         typology: string | null;
         projectId: string;
+        code: string;
         bedrooms: number | null;
         areaM2: Prisma.Decimal | null;
         currency: string;
         updatedAt: Date;
         typologyId: string | null;
         kind: import(".prisma/client").$Enums.UnitKind;
+        status: import(".prisma/client").$Enums.UnitStatus;
         price: Prisma.Decimal | null;
         floor: number | null;
         extra: Prisma.JsonValue | null;
