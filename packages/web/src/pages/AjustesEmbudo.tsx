@@ -31,17 +31,19 @@ export default function AjustesEmbudo() {
   useEffect(() => {
     if (ajustes.data) {
       setDescuento(ajustes.data.descuentoMaximoPct == null ? '' : String(ajustes.data.descuentoMaximoPct));
-      setNiveles(ajustes.data.nivelesInteres);
+      // Una API anterior a este ajuste no manda la clave: no puede tumbar toda la pantalla.
+      setNiveles(ajustes.data.nivelesInteres ?? ['Frío', 'Tibio', 'Caliente']);
     }
   }, [ajustes.data]);
 
   function guardarNiveles() {
     const limpios = niveles.map((n) => n.trim()) as [string, string, string];
-    if (limpios.some((n) => !n)) { setNiveles(ajustes.data!.nivelesInteres); return; }
-    if (limpios.join('|') !== ajustes.data!.nivelesInteres.join('|')) guardar.mutate({ nivelesInteres: limpios });
+    const actuales = ajustes.data?.nivelesInteres ?? ['Frío', 'Tibio', 'Caliente'];
+    if (limpios.some((n) => !n)) { setNiveles(actuales); return; }
+    if (limpios.join('|') !== actuales.join('|')) guardar.mutate({ nivelesInteres: limpios });
   }
 
-  const motivos = ajustes.data?.motivosPerdida ?? [];
+  const motivos: string[] = ajustes.data?.motivosPerdida ?? [];
 
   function guardarDescuento() {
     const t = descuento.trim();
