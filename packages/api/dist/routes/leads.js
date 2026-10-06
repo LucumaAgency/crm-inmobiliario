@@ -128,6 +128,59 @@ export default async function leadRoutes(app) {
             })),
         };
     });
+    /**
+     * Tablero: todos los leads abiertos, agrupados por etapa.
+     *
+     * Es una consulta aparte de la lista porque el Kanban necesita TODAS las columnas a la vez
+     * y sin paginar: una columna «Visitó caseta» con 3 leads tiene que verse completa aunque
+     * «Nuevo» tenga 200. Se acota a leads activos (los perdidos y ganados ya no se trabajan;
+     * están en la lista y en reportes) y a 400 por columna, que es más de lo que cabe en
+     * pantalla y suficiente para una inmobiliaria mediana.
+     */
+    app.get('/tablero', async (req) => {
+        const user = req.user;
+        const where = { ...scopeForUser(user), status: 'activo' };
+        if (req.query.projectId)
+            where.projectId = req.query.projectId;
+        if (req.query.ownerId)
+            where.ownerId = req.query.ownerId === 'sin' ? null : req.query.ownerId;
+        const etapas = await prisma.stage.findMany({
+            where: { organizationId: user.organizationId },
+            orderBy: { position: 'asc' },
+            select: { id: true, name: true, color: true, isWon: true, isLost: true },
+        });
+        const leads = await prisma.lead.findMany({
+            where,
+            select: {
+                id: true,
+                stageId: true,
+                createdAt: true,
+                lastActivityAt: true,
+                firstContactAt: true,
+                interestLevel: true,
+                source: true,
+                contactId: true,
+                contact: { select: { fname: true, lname: true, phone: true } },
+                project: { select: { id: true, name: true } },
+                unit: { select: { code: true } },
+                owner: { select: { id: true, name: true } },
+            },
+            orderBy: [{ lastActivityAt: 'desc' }, { createdAt: 'desc' }],
+            take: 400 * Math.max(etapas.length, 1),
+        });
+        const sinLeer = leads.length
+            ? await prisma.waConversation.groupBy({
+                by: ['contactId'],
+                where: { organizationId: user.organizationId, contactId: { in: leads.map((l) => l.contactId) }, unread: { gt: 0 } },
+                _sum: { unread: true },
+            })
+            : [];
+        const unreadPorContacto = new Map(sinLeer.map((c) => [c.contactId, c._sum.unread ?? 0]));
+        return {
+            etapas,
+            leads: leads.map(({ contactId, ...l }) => ({ ...l, unread: unreadPorContacto.get(contactId) ?? 0 })),
+        };
+    });
     app.get('/:id', async (req, reply) => {
         const user = req.user;
         const lead = await prisma.lead.findFirst({
@@ -457,7 +510,10 @@ export default async function leadRoutes(app) {
         });
         if (!lead)
             return reply.code(404).send({ error: 'Lead no encontrado' });
-        const { stageId, status, ownerId, projectId, typologyIds, unitIds } = req.body ?? {};
+        const { stageId, status, ownerId, projectId, typologyIds, unitIds, interestLevel, reason } = req.body ?? {};
+        if (interestLevel !== undefined && interestLevel !== null && ![1, 2, 3].includes(interestLevel)) {
+            return reply.code(400).send({ error: 'Nivel de interés inválido' });
+        }
         const cambiaProyecto = projectId !== undefined && (projectId || null) !== lead.projectId;
         const proyectoFinal = cambiaProyecto ? projectId || null : lead.projectId;
         if (cambiaProyecto && proyectoFinal) {
@@ -483,18 +539,45 @@ export default async function leadRoutes(app) {
                 return reply.code(400).send({ error: e.message });
             }
         }
+        /**
+         * Cambio de etapa. Si la etapa de destino es «perdida», el motivo es obligatorio: un
+         * lead desestimado sin razón no enseña nada (¿precio? ¿zona? ¿no calificó?), y es lo
+         * que gerencia quiere leer en el reporte. El estado del lead sigue a la etapa: perdida
+         * → perdido, ganada → ganado, cualquier otra → activo (reabrir un lead es moverlo).
+         */
+        let estadoPorEtapa;
+        let motivoPerdida;
         if (stageId && stageId !== lead.stageId) {
             const etapa = await prisma.stage.findFirst({
                 where: { id: stageId, organizationId: user.organizationId },
             });
             if (!etapa)
                 return reply.code(400).send({ error: 'Etapa inválida' });
+            const motivo = (reason ?? '').trim();
+            if (etapa.isLost && !motivo) {
+                return reply.code(400).send({ error: 'Indica el motivo por el que se perdió el lead' });
+            }
+            estadoPorEtapa = etapa.isLost ? 'perdido' : etapa.isWon ? 'ganado' : 'activo';
+            motivoPerdida = etapa.isLost ? motivo.slice(0, 500) : null;
             await prisma.activity.create({
                 data: {
                     leadId: lead.id,
                     userId: user.id,
                     type: 'cambio_etapa',
-                    body: `Etapa → ${etapa.name}`,
+                    body: `Etapa → ${etapa.name}${etapa.isLost ? ` · motivo: ${motivo}` : motivo ? ` · ${motivo}` : ''}`,
+                    meta: { fromStageId: lead.stageId, toStageId: etapa.id, reason: motivo || null },
+                },
+            });
+        }
+        const cambiaInteres = interestLevel !== undefined && interestLevel !== lead.interestLevel;
+        if (cambiaInteres) {
+            const nombres = { 1: 'frío', 2: 'tibio', 3: 'caliente' };
+            await prisma.activity.create({
+                data: {
+                    leadId: lead.id,
+                    userId: user.id,
+                    type: 'sistema',
+                    body: `Interés → ${interestLevel ? nombres[interestLevel] : 'sin calificar'}`,
                 },
             });
         }
@@ -540,11 +623,13 @@ export default async function leadRoutes(app) {
             where: { id: lead.id },
             data: {
                 stageId: stageId ?? undefined,
-                status: status ?? undefined,
+                status: (status ?? estadoPorEtapa) ?? undefined,
+                lostReason: motivoPerdida,
+                interestLevel: cambiaInteres ? interestLevel : undefined,
                 projectId: cambiaProyecto ? proyectoFinal : undefined,
                 // La «última unidad consultada» deja de tener sentido si el proyecto cambia.
                 unitId: cambiaProyecto ? null : undefined,
-                lastActivityAt: tocaInteres ? new Date() : undefined,
+                lastActivityAt: tocaInteres || cambiaInteres || estadoPorEtapa ? new Date() : undefined,
             },
             include: { stage: true, owner: { select: { id: true, name: true } }, project: true, ...includeIntereses },
         });

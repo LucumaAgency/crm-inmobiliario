@@ -56,6 +56,9 @@ model User {
   /// entra por enlace al correo y la define en Ajustes.
   passwordHash      String?
   passwordChangedAt DateTime?
+  /// Descuento máximo (%) que este usuario puede ofrecer en una proforma. Null = el de la
+  /// organización. Lo define el gerente; el asesor no puede cambiar el suyo.
+  maxDiscountPct    Decimal?     @db.Decimal(5, 2)
   lastLoginAt    DateTime?
   createdAt      DateTime     @default(now())
 
@@ -286,6 +289,13 @@ model Lead {
   source  String     @default("web_form") // web_form | whatsapp | meta_ads | manual | import
   message String?    @db.Text
 
+  /// Nivel de interés que le pone el asesor: 1 frío, 2 tibio, 3 caliente. Null = sin calificar.
+  /// Es juicio humano, no se calcula: el asesor lo marca después de hablar con la persona.
+  interestLevel Int?
+  /// Motivo por el que se perdió (obligatorio al mover a una etapa perdida). Texto libre o
+  /// uno de los motivos configurados por la organización.
+  lostReason    String?
+
   // JSON: se guardan y se leen enteros, no se filtran.
   attribution Json? // utm primera visita + último clic, gclid, fbclid, referrer, landing
   consent     Json? // texto aceptado, versión, fecha, IP  (Ley 29733)
@@ -308,6 +318,7 @@ model Lead {
   @@index([organizationId, ownerId])
   @@index([organizationId, projectId])
   @@index([organizationId, stageId])
+  @@index([organizationId, interestLevel])
   @@map("leads")
 }
 

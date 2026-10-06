@@ -6,6 +6,9 @@ import { fecha, precio, whatsappUrl } from '../lib/format.js';
 import ChatWhatsApp from './ChatWhatsApp.js';
 import NotasVoz from '../components/NotasVoz.js';
 import SelectorInteres from '../components/SelectorInteres.js';
+import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
+import MotivoPerdida from '../components/MotivoPerdida.js';
+import type { ApiError } from '../lib/api.js';
 
 interface Detalle {
   id: string;
@@ -13,6 +16,9 @@ interface Detalle {
   firstContactAt: string | null;
   message: string | null;
   source: string;
+  status: string;
+  interestLevel: number | null;
+  lostReason: string | null;
   attribution: Record<string, unknown> | null;
   contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null };
   project: { id: string; name: string } | null;
@@ -47,8 +53,9 @@ export default function LeadDetail({ rol }: { rol: string }) {
   });
   const stages = useQuery({
     queryKey: ['stages'],
-    queryFn: () => api.get<{ id: string; name: string }[]>('/stages'),
+    queryFn: () => api.get<{ id: string; name: string; isLost: boolean; isWon: boolean }[]>('/stages'),
   });
+  const [etapaPerdida, setEtapaPerdida] = useState<{ id: string; name: string } | null>(null);
 
   const registrar = useMutation({
     mutationFn: () =>
@@ -105,9 +112,28 @@ export default function LeadDetail({ rol }: { rol: string }) {
   });
 
   const cambiarEtapa = useMutation({
-    mutationFn: (stageId: string) => api.patch(`/leads/${id}`, { stageId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lead', id] }),
+    mutationFn: (v: { stageId: string; reason?: string }) => api.patch(`/leads/${id}`, v),
+    onSuccess: () => {
+      setEtapaPerdida(null);
+      refrescar();
+      qc.invalidateQueries({ queryKey: ['tablero'] });
+    },
   });
+
+  const cambiarInteres = useMutation({
+    mutationFn: (interestLevel: number | null) => api.patch(`/leads/${id}`, { interestLevel }),
+    onMutate: (interestLevel) =>
+      qc.setQueryData<Detalle>(['lead', id], (d) => (d ? { ...d, interestLevel } : d)),
+    onSettled: refrescar,
+  });
+
+  /** Mover a una etapa perdida pide motivo antes; el resto va directo. */
+  function elegirEtapa(stageId: string) {
+    const etapa = stages.data?.find((s) => s.id === stageId);
+    if (!etapa) return;
+    if (etapa.isLost) setEtapaPerdida({ id: etapa.id, name: etapa.name });
+    else cambiarEtapa.mutate({ stageId });
+  }
 
   if (isLoading || !lead) return <div className="vacio">Cargando…</div>;
 
@@ -138,14 +164,32 @@ export default function LeadDetail({ rol }: { rol: string }) {
           {lead.contact.email && <a className="btn btn-sec" href={`mailto:${lead.contact.email}`}>Correo</a>}
         </div>
 
-        <label>Etapa</label>
-        <select
-          value={lead.stage?.id ?? ''}
-          onChange={(e) => cambiarEtapa.mutate(e.target.value)}
-          disabled={rol === 'solo_lectura'}
-        >
-          {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        <div className="rejilla-2">
+          <div>
+            <label>Etapa</label>
+            <select
+              value={lead.stage?.id ?? ''}
+              onChange={(e) => elegirEtapa(e.target.value)}
+              disabled={rol === 'solo_lectura' || cambiarEtapa.isPending}
+            >
+              {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {lead.status === 'perdido' && lead.lostReason && (
+              <p className="meta" style={{ marginTop: 6 }}>Perdido: {lead.lostReason}</p>
+            )}
+          </div>
+          <div>
+            <label>Nivel de interés</label>
+            <SelectorNivel
+              valor={lead.interestLevel}
+              onChange={(v) => cambiarInteres.mutate(v)}
+              disabled={rol === 'solo_lectura'}
+            />
+          </div>
+        </div>
+        {cambiarEtapa.isError && !etapaPerdida && (
+          <p className="error">{(cambiarEtapa.error as ApiError).message}</p>
+        )}
 
         <div className="meta" style={{ marginTop: 12 }}>
           Entró {fecha(lead.createdAt)} · fuente {lead.source} · asesor {lead.owner?.name ?? 'sin asignar'}
@@ -350,6 +394,17 @@ export default function LeadDetail({ rol }: { rol: string }) {
           </button>
           {aviso && <p className="ok">{aviso}</p>}
         </div>
+      )}
+
+      {etapaPerdida && (
+        <MotivoPerdida
+          nombre={nombre}
+          etapa={etapaPerdida.name}
+          pendiente={cambiarEtapa.isPending}
+          error={cambiarEtapa.isError ? (cambiarEtapa.error as ApiError).message : null}
+          onConfirmar={(motivo) => cambiarEtapa.mutate({ stageId: etapaPerdida.id, reason: motivo })}
+          onCancelar={() => { setEtapaPerdida(null); cambiarEtapa.reset(); }}
+        />
       )}
 
       <div className="card">

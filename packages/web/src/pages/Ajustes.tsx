@@ -8,6 +8,7 @@ import PlantillasWhatsApp from './PlantillasWhatsApp.js';
 import Registro from './Registro.js';
 import EtapasEditor from './EtapasEditor.js';
 import AjustesVoz from './AjustesVoz.js';
+import AjustesEmbudo from './AjustesEmbudo.js';
 
 interface Site {
   id: string;
@@ -54,14 +55,14 @@ export default function Ajustes({ rol }: { rol: string }) {
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () =>
-      api.get<{ id: string; name: string; email: string; role: string; active: boolean }[]>(
+      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null }[]>(
         '/users',
       ),
   });
 
   const cambiarUsuario = useMutation({
-    mutationFn: (v: { id: string; active?: boolean; role?: string }) =>
-      api.patch(`/users/${v.id}`, { active: v.active, role: v.role }),
+    mutationFn: (v: { id: string; active?: boolean; role?: string; maxDiscountPct?: number | null }) =>
+      api.patch(`/users/${v.id}`, { active: v.active, role: v.role, maxDiscountPct: v.maxDiscountPct }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 
@@ -114,7 +115,12 @@ export default function Ajustes({ rol }: { rol: string }) {
         ))}
       </nav>
 
-      {seccion === 'embudo' && <EtapasEditor />}
+      {seccion === 'embudo' && (
+        <>
+          <EtapasEditor />
+          <AjustesEmbudo />
+        </>
+      )}
 
       {seccion === 'sitios' && (
         <div className="card">
@@ -196,6 +202,7 @@ export default function Ajustes({ rol }: { rol: string }) {
                 <th>Nombre</th>
                 <th>Correo</th>
                 <th>Rol</th>
+                <th>Desc. máx.</th>
                 <th></th>
               </tr>
             </thead>
@@ -223,6 +230,13 @@ export default function Ajustes({ rol }: { rol: string }) {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td data-label="Descuento máximo">
+                    <DescuentoUsuario
+                      valor={u.maxDiscountPct}
+                      disabled={cambiarUsuario.isPending}
+                      onGuardar={(v) => cambiarUsuario.mutate({ id: u.id, maxDiscountPct: v })}
+                    />
                   </td>
                   <td className="accion">
                     <button
@@ -269,6 +283,11 @@ export default function Ajustes({ rol }: { rol: string }) {
                 </option>
               ))}
             </select>
+            <p className="meta" style={{ marginTop: 8 }}>
+              <strong>Descuento máximo</strong> es el tope (%) que ese usuario puede ofrecer en una
+              proforma. Vacío = usa el de la organización (Embudo → Descuentos). Los precios de lista
+              solo los cambian gerentes y administradores, y cada cambio queda en el registro.
+            </p>
             <p className="meta" style={{ marginTop: 8 }}>
               La primera vez la persona entra con un enlace enviado a ese correo (tiene que ser un
               buzón real) y luego crea su contraseña en Mi cuenta. Los usuarios no se borran, se
@@ -319,5 +338,45 @@ export default function Ajustes({ rol }: { rol: string }) {
         </div>
       )}
     </>
+  );
+}
+
+
+/** Campo de porcentaje que guarda al salir o con Enter; vacío = sin tope propio. */
+function DescuentoUsuario({
+  valor,
+  disabled,
+  onGuardar,
+}: {
+  valor: string | null;
+  disabled: boolean;
+  onGuardar: (v: number | null) => void;
+}) {
+  const [texto, setTexto] = useState(valor == null ? '' : String(Number(valor)));
+  const inicial = valor == null ? '' : String(Number(valor));
+  function guardar() {
+    const t = texto.trim();
+    if (t === inicial) return;
+    if (t === '') return onGuardar(null);
+    const n = Number(t.replace(',', '.'));
+    if (Number.isFinite(n) && n >= 0 && n <= 100) onGuardar(Math.round(n * 100) / 100);
+    else setTexto(inicial);
+  }
+  return (
+    <span className="porcentaje">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={texto}
+        placeholder="org."
+        disabled={disabled}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        aria-label="Descuento máximo en porcentaje"
+        style={{ width: 64, textAlign: 'right' }}
+      />
+      <span className="meta">%</span>
+    </span>
   );
 }
