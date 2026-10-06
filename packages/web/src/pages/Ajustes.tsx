@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import MetaLeadAds from './MetaLeadAds.js';
 import WhatsAppNumeros from './WhatsAppNumeros.js';
+import PlantillasWhatsApp from './PlantillasWhatsApp.js';
 import Registro from './Registro.js';
 import EtapasEditor from './EtapasEditor.js';
 import AjustesVoz from './AjustesVoz.js';
@@ -295,7 +296,12 @@ export default function Ajustes({ rol }: { rol: string }) {
 
       {seccion === 'meta' && <MetaLeadAds />}
 
-      {seccion === 'whatsapp' && <WhatsAppNumeros />}
+      {seccion === 'whatsapp' && (
+        <>
+          <WhatsAppNumeros />
+          <PlantillasWhatsApp />
+        </>
+      )}
 
       {seccion === 'voz' && <AjustesVoz />}
 

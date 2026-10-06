@@ -155,10 +155,17 @@ puede **recategorizar**: un «primer contacto» redactado como utilidad suele te
 marketing; da igual para el costo (centavos), pero conviene saberlo para no pelear la
 categoría.
 
-**Qué hace el CRM.** Lista las plantillas aprobadas de la WABA (`GET /whatsapp/templates`,
-que lee `message_templates` de Graph) y, cuando la ventana está cerrada, la ficha las ofrece
-en vez del campo de texto (`enviarPlantilla` en `services/whatsapp.ts`). No hay nada que
-programar para una plantilla nueva: se crea en Meta y aparece.
+**Qué hace el CRM.** Lee las plantillas de la WABA en vivo (`message_templates` de Graph,
+sin guardarlas) y las muestra en dos sitios:
+
+- **Ajustes → WhatsApp → Plantillas de mensaje** (2026-10-05): tabla por número con nombre,
+  categoría, idioma, estado (aprobada, en revisión, rechazada y el motivo), texto con sus
+  variables y botones, y un enlace «Crear o editar en Meta» que abre el Administrador de
+  WhatsApp de esa WABA. Solo lectura a propósito: crear o editar se hace en Meta.
+- **La ficha del lead**, cuando la ventana de 24 h está cerrada: el campo de texto se cambia
+  por un desplegable con las aprobadas y los huecos de las variables (`enviarPlantilla`).
+
+No hay nada que programar para una plantilla nueva: se crea en Meta y aparece.
 
 **Las tres para arrancar con un cliente:**
 
