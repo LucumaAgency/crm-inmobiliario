@@ -627,13 +627,13 @@ export default async function leadRoutes(app: FastifyInstance) {
 
       const cambiaInteres = interestLevel !== undefined && interestLevel !== lead.interestLevel;
       if (cambiaInteres) {
-        const nombres: Record<number, string> = { 1: 'frío', 2: 'tibio', 3: 'caliente' };
+        const { nivelesInteres } = await leerAjustes(user.organizationId);
         await prisma.activity.create({
           data: {
             leadId: lead.id,
             userId: user.id,
             type: 'sistema',
-            body: `Interés → ${interestLevel ? nombres[interestLevel] : 'sin calificar'}`,
+            body: `Interés → ${interestLevel ? nivelesInteres[interestLevel - 1] : 'sin calificar'}`,
           },
         });
       }

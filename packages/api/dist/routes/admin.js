@@ -191,7 +191,7 @@ export default async function adminRoutes(app) {
     /** Lo que cualquier usuario necesita de los ajustes para operar (el asesor mueve leads a perdido). */
     app.get('/ajustes/operacion', async (req) => {
         const a = await leerAjustes(req.user.organizationId);
-        return { motivosPerdida: a.motivosPerdida };
+        return { motivosPerdida: a.motivosPerdida, nivelesInteres: a.nivelesInteres };
     });
     app.patch('/ajustes', { preHandler: gestion }, async (req, reply) => {
         const parsed = z
@@ -199,6 +199,7 @@ export default async function adminRoutes(app) {
             transcribirVoz: z.boolean().optional(),
             motivosPerdida: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
             descuentoMaximoPct: z.number().min(0).max(100).nullable().optional(),
+            nivelesInteres: z.tuple([z.string().trim().min(1).max(30), z.string().trim().min(1).max(30), z.string().trim().min(1).max(30)]).optional(),
         })
             .strict()
             .safeParse(req.body);
