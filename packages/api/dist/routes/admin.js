@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { formSchema } from '@lucuma-crm/shared';
+import { PERMISOS_IDS, ROLES_BASE, esPermiso, formSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
-import { audit, requireAuth, requireRole } from '../lib/auth.js';
+import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
 import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
 import { sumarIntereses, validarIntereses } from '../services/intereses.js';
@@ -12,7 +12,17 @@ import { env } from '../env.js';
 /** Gestión: proyectos, unidades, formularios, sitios, usuarios, etapas. */
 export default async function adminRoutes(app) {
     app.addHook('preHandler', requireAuth);
-    const gestion = requireRole('admin_lucuma', 'gerente');
+    /**
+     * Un preHandler por área, no un «gestión» genérico: así un rol personalizado puede
+     * configurar canales sin tocar usuarios, o editar inventario sin ver precios.
+     */
+    const embudo = requirePermiso('embudo.configurar');
+    const inventario = requirePermiso('inventario.editar');
+    const usuarios = requirePermiso('usuarios.gestionar');
+    const canales = requirePermiso('canales.configurar');
+    const exportar = requirePermiso('leads.exportar');
+    /** La lista de usuarios la necesita quien filtra por asesor, no solo quien los gestiona. */
+    const veEquipo = requirePermiso('usuarios.gestionar', 'leads.ver_todos', 'leads.reasignar');
     // ------------------------------------------------------------- etapas
     app.get('/stages', async (req) => prisma.stage.findMany({
         where: { organizationId: req.user.organizationId },
@@ -52,7 +62,7 @@ export default async function adminRoutes(app) {
             .replace(/^-|-$/g, '')
             .slice(0, 50) || 'etapa');
     }
-    app.post('/stages', { preHandler: gestion }, async (req, reply) => {
+    app.post('/stages', { preHandler: embudo }, async (req, reply) => {
         const parsed = stageInput.safeParse(req.body);
         if (!parsed.success) {
             return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
@@ -80,7 +90,7 @@ export default async function adminRoutes(app) {
         await audit(orgId, req.user.id, 'stage.create', { entity: 'stage', entityId: etapa.id });
         return etapa;
     });
-    app.patch('/stages/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/stages/:id', { preHandler: embudo }, async (req, reply) => {
         const parsed = stageInput.innerType().partial().safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -101,7 +111,7 @@ export default async function adminRoutes(app) {
         return prisma.stage.update({ where: { id: etapa.id }, data });
     });
     /** Nuevo orden: la lista completa de ids de la organización, de primera a última. */
-    app.put('/stages/order', { preHandler: gestion }, async (req, reply) => {
+    app.put('/stages/order', { preHandler: embudo }, async (req, reply) => {
         const parsed = z.object({ ids: z.array(z.string()).min(1) }).safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -123,7 +133,7 @@ export default async function adminRoutes(app) {
      * Borrar una etapa. Si tiene leads, hay que decir a cuál pasan: la relación es `SetNull`
      * y un lead sin etapa desaparece del embudo y de los reportes sin que nadie lo note.
      */
-    app.delete('/stages/:id', { preHandler: gestion }, async (req, reply) => {
+    app.delete('/stages/:id', { preHandler: embudo }, async (req, reply) => {
         const orgId = req.user.organizationId;
         const etapa = await prisma.stage.findFirst({
             where: { id: req.params.id, organizationId: orgId },
@@ -184,7 +194,7 @@ export default async function adminRoutes(app) {
      * Preferencias de la organización. Con ellas va si el servidor tiene las claves: prender
      * la transcripción sin `OPENAI_API_KEY` solo produciría notas con error.
      */
-    app.get('/ajustes', { preHandler: gestion }, async (req) => ({
+    app.get('/ajustes', { preHandler: embudo }, async (req) => ({
         ...(await leerAjustes(req.user.organizationId)),
         servidor: { openai: !!env.voz.openaiKey, claude: env.voz.claudeActivo },
     }));
@@ -193,7 +203,7 @@ export default async function adminRoutes(app) {
         const a = await leerAjustes(req.user.organizationId);
         return { motivosPerdida: a.motivosPerdida, nivelesInteres: a.nivelesInteres };
     });
-    app.patch('/ajustes', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/ajustes', { preHandler: embudo }, async (req, reply) => {
         const parsed = z
             .object({
             transcribirVoz: z.boolean().optional(),
@@ -221,7 +231,7 @@ export default async function adminRoutes(app) {
         code: z.string().optional(),
         address: z.string().optional(),
     });
-    app.post('/projects', { preHandler: gestion }, async (req, reply) => {
+    app.post('/projects', { preHandler: inventario }, async (req, reply) => {
         const parsed = projectInput.safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -257,7 +267,7 @@ export default async function adminRoutes(app) {
         position: z.number().int().optional(),
         active: z.boolean().optional(),
     });
-    app.post('/projects/:id/typologies', { preHandler: gestion }, async (req, reply) => {
+    app.post('/projects/:id/typologies', { preHandler: inventario }, async (req, reply) => {
         const parsed = typologyInput.safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -268,7 +278,7 @@ export default async function adminRoutes(app) {
             return reply.code(404).send({ error: 'Proyecto no encontrado' });
         return prisma.typology.create({ data: { ...parsed.data, projectId: project.id } });
     });
-    app.patch('/typologies/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/typologies/:id', { preHandler: inventario }, async (req, reply) => {
         const parsed = typologyInput.partial().safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -277,6 +287,9 @@ export default async function adminRoutes(app) {
         });
         if (!tip)
             return reply.code(404).send({ error: 'Tipología no encontrada' });
+        if (parsed.data.priceFrom !== undefined && String(parsed.data.priceFrom) !== String(tip.priceFrom ?? '') && !tiene(req.user, 'inventario.precios')) {
+            return reply.code(403).send({ error: 'Sin permiso para cambiar precios de lista' });
+        }
         const actualizada = await prisma.typology.update({ where: { id: tip.id }, data: parsed.data });
         if (parsed.data.priceFrom !== undefined && String(parsed.data.priceFrom) !== String(tip.priceFrom ?? '')) {
             await audit(req.user.organizationId, req.user.id, 'typology.price', {
@@ -295,7 +308,7 @@ export default async function adminRoutes(app) {
      * de desaparecer del inventario. Se avisa cuántas quedan sueltas para que quien borra lo
      * sepa antes de irse.
      */
-    app.delete('/typologies/:id', { preHandler: gestion }, async (req, reply) => {
+    app.delete('/typologies/:id', { preHandler: inventario }, async (req, reply) => {
         const tip = await prisma.typology.findFirst({
             where: { id: req.params.id, project: { organizationId: req.user.organizationId } },
             include: { _count: { select: { units: true } } },
@@ -311,7 +324,7 @@ export default async function adminRoutes(app) {
      * Un solo archivo por petición y un solo campo, para que el endpoint sea aburrido: los
      * formularios de subida son de los sitios más atacados de cualquier panel.
      */
-    app.post('/typologies/:id/media', { preHandler: gestion }, async (req, reply) => {
+    app.post('/typologies/:id/media', { preHandler: inventario }, async (req, reply) => {
         const campo = req.query.campo === 'imageUrl' ? 'imageUrl' : 'planUrl';
         const tip = await prisma.typology.findFirst({
             where: { id: req.params.id, project: { organizationId: req.user.organizationId } },
@@ -364,7 +377,7 @@ export default async function adminRoutes(app) {
         currency: z.string().default('PEN'),
         floor: z.number().int().optional(),
     });
-    app.post('/projects/:id/units', { preHandler: gestion }, async (req, reply) => {
+    app.post('/projects/:id/units', { preHandler: inventario }, async (req, reply) => {
         const parsed = unitInput.safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -395,7 +408,7 @@ export default async function adminRoutes(app) {
      *    detalle de las que no, con su número de línea. Un archivo de 80 filas con dos
      *    erratas debe cargar 78, no cero.
      */
-    app.post('/projects/:id/units/import', { preHandler: gestion }, async (req, reply) => {
+    app.post('/projects/:id/units/import', { preHandler: inventario }, async (req, reply) => {
         const entrada = z
             .object({
             crearTipologias: z.boolean().default(true),
@@ -504,7 +517,7 @@ export default async function adminRoutes(app) {
         }
         return { creadas, actualizadas, tipologiasCreadas, errores };
     });
-    app.patch('/units/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/units/:id', { preHandler: inventario }, async (req, reply) => {
         const parsed = unitInput.partial().safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -514,13 +527,16 @@ export default async function adminRoutes(app) {
         if (!unit)
             return reply.code(404).send({ error: 'Unidad no encontrada' });
         const { typologyId, ...resto } = parsed.data;
+        if (resto.price !== undefined && String(resto.price) !== String(unit.price ?? '') && !tiene(req.user, 'inventario.precios')) {
+            return reply.code(403).send({ error: 'Sin permiso para cambiar precios de lista' });
+        }
         const actualizada = await prisma.unit.update({
             where: { id: unit.id },
             data: { ...resto, ...(typologyId === undefined ? {} : { typologyId: typologyId || null }) },
         });
         /**
          * Quién cambió el precio de lista y de cuánto a cuánto. Sperant no deja al cliente tocar
-         * precios por una mala experiencia; aquí sí se puede, pero solo gerencia (`gestion`) y
+         * precios por una mala experiencia; aquí sí se puede, pero solo con `inventario.precios` y
          * con rastro. Es lo que hace defendible la decisión ante el dueño del proyecto.
          */
         if (resto.price !== undefined && String(resto.price) !== String(unit.price ?? '')) {
@@ -558,7 +574,7 @@ export default async function adminRoutes(app) {
         notifyEmails: z.array(z.string().email()).default([]),
         schema: formSchema,
     });
-    app.post('/forms', { preHandler: gestion }, async (req, reply) => {
+    app.post('/forms', { preHandler: canales }, async (req, reply) => {
         const parsed = formInput.safeParse(req.body);
         if (!parsed.success) {
             return reply.code(400).send({ error: 'Esquema inválido', detail: parsed.error.flatten() });
@@ -574,7 +590,7 @@ export default async function adminRoutes(app) {
         });
     });
     /** Cada cambio sube `version`: es lo que invalida la caché del conector. */
-    app.put('/forms/:id', { preHandler: gestion }, async (req, reply) => {
+    app.put('/forms/:id', { preHandler: canales }, async (req, reply) => {
         const parsed = formInput.safeParse(req.body);
         if (!parsed.success) {
             return reply.code(400).send({ error: 'Esquema inválido', detail: parsed.error.flatten() });
@@ -596,7 +612,7 @@ export default async function adminRoutes(app) {
         });
     });
     // -------------------------------------------------------------- sitios
-    app.get('/sites', { preHandler: gestion }, async (req) => {
+    app.get('/sites', { preHandler: canales }, async (req) => {
         const sites = await prisma.site.findMany({
             where: { organizationId: req.user.organizationId },
             orderBy: { createdAt: 'desc' },
@@ -604,7 +620,7 @@ export default async function adminRoutes(app) {
         // La secret key no se devuelve nunca: solo se ve una vez, al generarla.
         return sites.map(({ secretKeyHash, ...s }) => s);
     });
-    app.post('/sites', { preHandler: gestion }, async (req, reply) => {
+    app.post('/sites', { preHandler: canales }, async (req, reply) => {
         const parsed = z
             .object({ name: z.string().min(1), allowedOrigins: z.array(z.string()).min(1) })
             .safeParse(req.body);
@@ -625,7 +641,7 @@ export default async function adminRoutes(app) {
         // Única vez que la secret key viaja al cliente.
         return { ...site, secretKeyHash: undefined, secretKey };
     });
-    app.post('/sites/:id/rotate', { preHandler: gestion }, async (req, reply) => {
+    app.post('/sites/:id/rotate', { preHandler: canales }, async (req, reply) => {
         const site = await prisma.site.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -637,28 +653,37 @@ export default async function adminRoutes(app) {
         return { secretKey };
     });
     // ------------------------------------------------------------ usuarios
-    app.get('/users', { preHandler: gestion }, async (req) => prisma.user.findMany({
+    app.get('/users', { preHandler: veEquipo }, async (req) => prisma.user.findMany({
         where: { organizationId: req.user.organizationId },
-        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true },
+        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true, customRoleId: true, customRole: { select: { id: true, name: true } } },
         orderBy: { name: 'asc' },
     }));
-    app.post('/users', { preHandler: gestion }, async (req, reply) => {
+    app.post('/users', { preHandler: usuarios }, async (req, reply) => {
         const parsed = z
             .object({
             name: z.string().min(1),
             email: z.string().email(),
             role: z.enum(['admin_lucuma', 'gerente', 'asesor', 'solo_lectura']).default('asesor'),
+            customRoleId: z.string().nullable().optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
+        if (parsed.data.customRoleId && !(await rolPropio(req.user.organizationId, parsed.data.customRoleId))) {
+            return reply.code(400).send({ error: 'Rol inválido' });
+        }
+        // Solo un Admin Lucuma puede nombrar a otro: el rol existe para Lucuma, no para el cliente.
+        if (parsed.data.role === 'admin_lucuma' && req.user.role !== 'admin_lucuma') {
+            return reply.code(403).send({ error: 'Solo Lucuma puede crear administradores Lucuma' });
+        }
         return prisma.user.create({
             data: {
                 ...parsed.data,
+                customRoleId: parsed.data.customRoleId || null,
                 email: parsed.data.email.toLowerCase(),
                 organizationId: req.user.organizationId,
             },
-            select: { id: true, name: true, email: true, role: true, active: true },
+            select: { id: true, name: true, email: true, role: true, active: true, customRoleId: true },
         });
     });
     /**
@@ -669,17 +694,25 @@ export default async function adminRoutes(app) {
      * Desactivar le quita el acceso (el magic link exige `active`) y lo saca del reparto
      * automático de leads (`pickOwner` solo mira activos), que es lo que se busca.
      */
-    app.patch('/users/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/users/:id', { preHandler: usuarios }, async (req, reply) => {
         const parsed = z
             .object({
             active: z.boolean().optional(),
             role: z.enum(['admin_lucuma', 'gerente', 'asesor', 'solo_lectura']).optional(),
             // Tope de descuento en proformas. Null = usar el de la organización.
             maxDiscountPct: z.number().min(0).max(100).nullable().optional(),
+            // Rol personalizado; null vuelve al rol base.
+            customRoleId: z.string().nullable().optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
+        if (parsed.data.customRoleId && !(await rolPropio(req.user.organizationId, parsed.data.customRoleId))) {
+            return reply.code(400).send({ error: 'Rol inválido' });
+        }
+        if (parsed.data.role === 'admin_lucuma' && req.user.role !== 'admin_lucuma') {
+            return reply.code(403).send({ error: 'Solo Lucuma puede nombrar administradores Lucuma' });
+        }
         const objetivo = await prisma.user.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -703,18 +736,20 @@ export default async function adminRoutes(app) {
                 }
             }
         }
-        return prisma.user.update({
+        const actualizado = await prisma.user.update({
             where: { id: objetivo.id },
             data: parsed.data,
-            select: { id: true, name: true, email: true, role: true, active: true, maxDiscountPct: true },
+            select: { id: true, name: true, email: true, role: true, active: true, maxDiscountPct: true, customRoleId: true },
         });
+        olvidarPermisos(objetivo.id);
+        return actualizado;
     });
     // --------------------------------------------------- meta lead ads
     /**
      * Páginas de Facebook conectadas. El page access token no vuelve nunca al navegador:
      * se muestra solo una pista de sus últimos caracteres, para saber cuál está cargado.
      */
-    app.get('/meta/pages', { preHandler: gestion }, async (req) => {
+    app.get('/meta/pages', { preHandler: canales }, async (req) => {
         const paginas = await prisma.metaPage.findMany({
             where: { organizationId: req.user.organizationId },
             orderBy: { createdAt: 'desc' },
@@ -732,7 +767,7 @@ export default async function adminRoutes(app) {
         formMap: z.record(z.string()).optional(),
         notifyEmails: z.array(z.string().email()).optional(),
     });
-    app.post('/meta/pages', { preHandler: gestion }, async (req, reply) => {
+    app.post('/meta/pages', { preHandler: canales }, async (req, reply) => {
         const parsed = paginaMeta.safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -767,7 +802,7 @@ export default async function adminRoutes(app) {
         const { accessTokenEnc, ...salida } = pagina;
         return { ...salida, tokenHint: pista(accessTokenEnc) };
     });
-    app.patch('/meta/pages/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/meta/pages/:id', { preHandler: canales }, async (req, reply) => {
         const parsed = paginaMeta.partial().omit({ pageId: true }).extend({ active: z.boolean().optional() }).safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -798,7 +833,7 @@ export default async function adminRoutes(app) {
         const { accessTokenEnc, ...salida } = actualizada;
         return { ...salida, tokenHint: pista(accessTokenEnc) };
     });
-    app.delete('/meta/pages/:id', { preHandler: gestion }, async (req, reply) => {
+    app.delete('/meta/pages/:id', { preHandler: canales }, async (req, reply) => {
         const pagina = await prisma.metaPage.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -817,7 +852,7 @@ export default async function adminRoutes(app) {
      * quitaron el permiso— es invisible: el webhook sigue llegando y los leads se quedan
      * en la cola. Aquí se ve en el momento.
      */
-    app.get('/meta/pages/:id/test', { preHandler: gestion }, async (req, reply) => {
+    app.get('/meta/pages/:id/test', { preHandler: canales }, async (req, reply) => {
         const pagina = await prisma.metaPage.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -827,7 +862,7 @@ export default async function adminRoutes(app) {
         return probarPagina(pagina.pageId);
     });
     /** Tipo, vencimiento y permisos del token cargado, sin revelarlo. */
-    app.get('/meta/pages/:id/token', { preHandler: gestion }, async (req, reply) => {
+    app.get('/meta/pages/:id/token', { preHandler: canales }, async (req, reply) => {
         const pagina = await prisma.metaPage.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -837,7 +872,7 @@ export default async function adminRoutes(app) {
         return diagnosticarToken(pagina.pageId);
     });
     /** Últimos avisos recibidos: es el diagnóstico de «entró el lead o no». */
-    app.get('/meta/leads', { preHandler: gestion }, async (req) => {
+    app.get('/meta/leads', { preHandler: canales }, async (req) => {
         const avisos = await prisma.metaLead.findMany({
             where: { organizationId: req.user.organizationId },
             orderBy: { createdAt: 'desc' },
@@ -850,7 +885,7 @@ export default async function adminRoutes(app) {
         return { avisos };
     });
     /** Reintento manual de un aviso fallido, sin esperar al backoff. */
-    app.post('/meta/leads/:id/retry', { preHandler: gestion }, async (req, reply) => {
+    app.post('/meta/leads/:id/retry', { preHandler: canales }, async (req, reply) => {
         const aviso = await prisma.metaLead.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -864,7 +899,7 @@ export default async function adminRoutes(app) {
         return { ok: true };
     });
     // ------------------------------------------------------ whatsapp
-    app.get('/whatsapp/numbers', { preHandler: gestion }, async (req) => {
+    app.get('/whatsapp/numbers', { preHandler: canales }, async (req) => {
         const numeros = await prisma.waNumber.findMany({
             where: { organizationId: req.user.organizationId },
             orderBy: { createdAt: 'desc' },
@@ -879,7 +914,7 @@ export default async function adminRoutes(app) {
         accessToken: z.string().transform((v) => v.replace(/\s+/g, '')).pipe(z.string().min(20)),
         projectId: z.string().optional().nullable(),
     });
-    app.post('/whatsapp/numbers', { preHandler: gestion }, async (req, reply) => {
+    app.post('/whatsapp/numbers', { preHandler: canales }, async (req, reply) => {
         const parsed = numeroWa.safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
@@ -901,7 +936,7 @@ export default async function adminRoutes(app) {
         const { accessTokenEnc, ...salida } = numero;
         return { ...salida, tokenHint: pista(accessTokenEnc) };
     });
-    app.patch('/whatsapp/numbers/:id', { preHandler: gestion }, async (req, reply) => {
+    app.patch('/whatsapp/numbers/:id', { preHandler: canales }, async (req, reply) => {
         const parsed = numeroWa.partial().omit({ phoneNumberId: true })
             .extend({ active: z.boolean().optional() }).safeParse(req.body);
         if (!parsed.success)
@@ -925,7 +960,7 @@ export default async function adminRoutes(app) {
         const { accessTokenEnc, ...salida } = actualizado;
         return { ...salida, tokenHint: pista(accessTokenEnc) };
     });
-    app.delete('/whatsapp/numbers/:id', { preHandler: gestion }, async (req, reply) => {
+    app.delete('/whatsapp/numbers/:id', { preHandler: canales }, async (req, reply) => {
         const numero = await prisma.waNumber.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -938,7 +973,7 @@ export default async function adminRoutes(app) {
         return { ok: true };
     });
     /**
-     * Plantillas aprobadas del cliente. Sin `gestion`: son lo único que se puede enviar
+     * Plantillas aprobadas del cliente. Sin permiso de configuración: son lo único que se puede enviar
      * fuera de la ventana de 24 horas, así que el asesor las necesita para dar seguimiento
      * al día siguiente. No exponen ninguna credencial, solo nombres y textos.
      */
@@ -952,7 +987,7 @@ export default async function adminRoutes(app) {
         const { plantillasDe } = await import('../services/whatsapp.js');
         return plantillasDe(numero.phoneNumberId);
     });
-    app.get('/whatsapp/numbers/:id/templates', { preHandler: gestion }, async (req, reply) => {
+    app.get('/whatsapp/numbers/:id/templates', { preHandler: canales }, async (req, reply) => {
         const numero = await prisma.waNumber.findFirst({
             where: { id: req.params.id, organizationId: req.user.organizationId },
         });
@@ -968,9 +1003,101 @@ export default async function adminRoutes(app) {
         const p = await prisma.project.findFirst({ where: { id: projectId, organizationId } });
         return p ? p.id : null;
     }
+    // -------------------------------------------------------------- roles
+    async function rolPropio(organizationId, id) {
+        return prisma.customRole.findFirst({ where: { id, organizationId } });
+    }
+    function limpiarPermisos(lista) {
+        if (!Array.isArray(lista))
+            return null;
+        const out = [...new Set(lista.filter((x) => typeof x === 'string' && esPermiso(x)))];
+        return out.length === lista.length ? out : null;
+    }
+    /** Catálogo y roles base: lo lee la pantalla de Roles para pintar las casillas. */
+    app.get('/roles/catalogo', { preHandler: usuarios }, async () => ({
+        permisos: PERMISOS_IDS,
+        base: ROLES_BASE,
+    }));
+    app.get('/roles', { preHandler: veEquipo }, async (req) => prisma.customRole.findMany({
+        where: { organizationId: req.user.organizationId },
+        include: { _count: { select: { users: true } } },
+        orderBy: { name: 'asc' },
+    }));
+    const rolInput = z.object({
+        name: z.string().trim().min(1).max(40),
+        permissions: z.array(z.string()).max(PERMISOS_IDS.length),
+    });
+    app.post('/roles', { preHandler: usuarios }, async (req, reply) => {
+        const parsed = rolInput.safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const permisos = limpiarPermisos(parsed.data.permissions);
+        if (!permisos)
+            return reply.code(400).send({ error: 'Permiso desconocido' });
+        // Un rol del cliente no puede dar más que un gerente: el registro técnico es de Lucuma.
+        if (permisos.includes('registro.ver') && req.user.role !== 'admin_lucuma') {
+            return reply.code(403).send({ error: 'Ese permiso solo lo otorga Lucuma' });
+        }
+        const existe = await prisma.customRole.findFirst({
+            where: { organizationId: req.user.organizationId, name: parsed.data.name },
+        });
+        if (existe)
+            return reply.code(409).send({ error: 'Ya hay un rol con ese nombre' });
+        const rol = await prisma.customRole.create({
+            data: { organizationId: req.user.organizationId, name: parsed.data.name, permissions: permisos },
+        });
+        await audit(req.user.organizationId, req.user.id, 'role.create', { entity: 'role', entityId: rol.id, meta: { name: rol.name, permisos }, ip: req.ip });
+        return rol;
+    });
+    app.patch('/roles/:id', { preHandler: usuarios }, async (req, reply) => {
+        const parsed = rolInput.partial().safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const rol = await rolPropio(req.user.organizationId, req.params.id);
+        if (!rol)
+            return reply.code(404).send({ error: 'Rol no encontrado' });
+        let permisos;
+        if (parsed.data.permissions) {
+            const limpios = limpiarPermisos(parsed.data.permissions);
+            if (!limpios)
+                return reply.code(400).send({ error: 'Permiso desconocido' });
+            if (limpios.includes('registro.ver') && req.user.role !== 'admin_lucuma') {
+                return reply.code(403).send({ error: 'Ese permiso solo lo otorga Lucuma' });
+            }
+            permisos = limpios;
+        }
+        const actualizado = await prisma.customRole.update({
+            where: { id: rol.id },
+            data: { name: parsed.data.name, permissions: permisos },
+        });
+        // Los permisos aplican a quien ya tiene el rol sin que cierre sesión.
+        olvidarPermisos();
+        await audit(req.user.organizationId, req.user.id, 'role.update', { entity: 'role', entityId: rol.id, meta: { name: actualizado.name, permisos }, ip: req.ip });
+        return actualizado;
+    });
+    /** Borrar un rol exige decir a qué rol base pasan sus usuarios: nadie se queda sin permisos. */
+    app.delete('/roles/:id', { preHandler: usuarios }, async (req, reply) => {
+        const rol = await prisma.customRole.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+            include: { _count: { select: { users: true } } },
+        });
+        if (!rol)
+            return reply.code(404).send({ error: 'Rol no encontrado' });
+        const pasarA = req.query.pasarA;
+        if (rol._count.users > 0) {
+            if (!pasarA || !['gerente', 'asesor', 'solo_lectura'].includes(pasarA)) {
+                return reply.code(409).send({ error: `${rol._count.users} usuario(s) tienen este rol: indica a qué rol pasan (pasarA)`, usuarios: rol._count.users });
+            }
+            await prisma.user.updateMany({ where: { customRoleId: rol.id }, data: { role: pasarA, customRoleId: null } });
+        }
+        await prisma.customRole.delete({ where: { id: rol.id } });
+        olvidarPermisos();
+        await audit(req.user.organizationId, req.user.id, 'role.delete', { entity: 'role', entityId: rol.id, meta: { name: rol.name, pasarA }, ip: req.ip });
+        return { ok: true };
+    });
     // -------------------------------------------------------- alta manual
     // Alta manual: también es escritura, así que «solo lectura» no pasa de aquí.
-    app.post('/leads', { preHandler: requireRole('admin_lucuma', 'gerente', 'asesor') }, async (req, reply) => {
+    app.post('/leads', { preHandler: requirePermiso('leads.editar') }, async (req, reply) => {
         const parsed = z
             .object({
             fname: z.string().min(1),
@@ -1013,7 +1140,7 @@ export default async function adminRoutes(app) {
         return result;
     });
     // ---------------------------------------------------------- exportación
-    app.get('/leads/export', { preHandler: gestion }, async (req, reply) => {
+    app.get('/leads/export', { preHandler: exportar }, async (req, reply) => {
         const user = req.user;
         const leads = await prisma.lead.findMany({
             where: { organizationId: user.organizationId },

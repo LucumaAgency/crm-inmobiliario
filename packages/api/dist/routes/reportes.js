@@ -1,5 +1,5 @@
 import { prisma } from '../db.js';
-import { requireAuth, scopeForUser } from '../lib/auth.js';
+import { requireAuth, requirePermiso, scopeForUser } from '../lib/auth.js';
 /** Lima no tiene horario de verano: el día comercial es UTC-5 todo el año. */
 const OFFSET_LIMA_MS = -5 * 60 * 60 * 1000;
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -34,6 +34,7 @@ function indicadores(leads, ganadas) {
  */
 export default async function reportesRoutes(app) {
     app.addHook('preHandler', requireAuth);
+    app.addHook('preHandler', requirePermiso('reportes.ver'));
     app.get('/resumen', async (req) => {
         const user = req.user;
         const dias = Math.min(Math.max(Number(req.query.dias) || 30, 7), 365);

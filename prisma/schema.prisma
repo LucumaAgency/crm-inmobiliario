@@ -21,6 +21,7 @@ model Organization {
   createdAt DateTime @default(now())
 
   users    User[]
+  customRoles CustomRole[]
   sites    Site[]
   projects Project[]
   contacts Contact[]
@@ -37,6 +38,24 @@ model Organization {
   @@map("organizations")
 }
 
+// Rol definido por la organización: un nombre y una lista de permisos (ids del catálogo
+// compartido `permisos.ts`). Los cuatro roles base siguen existiendo como enum; esto los
+// complementa para estructuras como «Jefe de ventas» o «Marketing» que cada inmobiliaria arma.
+model CustomRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  permissions    Json // string[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  users User[]
+
+  @@unique([organizationId, name])
+  @@map("custom_roles")
+}
+
 enum Role {
   admin_lucuma
   gerente
@@ -51,6 +70,9 @@ model User {
   email          String
   name           String
   role           Role         @default(asesor)
+  /// Rol creado por la organización. Si está, sus permisos mandan sobre los de `role`.
+  customRoleId   String?
+  customRole     CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   active         Boolean      @default(true)
   /// scrypt, formato `scrypt$N$r$p$sal$hash` (lib/password.ts). Null = aún sin contraseña:
   /// entra por enlace al correo y la define en Ajustes.

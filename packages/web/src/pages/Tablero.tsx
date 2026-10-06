@@ -6,6 +6,7 @@ import { desde } from '../lib/format.js';
 import Icono from '../components/Icono.js';
 import { ChipInteres } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
+import { usePuede } from '../lib/permisos.js';
 
 interface Etapa { id: string; name: string; color: string | null; isWon: boolean; isLost: boolean }
 interface Tarjeta {
@@ -37,15 +38,16 @@ interface Datos { etapas: Etapa[]; leads: Tarjeta[] }
  * desplegable «Mover a». Mover a una etapa perdida abre el diálogo de motivo, que el
  * servidor exige.
  */
-export default function Tablero({ rol }: { rol: string }) {
+export default function Tablero({ rol: _rol }: { rol: string }) {
   const qc = useQueryClient();
+  const puede = usePuede();
   const [projectId, setProjectId] = useState('');
   const [ownerId, setOwnerId] = useState('');
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   const [pidiendoMotivo, setPidiendoMotivo] = useState<{ lead: Tarjeta; etapa: Etapa } | null>(null);
-  const puedeMover = rol !== 'solo_lectura';
-  const puedeFiltrarAsesor = rol !== 'asesor';
+  const puedeMover = puede('leads.editar');
+  const puedeFiltrarAsesor = puede('leads.ver_todos');
 
   const datos = useQuery({
     queryKey: ['tablero', projectId, ownerId],

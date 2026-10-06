@@ -11,12 +11,12 @@
  * enlace de acceso de otra persona, así que además se redactan antes de salir.
  */
 import fs from 'node:fs';
-import { requireRole } from '../lib/auth.js';
+import { requirePermiso } from '../lib/auth.js';
 import { logFile } from '../lib/log.js';
 /** Cuánto se lee del final del archivo. Un log viejo puede pesar mucho. */
 const MAX_BYTES = 256 * 1024;
 export default async function logRoutes(app) {
-    app.get('/', { preHandler: requireRole('admin_lucuma') }, async (req) => {
+    app.get('/', { preHandler: requirePermiso('registro.ver') }, async (req) => {
         const pedidas = Math.min(Math.max(Number(req.query.lines ?? 300) || 300, 10), 2000);
         let contenido = '';
         let existe = false;

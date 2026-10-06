@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
-import { requireAuth, scopeForUser } from '../lib/auth.js';
+import { requireAuth, requirePermiso, scopeForUser } from '../lib/auth.js';
 
 /** Lima no tiene horario de verano: el día comercial es UTC-5 todo el año. */
 const OFFSET_LIMA_MS = -5 * 60 * 60 * 1000;
@@ -50,6 +50,7 @@ function indicadores(leads: FilaLead[], ganadas: Set<string>) {
  */
 export default async function reportesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', requirePermiso('reportes.ver'));
 
   app.get<{ Querystring: { dias?: string; proyecto?: string } }>('/resumen', async (req) => {
     const user = req.user!;

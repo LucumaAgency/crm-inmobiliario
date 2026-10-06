@@ -1,6 +1,6 @@
 import { activityInput, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
-import { audit, requireAuth, requireRole, scopeForUser } from '../lib/auth.js';
+import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
 import { enqueue } from '../lib/jobs.js';
 import { guardarAudio, rutaPrivada } from '../lib/privados.js';
@@ -33,7 +33,7 @@ export default async function leadRoutes(app) {
      * el rol existía en la interfaz y no en el servidor, que es donde cuenta. El caso real
      * no es el malicioso sino el jefe de obra al que se le da acceso «para que mire».
      */
-    const escritura = requireRole('admin_lucuma', 'gerente', 'asesor');
+    const escritura = requirePermiso('leads.editar');
     app.get('/', async (req, reply) => {
         const q = leadListQuery.safeParse(req.query);
         if (!q.success)
@@ -582,7 +582,7 @@ export default async function leadRoutes(app) {
             });
         }
         if (ownerId && ownerId !== lead.ownerId) {
-            if (user.role === 'asesor')
+            if (!tiene(user, 'leads.reasignar'))
                 return reply.code(403).send({ error: 'Sin permisos para reasignar' });
             await assignLead(lead.id, ownerId, 'manual');
         }
@@ -645,7 +645,7 @@ export default async function leadRoutes(app) {
      */
     app.get('/seguimientos', async (req) => {
         const user = req.user;
-        const gestiona = user.role !== 'asesor';
+        const gestiona = tiene(user, 'leads.ver_todos');
         const equipo = gestiona && req.query.vista === 'equipo';
         let dueno = { ownerId: user.id };
         if (equipo) {

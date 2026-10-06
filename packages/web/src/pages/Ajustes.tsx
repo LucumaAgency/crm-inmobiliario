@@ -9,6 +9,9 @@ import Registro from './Registro.js';
 import EtapasEditor from './EtapasEditor.js';
 import AjustesVoz from './AjustesVoz.js';
 import AjustesEmbudo from './AjustesEmbudo.js';
+import Roles from './Roles.js';
+import { usePuede } from '../lib/permisos.js';
+import type { Permiso } from '@lucuma-crm/shared';
 
 interface Site {
   id: string;
@@ -25,25 +28,27 @@ const ROLES: Record<string, string> = {
   solo_lectura: 'Solo lectura',
 };
 
-const SECCIONES = [
-  { id: 'embudo', texto: 'Embudo' },
-  { id: 'sitios', texto: 'Sitios web' },
-  { id: 'usuarios', texto: 'Usuarios' },
-  { id: 'meta', texto: 'Meta Lead Ads' },
-  { id: 'whatsapp', texto: 'WhatsApp' },
-  { id: 'voz', texto: 'Notas de voz' },
-  { id: 'registro', texto: 'Registro', soloAdmin: true },
-  { id: 'exportar', texto: 'Exportar' },
+const SECCIONES: { id: string; texto: string; permiso: Permiso }[] = [
+  { id: 'embudo', texto: 'Embudo', permiso: 'embudo.configurar' },
+  { id: 'sitios', texto: 'Sitios web', permiso: 'canales.configurar' },
+  { id: 'usuarios', texto: 'Usuarios', permiso: 'usuarios.gestionar' },
+  { id: 'roles', texto: 'Roles', permiso: 'usuarios.gestionar' },
+  { id: 'meta', texto: 'Meta Lead Ads', permiso: 'canales.configurar' },
+  { id: 'whatsapp', texto: 'WhatsApp', permiso: 'canales.configurar' },
+  { id: 'voz', texto: 'Notas de voz', permiso: 'embudo.configurar' },
+  { id: 'registro', texto: 'Registro', permiso: 'registro.ver' },
+  { id: 'exportar', texto: 'Exportar', permiso: 'leads.exportar' },
 ];
 
-export default function Ajustes({ rol }: { rol: string }) {
+export default function Ajustes({ rol: _rol }: { rol: string }) {
   const qc = useQueryClient();
   // La sección va en la URL: recargar o compartir el enlace no te devuelve a la primera.
   const [params, setParams] = useSearchParams();
-  const visibles = SECCIONES.filter((x) => !x.soloAdmin || rol === 'admin_lucuma');
+  const puede = usePuede();
+  const visibles = SECCIONES.filter((x) => puede(x.permiso));
   const seccion = visibles.some((x) => x.id === params.get('seccion'))
     ? params.get('seccion')!
-    : 'embudo';
+    : (visibles[0]?.id ?? 'embudo');
   const [nombre, setNombre] = useState('');
   const [dominios, setDominios] = useState('');
   const [secretNueva, setSecretNueva] = useState<string | null>(null);
@@ -55,20 +60,24 @@ export default function Ajustes({ rol }: { rol: string }) {
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () =>
-      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null }[]>(
+      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null; customRoleId: string | null }[]>(
         '/users',
       ),
+  });
+  const rolesPropios = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/roles'),
   });
 
   const cambiarUsuario = useMutation({
     mutationFn: (v: { id: string; active?: boolean; role?: string; maxDiscountPct?: number | null }) =>
-      api.patch(`/users/${v.id}`, { active: v.active, role: v.role, maxDiscountPct: v.maxDiscountPct }),
+      api.patch(`/users/${v.id}`, { active: v.active, maxDiscountPct: v.maxDiscountPct, ...rolAPayload(v.role) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 
   const crearUsuario = useMutation({
     mutationFn: () =>
-      api.post('/users', { name: uNombre.trim(), email: uCorreo.trim(), role: uRol }),
+      api.post('/users', { name: uNombre.trim(), email: uCorreo.trim(), ...rolAPayload(uRol) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       setUNombre('');
@@ -220,15 +229,11 @@ export default function Ajustes({ rol }: { rol: string }) {
                   <td className="ancho meta">{u.email}</td>
                   <td data-label="Rol">
                     <select
-                      value={u.role}
+                      value={u.customRoleId ? `custom:${u.customRoleId}` : u.role}
                       disabled={cambiarUsuario.isPending}
                       onChange={(e) => cambiarUsuario.mutate({ id: u.id, role: e.target.value })}
                     >
-                      {Object.entries(ROLES).map(([valor, etiqueta]) => (
-                        <option key={valor} value={valor}>
-                          {etiqueta}
-                        </option>
-                      ))}
+                      <OpcionesRol propios={rolesPropios.data ?? []} />
                     </select>
                   </td>
                   <td data-label="Descuento máximo">
@@ -277,11 +282,7 @@ export default function Ajustes({ rol }: { rol: string }) {
             </div>
             <label htmlFor="u-rol">Rol</label>
             <select id="u-rol" value={uRol} onChange={(e) => setURol(e.target.value)}>
-              {Object.entries(ROLES).map(([valor, etiqueta]) => (
-                <option key={valor} value={valor}>
-                  {etiqueta}
-                </option>
-              ))}
+              <OpcionesRol propios={rolesPropios.data ?? []} />
             </select>
             <p className="meta" style={{ marginTop: 8 }}>
               <strong>Descuento máximo</strong> es el tope (%) que ese usuario puede ofrecer en una
@@ -324,7 +325,9 @@ export default function Ajustes({ rol }: { rol: string }) {
 
       {seccion === 'voz' && <AjustesVoz />}
 
-      {seccion === 'registro' && rol === 'admin_lucuma' && <Registro />}
+      {seccion === 'roles' && <Roles />}
+
+      {seccion === 'registro' && <Registro />}
 
       {seccion === 'exportar' && (
         <div className="card">
@@ -378,5 +381,33 @@ function DescuentoUsuario({
       />
       <span className="meta">%</span>
     </span>
+  );
+}
+
+
+/**
+ * El valor del desplegable mezcla roles base (`gerente`) y personalizados (`custom:<id>`).
+ * Elegir uno personalizado deja el rol base en `asesor` como respaldo si el rol se borra.
+ */
+function rolAPayload(valor?: string) {
+  if (!valor) return {};
+  if (valor.startsWith('custom:')) return { role: 'asesor', customRoleId: valor.slice(7) };
+  return { role: valor, customRoleId: null };
+}
+
+function OpcionesRol({ propios }: { propios: { id: string; name: string }[] }) {
+  return (
+    <>
+      <optgroup label="Roles base">
+        {Object.entries(ROLES).map(([valor, etiqueta]) => (
+          <option key={valor} value={valor}>{etiqueta}</option>
+        ))}
+      </optgroup>
+      {propios.length > 0 && (
+        <optgroup label="Roles de la organización">
+          {propios.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}
+        </optgroup>
+      )}
+    </>
   );
 }

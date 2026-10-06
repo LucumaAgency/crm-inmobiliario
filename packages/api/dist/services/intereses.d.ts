@@ -16,36 +16,36 @@ export declare function validarIntereses(projectId: string | null, input: Intere
     tipologias: never[] | {
         id: string;
         name: string;
+        active: boolean;
         createdAt: Date;
-        projectId: string;
+        position: number;
         code: string | null;
         bedrooms: number | null;
-        bathrooms: number | null;
         areaM2: Prisma.Decimal | null;
-        priceFrom: Prisma.Decimal | null;
+        projectId: string;
         currency: string;
+        updatedAt: Date;
+        bathrooms: number | null;
+        priceFrom: Prisma.Decimal | null;
         description: string | null;
         planUrl: string | null;
         imageUrl: string | null;
-        position: number;
-        active: boolean;
-        updatedAt: Date;
     }[];
     unidades: never[] | {
         id: string;
-        typology: string | null;
-        projectId: string;
         code: string;
+        typology: string | null;
         bedrooms: number | null;
         areaM2: Prisma.Decimal | null;
-        currency: string;
-        updatedAt: Date;
+        price: Prisma.Decimal | null;
+        status: import(".prisma/client").$Enums.UnitStatus;
+        projectId: string;
         typologyId: string | null;
         kind: import(".prisma/client").$Enums.UnitKind;
-        status: import(".prisma/client").$Enums.UnitStatus;
-        price: Prisma.Decimal | null;
+        currency: string;
         floor: number | null;
         extra: Prisma.JsonValue | null;
+        updatedAt: Date;
     }[];
 }>;
 /** Reemplaza el conjunto completo de intereses del lead (lo que el asesor dejó marcado). */

@@ -12,7 +12,7 @@
  */
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { requireRole } from '../lib/auth.js';
+import { requirePermiso } from '../lib/auth.js';
 import { logFile } from '../lib/log.js';
 
 /** Cuánto se lee del final del archivo. Un log viejo puede pesar mucho. */
@@ -21,7 +21,7 @@ const MAX_BYTES = 256 * 1024;
 export default async function logRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { lines?: string; q?: string } }>(
     '/',
-    { preHandler: requireRole('admin_lucuma') },
+    { preHandler: requirePermiso('registro.ver') },
     async (req) => {
       const pedidas = Math.min(Math.max(Number(req.query.lines ?? 300) || 300, 10), 2000);
 
