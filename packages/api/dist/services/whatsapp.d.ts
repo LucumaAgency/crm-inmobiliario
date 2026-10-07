@@ -149,6 +149,13 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
  */
 export declare function despacharMensaje(messageId: string): Promise<void>;
 /** Plantillas aprobadas de la cuenta, para poder escribir fuera de la ventana. */
+/**
+ * Suscribe la app a la WABA: sin esto Meta no entrega los webhooks de ese número aunque la
+ * URL esté configurada. Con el número de prueba costó horas descubrirlo, y con el primer
+ * número real volvió a pasar porque el CRM solo lo hacía para páginas de Facebook. Ahora
+ * se hace al conectar y en cada «Probar conexión». Devuelve el error, o null si fue bien.
+ */
+export declare function suscribirAppAWaba(wabaId: string, token: string): Promise<string | null>;
 export declare function plantillasDe(phoneNumberId: string): Promise<{
     ok: false;
     error: string;

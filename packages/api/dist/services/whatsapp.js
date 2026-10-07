@@ -326,10 +326,30 @@ export async function despacharMensaje(messageId) {
     }
 }
 /** Plantillas aprobadas de la cuenta, para poder escribir fuera de la ventana. */
+/**
+ * Suscribe la app a la WABA: sin esto Meta no entrega los webhooks de ese número aunque la
+ * URL esté configurada. Con el número de prueba costó horas descubrirlo, y con el primer
+ * número real volvió a pasar porque el CRM solo lo hacía para páginas de Facebook. Ahora
+ * se hace al conectar y en cada «Probar conexión». Devuelve el error, o null si fue bien.
+ */
+export async function suscribirAppAWaba(wabaId, token) {
+    try {
+        await llamarCloud(`${wabaId}/subscribed_apps`, token, {});
+        return null;
+    }
+    catch (err) {
+        return redactarSecretos(err instanceof Error ? err.message : String(err));
+    }
+}
 export async function plantillasDe(phoneNumberId) {
     const numero = await prisma.waNumber.findUnique({ where: { phoneNumberId } });
     if (!numero)
         return { ok: false, error: 'El número no está conectado' };
+    const errorSuscripcion = await suscribirAppAWaba(numero.wabaId, descifrar(numero.accessTokenEnc));
+    if (errorSuscripcion) {
+        await prisma.waNumber.update({ where: { id: numero.id }, data: { lastError: `No se pudo suscribir la app a la cuenta de WhatsApp: ${errorSuscripcion}` } });
+        return { ok: false, error: `No se pudo suscribir la app a la cuenta de WhatsApp: ${errorSuscripcion}` };
+    }
     try {
         const res = (await llamarCloud(`${numero.wabaId}/message_templates?fields=name,status,language,category,components,rejected_reason&limit=100`, descifrar(numero.accessTokenEnc)));
         await prisma.waNumber.update({ where: { id: numero.id }, data: { lastError: null } });

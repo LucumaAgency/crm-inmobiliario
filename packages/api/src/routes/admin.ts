@@ -989,12 +989,15 @@ export default async function adminRoutes(app: FastifyInstance) {
     const ocupado = await prisma.waNumber.findUnique({ where: { phoneNumberId: resto.phoneNumberId } });
     if (ocupado) return reply.code(409).send({ error: 'Ese número ya está conectado.' });
 
+    const { suscribirAppAWaba } = await import('../services/whatsapp.js');
+    const errorSuscripcion = await suscribirAppAWaba(resto.wabaId, accessToken);
     const numero = await prisma.waNumber.create({
       data: {
         organizationId: req.user!.organizationId,
         ...resto,
         projectId: await proyectoValido(req.user!.organizationId, projectId),
         accessTokenEnc: cifrar(accessToken),
+        lastError: errorSuscripcion ? `No se pudo suscribir la app a la cuenta de WhatsApp: ${errorSuscripcion}` : null,
       },
     });
     await audit(req.user!.organizationId, req.user!.id, 'whatsapp.connect', {
