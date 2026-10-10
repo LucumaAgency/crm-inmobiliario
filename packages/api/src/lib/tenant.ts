@@ -42,6 +42,21 @@ function limpiarHost(host: string | undefined): string {
 }
 
 /**
+ * Host con el que el usuario llegó.
+ *
+ * En Plesk no se pueden tener dos aplicaciones Node sobre la misma carpeta, así que los
+ * subdominios de cada cliente (`bastion.`, `lucuma.`) son solo vhosts de nginx que
+ * reenvían a la app de `crm.` con `X-Forwarded-Host`. Ese encabezado manda sobre `Host`
+ * cuando existe. Un cliente que lo falsifique contra `crm.` solo consigue acotar en qué
+ * organización se intenta su login: sigue necesitando la contraseña de esa organización.
+ */
+export function hostDePeticion(req: FastifyRequest): string {
+  const reenviado = req.headers['x-forwarded-host'];
+  const primero = Array.isArray(reenviado) ? reenviado[0] : reenviado;
+  return limpiarHost((primero ?? '').split(',')[0] || req.headers.host);
+}
+
+/**
  * Etiqueta del subdominio, o null si el host no cuelga del dominio base.
  *
  * `bastion.crmlucuma.com` → `bastion`
@@ -108,7 +123,7 @@ export function sesionCoincide(req: FastifyRequest, organizationId: string): boo
  */
 export function baseUrlDePeticion(req: FastifyRequest): string {
   if (!env.baseDomain || !req.tenant) return env.appUrl.replace(/\/$/, '');
-  const host = limpiarHost(req.headers.host);
+  const host = hostDePeticion(req);
   const protocolo = req.protocol === 'http' && env.isProd ? 'https' : req.protocol;
   return `${protocolo}://${host}`;
 }

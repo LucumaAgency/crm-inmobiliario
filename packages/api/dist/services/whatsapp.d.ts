@@ -128,16 +128,16 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    userId: string | null;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
     waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -155,32 +155,32 @@ export declare function enviarDocumento(datos: {
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    userId: string | null;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
     waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    userId: string | null;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
     waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
     sentAt: Date | null;
 }>;
 /**

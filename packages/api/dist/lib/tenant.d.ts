@@ -29,6 +29,16 @@ declare module 'fastify' {
     }
 }
 /**
+ * Host con el que el usuario llegó.
+ *
+ * En Plesk no se pueden tener dos aplicaciones Node sobre la misma carpeta, así que los
+ * subdominios de cada cliente (`bastion.`, `lucuma.`) son solo vhosts de nginx que
+ * reenvían a la app de `crm.` con `X-Forwarded-Host`. Ese encabezado manda sobre `Host`
+ * cuando existe. Un cliente que lo falsifique contra `crm.` solo consigue acotar en qué
+ * organización se intenta su login: sigue necesitando la contraseña de esa organización.
+ */
+export declare function hostDePeticion(req: FastifyRequest): string;
+/**
  * Etiqueta del subdominio, o null si el host no cuelga del dominio base.
  *
  * `bastion.crmlucuma.com` → `bastion`

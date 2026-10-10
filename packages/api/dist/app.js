@@ -11,7 +11,7 @@ import { env } from './env.js';
 import { prisma } from './db.js';
 import { originAllowed } from './lib/keys.js';
 import { getLogStream, logFile } from './lib/log.js';
-import { resolverTenant } from './lib/tenant.js';
+import { hostDePeticion, resolverTenant } from './lib/tenant.js';
 import { MAX_BYTES, MEDIA_PREFIX, uploadsDir } from './lib/media.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
@@ -66,7 +66,7 @@ export async function buildApp() {
      * En modo de un solo cliente queda en null y todo se comporta como antes.
      */
     app.addHook('onRequest', async (req) => {
-        req.tenant = await resolverTenant(req.headers.host);
+        req.tenant = await resolverTenant(hostDePeticion(req));
     });
     await app.register(multipart, { limits: { fileSize: MAX_BYTES, files: 1 } });
     await app.register(cookie);
