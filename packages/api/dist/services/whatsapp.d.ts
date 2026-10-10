@@ -110,15 +110,42 @@ export declare function ventanaAbierta(conv: {
  */
 export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
-    id: string;
-    createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
+    body: string | null;
+    id: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    createdAt: Date;
     type: string;
-    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+    media: import("@prisma/client/runtime/library").JsonValue | null;
+    templateName: string | null;
+    userId: string | null;
+    sentAt: Date | null;
+}>;
+/**
+ * Envía un PDF como documento. Solo dentro de la ventana de 24 h: fuera de ella haría
+ * falta una plantilla con encabezado de documento, que es otra aprobación en Meta.
+ * El archivo se sube a Meta primero (media id) y el mensaje lo referencia.
+ */
+export declare function enviarDocumento(datos: {
+    conversationId: string;
+    userId: string;
+    rutaAbsoluta: string;
+    filename: string;
+    caption?: string;
+}): Promise<{
+    error: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     body: string | null;
+    id: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    createdAt: Date;
+    type: string;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
@@ -126,15 +153,15 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
-    id: string;
-    createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
+    body: string | null;
+    id: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    createdAt: Date;
     type: string;
-    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;

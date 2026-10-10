@@ -5,6 +5,7 @@ import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
 import ChatWhatsApp from './ChatWhatsApp.js';
 import NotasVoz from '../components/NotasVoz.js';
+import Proformas from '../components/Proformas.js';
 import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
@@ -298,6 +299,14 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
       </div>
 
       {!soloLectura && <ChatWhatsApp leadId={lead.id} />}
+
+      <Proformas
+        leadId={lead.id}
+        projectId={lead.project?.id ?? null}
+        unitIdsInteres={lead.unitInterests.filter((u) => u.unit.status === 'disponible').map((u) => u.unitId)}
+        tieneCorreo={Boolean(lead.contact.email)}
+        puedeEditar={!soloLectura}
+      />
 
       <NotasVoz leadId={lead.id} puedeEditar={!soloLectura} />
 

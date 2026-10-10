@@ -22,6 +22,7 @@ model Organization {
 
   users    User[]
   customRoles CustomRole[]
+  proformas   Proforma[]
   sites    Site[]
   projects Project[]
   contacts Contact[]
@@ -81,10 +82,13 @@ model User {
   /// Descuento máximo (%) que este usuario puede ofrecer en una proforma. Null = el de la
   /// organización. Lo define el gerente; el asesor no puede cambiar el suyo.
   maxDiscountPct    Decimal?     @db.Decimal(5, 2)
+  /// Teléfono del asesor: sale en la proforma para que el cliente lo llame.
+  phone             String?
   lastLoginAt    DateTime?
   createdAt      DateTime     @default(now())
 
   assignedLeads Lead[]       @relation("LeadOwner")
+  proformas     Proforma[]
   activities    Activity[]
   assignments   Assignment[]
   loginTokens   LoginToken[]
@@ -141,10 +145,17 @@ model Project {
   slug           String
   code           String?
   address        String?
+  /// Datos que van en la proforma: la razón social y el RUC de la inmobiliaria que vende
+  /// ESTE proyecto (en Lima suele ser una SAC por proyecto), el distrito y el logo.
+  legalName      String?
+  ruc            String?
+  district       String?
+  logoUrl        String?
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
 
   units      Unit[]
+  proformas  Proforma[]
   typologies Typology[]
   leads      Lead[]
   forms      Form[]
@@ -218,6 +229,7 @@ model Unit {
   kind        UnitKind   @default(departamento)
   status      UnitStatus @default(disponible)
   bedrooms    Int?
+  bathrooms   Int?
   areaM2      Decimal?   @db.Decimal(10, 2)
   price       Decimal?   @db.Decimal(12, 2)
   currency    String     @default("PEN")
@@ -335,6 +347,7 @@ model Lead {
   notasVoz        NotaVoz[]
   typologyInterests LeadTypologyInterest[]
   unitInterests     LeadUnitInterest[]
+  proformas         Proforma[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -342,6 +355,53 @@ model Lead {
   @@index([organizationId, stageId])
   @@index([organizationId, interestLevel])
   @@map("leads")
+}
+
+// Proforma (cotización): el documento que formaliza el precio ante el cliente y el banco.
+//
+// Es una FOTO, no una vista: guarda las unidades con el precio y los datos de ese momento,
+// porque los precios de lista cambian y una proforma emitida no puede cambiar con ellos. El
+// PDF vive en privados/ (no se sirve por URL) y sale solo por la API con control de acceso.
+model Proforma {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Correlativo por organización y año: "2026-0000085".
+  year   Int
+  seq    Int
+  number String
+
+  /// Snapshots: cliente, asesor e ítems tal como se emitieron.
+  client Json
+  agent  Json
+  items  Json // [{unitId, kind, code, bedrooms, bathrooms, areaM2, price}]
+
+  currency       String  @default("PEN")
+  listTotal      Decimal @db.Decimal(14, 2)
+  discountPct    Decimal @default(0) @db.Decimal(5, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  finalTotal     Decimal @db.Decimal(14, 2)
+  validDays      Int     @default(3)
+  validUntil     DateTime
+  note           String? @db.Text
+
+  pdfPath String
+
+  emailSentAt    DateTime?
+  emailTo        String?
+  whatsappSentAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, year, seq])
+  @@index([leadId, createdAt])
+  @@map("proformas")
 }
 
 // Interés del lead en tipologías y unidades concretas del proyecto.

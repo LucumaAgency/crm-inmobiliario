@@ -21,11 +21,14 @@ function getTransport() {
 }
 export async function sendMail(opts) {
     const info = await getTransport().sendMail({
-        from: env.smtp.from,
+        from: opts.fromName ? { name: opts.fromName, address: direccionDe(env.smtp.from) } : env.smtp.from,
         to: Array.isArray(opts.to) ? opts.to.join(',') : opts.to,
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
+        replyTo: opts.replyTo,
+        bcc: opts.bcc,
+        attachments: opts.attachments,
     });
     if (!env.smtp.host) {
         // Sin SMTP no hay forma de recibir el correo, así que el cuerpo se vuelca en consola:
@@ -38,6 +41,21 @@ export async function sendMail(opts) {
             logLine('[mail:dev] texto:', opts.text);
     }
     return info;
+}
+/** `"Lucuma CRM" <crm@x.com>` → `crm@x.com`. */
+function direccionDe(from) {
+    const m = from.match(/<([^>]+)>/);
+    return m ? m[1] : from;
+}
+export function proformaEmail(d) {
+    return {
+        subject: `Proforma ${d.number} · ${d.projectName}`,
+        html: `<p>Hola ${escapeHtml(d.clientName)},</p>
+<p>Te comparto la proforma <strong>${escapeHtml(d.number)}</strong> del proyecto <strong>${escapeHtml(d.projectName)}</strong>, por un precio final de <strong>${escapeHtml(d.finalTotal)}</strong>. Va adjunta en PDF.</p>
+<p>Tiene validez hasta el ${escapeHtml(d.validUntil)}. Si tienes dudas o quieres coordinar una visita, respóndeme por este correo${d.agentPhone ? ` o escríbeme al ${escapeHtml(d.agentPhone)}` : ''}.</p>
+<p>Saludos,<br>${escapeHtml(d.agentName)}</p>`,
+        text: `Hola ${d.clientName}, te comparto la proforma ${d.number} del proyecto ${d.projectName} (precio final ${d.finalTotal}), adjunta en PDF. Validez hasta el ${d.validUntil}. Saludos, ${d.agentName}${d.agentPhone ? ` · ${d.agentPhone}` : ''}`,
+    };
 }
 export function magicLinkEmail(url, name) {
     return {

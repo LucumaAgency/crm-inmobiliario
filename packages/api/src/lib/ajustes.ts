@@ -28,7 +28,13 @@ export interface AjustesOrg {
    * (frío/tibio/caliente, bajo/medio/alto, C/B/A); el número es lo que se guarda.
    */
   nivelesInteres: [string, string, string];
+  /** Días de validez de una proforma y la nota legal al pie. Texto de Bastión como base. */
+  proformaValidezDias: number;
+  proformaNota: string;
 }
+
+export const PROFORMA_NOTA_DEFECTO =
+  'La presente proforma tiene una validez de tres (03) días calendario desde la fecha de su emisión, no pudiendo el cliente efectuar reclamo alguno fuera del tiempo previamente estipulado, estando los precios de venta sujetos a variación sin previo aviso.';
 
 export const MOTIVOS_PERDIDA_DEFECTO = [
   'Precio fuera de su presupuesto',
@@ -45,6 +51,8 @@ const POR_DEFECTO: AjustesOrg = {
   motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
   descuentoMaximoPct: null,
   nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
+  proformaValidezDias: 3,
+  proformaNota: PROFORMA_NOTA_DEFECTO,
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {

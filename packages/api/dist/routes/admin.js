@@ -210,6 +210,8 @@ export default async function adminRoutes(app) {
             motivosPerdida: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
             descuentoMaximoPct: z.number().min(0).max(100).nullable().optional(),
             nivelesInteres: z.tuple([z.string().trim().min(1).max(30), z.string().trim().min(1).max(30), z.string().trim().min(1).max(30)]).optional(),
+            proformaValidezDias: z.number().int().min(1).max(90).optional(),
+            proformaNota: z.string().trim().max(1000).optional(),
         })
             .strict()
             .safeParse(req.body);
@@ -230,6 +232,51 @@ export default async function adminRoutes(app) {
         slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
         code: z.string().optional(),
         address: z.string().optional(),
+        legalName: z.string().max(120).optional(),
+        ruc: z.string().max(20).optional(),
+        district: z.string().max(80).optional(),
+    });
+    app.get('/projects/:id', async (req, reply) => {
+        const p = await prisma.project.findFirst({ where: { id: req.params.id, organizationId: req.user.organizationId } });
+        if (!p)
+            return reply.code(404).send({ error: 'Proyecto no encontrado' });
+        return { ...p, logoUrl: urlPublica(p.logoUrl) };
+    });
+    /** Datos del proyecto que salen en la proforma: razón social, RUC, distrito, dirección. */
+    app.patch('/projects/:id', { preHandler: inventario }, async (req, reply) => {
+        const parsed = projectInput.partial().omit({ slug: true }).safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const p = await prisma.project.findFirst({ where: { id: req.params.id, organizationId: req.user.organizationId } });
+        if (!p)
+            return reply.code(404).send({ error: 'Proyecto no encontrado' });
+        const actualizado = await prisma.project.update({ where: { id: p.id }, data: parsed.data });
+        return { ...actualizado, logoUrl: urlPublica(actualizado.logoUrl) };
+    });
+    app.post('/projects/:id/logo', { preHandler: inventario }, async (req, reply) => {
+        const p = await prisma.project.findFirst({ where: { id: req.params.id, organizationId: req.user.organizationId } });
+        if (!p)
+            return reply.code(404).send({ error: 'Proyecto no encontrado' });
+        const archivo = await req.file();
+        if (!archivo)
+            return reply.code(400).send({ error: 'No llegó ningún archivo.' });
+        if (!['image/png', 'image/jpeg'].includes(archivo.mimetype)) {
+            return reply.code(400).send({ error: 'El logo debe ser PNG o JPG (el PDF no admite otros formatos).' });
+        }
+        let contenido;
+        try {
+            contenido = await archivo.toBuffer();
+        }
+        catch {
+            return reply.code(413).send({ error: 'El archivo es demasiado grande.' });
+        }
+        const res = await guardar(req.user.organizationId, contenido, archivo.mimetype);
+        if ('error' in res)
+            return reply.code(400).send({ error: res.error });
+        const anterior = p.logoUrl;
+        const actualizado = await prisma.project.update({ where: { id: p.id }, data: { logoUrl: res.ruta } });
+        await borrarSiHuerfano(anterior, false);
+        return { ...actualizado, logoUrl: urlPublica(actualizado.logoUrl) };
     });
     app.post('/projects', { preHandler: inventario }, async (req, reply) => {
         const parsed = projectInput.safeParse(req.body);
@@ -372,6 +419,7 @@ export default async function adminRoutes(app) {
         kind: z.enum(['departamento', 'estacionamiento', 'deposito', 'lote', 'oficina', 'otro']).default('departamento'),
         status: z.enum(['disponible', 'reservado', 'vendido', 'no_disponible']).default('disponible'),
         bedrooms: z.number().int().optional(),
+        bathrooms: z.number().int().optional(),
         areaM2: z.number().optional(),
         price: z.number().optional(),
         currency: z.string().default('PEN'),
@@ -488,6 +536,7 @@ export default async function adminRoutes(app) {
                 kind: kind,
                 status: status,
                 bedrooms: numero(fila.dormitorios),
+                bathrooms: numero(fila.banos ?? fila['baños']),
                 areaM2: numero(fila.area_m2),
                 price: numero(fila.precio),
                 currency: (fila.moneda ?? 'PEN').trim().toUpperCase() || 'PEN',
@@ -655,7 +704,7 @@ export default async function adminRoutes(app) {
     // ------------------------------------------------------------ usuarios
     app.get('/users', { preHandler: veEquipo }, async (req) => prisma.user.findMany({
         where: { organizationId: req.user.organizationId },
-        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true, customRoleId: true, customRole: { select: { id: true, name: true } } },
+        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true, phone: true, customRoleId: true, customRole: { select: { id: true, name: true } } },
         orderBy: { name: 'asc' },
     }));
     app.post('/users', { preHandler: usuarios }, async (req, reply) => {
@@ -703,6 +752,7 @@ export default async function adminRoutes(app) {
             maxDiscountPct: z.number().min(0).max(100).nullable().optional(),
             // Rol personalizado; null vuelve al rol base.
             customRoleId: z.string().nullable().optional(),
+            phone: z.string().max(30).nullable().optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)
