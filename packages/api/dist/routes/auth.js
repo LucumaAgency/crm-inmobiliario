@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { cambiarPasswordInput, loginInput, magicLinkInput } from '@lucuma-crm/shared';
+import { z } from 'zod';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { baseUrlDePeticion } from '../lib/tenant.js';
@@ -189,12 +190,20 @@ export default async function authRoutes(app) {
         });
         const propio = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { passwordHash: true, maxDiscountPct: true },
+            select: { passwordHash: true, maxDiscountPct: true, phone: true },
         });
         const ajustes = await leerAjustes(req.user.organizationId);
         // El tope propio manda; si no tiene, el de la organización; si tampoco, sin tope.
         const descuentoMaximoPct = propio?.maxDiscountPct != null ? Number(propio.maxDiscountPct) : ajustes.descuentoMaximoPct;
-        return { user: req.user, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
+        return { user: { ...req.user, phone: propio?.phone ?? null }, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
+    });
+    /** Datos propios que no son credenciales: hoy solo el teléfono, que sale en la proforma. */
+    app.post('/perfil', { preHandler: requireAuth }, async (req, reply) => {
+        const parsed = z.object({ phone: z.string().trim().max(30).nullable() }).safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        await prisma.user.update({ where: { id: req.user.id }, data: { phone: parsed.data.phone || null } });
+        return { ok: true };
     });
     app.post('/logout', async (_req, reply) => {
         clearSession(reply);

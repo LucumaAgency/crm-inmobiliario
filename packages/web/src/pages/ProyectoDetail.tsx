@@ -55,7 +55,7 @@ const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
 export default function ProyectoDetail() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
-  const [pestana, setPestana] = useState<'tipologias' | 'unidades'>('tipologias');
+  const [pestana, setPestana] = useState<'tipologias' | 'unidades' | 'datos'>('tipologias');
   const [importando, setImportando] = useState(false);
 
   const proyectos = useQuery({
@@ -63,6 +63,28 @@ export default function ProyectoDetail() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/projects'),
   });
   const proyecto = proyectos.data?.find((p) => p.id === id);
+  const detalle = useQuery({
+    queryKey: ['project', id],
+    queryFn: () => api.get<{ id: string; name: string; address: string | null; legalName: string | null; ruc: string | null; district: string | null; logoUrl: string | null }>(`/projects/${id}`),
+  });
+  const [editandoDatos, setEditandoDatos] = useState(false);
+  const [dLegal, setDLegal] = useState('');
+  const [dRuc, setDRuc] = useState('');
+  const [dDistrito, setDDistrito] = useState('');
+  const [dDireccion, setDDireccion] = useState('');
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const guardarDatos = useMutation({
+    mutationFn: () => api.patch(`/projects/${id}`, { legalName: dLegal.trim(), ruc: dRuc.trim(), district: dDistrito.trim(), address: dDireccion.trim() }),
+    onSuccess: () => { setEditandoDatos(false); qc.invalidateQueries({ queryKey: ['project', id] }); qc.invalidateQueries({ queryKey: ['projects'] }); },
+  });
+  async function subirLogo(archivo: File) {
+    setLogoError(null);
+    const datos = new FormData();
+    datos.append('archivo', archivo);
+    const res = await fetch(`/api/v1/projects/${id}/logo`, { method: 'POST', credentials: 'same-origin', body: datos });
+    if (!res.ok) { const c = await res.json().catch(() => ({})); setLogoError(c.error ?? `Error ${res.status}`); return; }
+    qc.invalidateQueries({ queryKey: ['project', id] });
+  }
 
   const tipologias = useQuery({
     queryKey: ['typologies', id],
@@ -143,6 +165,7 @@ export default function ProyectoDetail() {
   const [uCodigo, setUCodigo] = useState('');
   const [uTip, setUTip] = useState('');
   const [uPiso, setUPiso] = useState('');
+  const [uBanos, setUBanos] = useState('');
   const [uPrecio, setUPrecio] = useState('');
   const [uTipo, setUTipo] = useState('departamento');
 
@@ -153,6 +176,7 @@ export default function ProyectoDetail() {
         typologyId: uTip || undefined,
         kind: uTipo,
         floor: num(uPiso),
+        bathrooms: num(uBanos),
         price: num(uPrecio),
       }),
     onSuccess: () => { refrescar(); setUCodigo(''); setUPiso(''); setUPrecio(''); },
@@ -192,7 +216,62 @@ export default function ProyectoDetail() {
         <button type="button" className={pestana === 'unidades' ? 'activa' : ''} onClick={() => setPestana('unidades')}>
           Unidades
         </button>
+        <button type="button" className={pestana === 'datos' ? 'activa' : ''} onClick={() => setPestana('datos')}>
+          Datos para proformas
+        </button>
       </div>
+
+      {pestana === 'datos' && (
+        <div className="card">
+          <div className="fila">
+            <strong>Datos para proformas</strong>
+            {!editandoDatos && detalle.data && (
+              <button type="button" className="btn btn-sec" style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => {
+                setDLegal(detalle.data!.legalName ?? ''); setDRuc(detalle.data!.ruc ?? ''); setDDistrito(detalle.data!.district ?? ''); setDDireccion(detalle.data!.address ?? '');
+                setEditandoDatos(true);
+              }}>Editar</button>
+            )}
+          </div>
+          <p className="meta" style={{ marginTop: 6 }}>
+            Lo que sale en la cabecera y en «Datos de la inmobiliaria» de cada proforma de este
+            proyecto. La razón social y el RUC son los de la empresa que vende este proyecto.
+          </p>
+          {detalle.data && !editandoDatos && (
+            <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.7 }}>
+              <div><span className="meta">Razón social: </span>{detalle.data.legalName ?? '—'}</div>
+              <div><span className="meta">RUC: </span>{detalle.data.ruc ?? '—'}</div>
+              <div><span className="meta">Distrito: </span>{detalle.data.district ?? '—'}</div>
+              <div><span className="meta">Dirección: </span>{detalle.data.address ?? '—'}</div>
+            </div>
+          )}
+          {editandoDatos && (
+            <form onSubmit={(e) => { e.preventDefault(); guardarDatos.mutate(); }}>
+              <div className="rejilla-2">
+                <div><label htmlFor="d-legal">Razón social</label><input id="d-legal" value={dLegal} onChange={(e) => setDLegal(e.target.value)} placeholder="RESIDENCIAL ODRIOZOLA SAC" /></div>
+                <div><label htmlFor="d-ruc">RUC</label><input id="d-ruc" value={dRuc} onChange={(e) => setDRuc(e.target.value)} inputMode="numeric" /></div>
+              </div>
+              <div className="rejilla-2">
+                <div><label htmlFor="d-dist">Distrito</label><input id="d-dist" value={dDistrito} onChange={(e) => setDDistrito(e.target.value)} placeholder="Pueblo Libre" /></div>
+                <div><label htmlFor="d-dir">Dirección</label><input id="d-dir" value={dDireccion} onChange={(e) => setDDireccion(e.target.value)} placeholder="Calle Ernesto Odriozola 175" /></div>
+              </div>
+              {guardarDatos.isError && <p className="error">{(guardarDatos.error as Error).message}</p>}
+              <div className="acciones">
+                <button className="btn" disabled={guardarDatos.isPending}>Guardar</button>
+                <button type="button" className="btn btn-sec" onClick={() => setEditandoDatos(false)}>Cancelar</button>
+              </div>
+            </form>
+          )}
+          <div style={{ marginTop: 14, borderTop: '1px solid var(--borde)', paddingTop: 12 }}>
+            <label>Logo del proyecto (PNG o JPG)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {detalle.data?.logoUrl && <img src={detalle.data.logoUrl} alt="Logo" style={{ height: 48, maxWidth: 160, objectFit: 'contain' }} />}
+              <label htmlFor="p-logo" className="btn btn-sec" style={{ cursor: 'pointer' }}>{detalle.data?.logoUrl ? 'Cambiar' : 'Subir logo'}</label>
+              <input id="p-logo" type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); e.target.value = ''; }} />
+            </div>
+            {logoError && <p className="error">{logoError}</p>}
+          </div>
+        </div>
+      )}
 
       {pestana === 'tipologias' && (
         <>
@@ -376,6 +455,13 @@ export default function ProyectoDetail() {
                   <label htmlFor="u-precio">Precio</label>
                   <input id="u-precio" inputMode="decimal" value={uPrecio} onChange={(e) => setUPrecio(e.target.value)} />
                 </div>
+              </div>
+              <div className="rejilla-2">
+                <div>
+                  <label htmlFor="u-banos">Baños <span className="meta">(si no, los de la tipología)</span></label>
+                  <input id="u-banos" inputMode="numeric" value={uBanos} onChange={(e) => setUBanos(e.target.value)} />
+                </div>
+                <div />
               </div>
               <label htmlFor="u-tipo">Tipo</label>
               <select id="u-tipo" value={uTipo} onChange={(e) => setUTipo(e.target.value)}>

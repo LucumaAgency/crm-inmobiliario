@@ -5,6 +5,7 @@
  * existiera no tiene nada guardado y tiene que comportarse de forma razonable igual.
  */
 import { prisma } from '../db.js';
+export const PROFORMA_NOTA_DEFECTO = 'La presente proforma tiene una validez de tres (03) días calendario desde la fecha de su emisión, no pudiendo el cliente efectuar reclamo alguno fuera del tiempo previamente estipulado, estando los precios de venta sujetos a variación sin previo aviso.';
 export const MOTIVOS_PERDIDA_DEFECTO = [
     'Precio fuera de su presupuesto',
     'No calificó al crédito',
@@ -19,6 +20,8 @@ const POR_DEFECTO = {
     motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
     descuentoMaximoPct: null,
     nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
+    proformaValidezDias: 3,
+    proformaNota: PROFORMA_NOTA_DEFECTO,
 };
 export async function leerAjustes(organizationId) {
     const org = await prisma.organization.findUnique({

@@ -14,35 +14,36 @@ export interface InteresesInput {
  */
 export declare function validarIntereses(projectId: string | null, input: InteresesInput): Promise<{
     tipologias: never[] | {
-        id: string;
         name: string;
-        createdAt: Date;
+        id: string;
         projectId: string;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
         code: string | null;
+        active: boolean;
         bedrooms: number | null;
         bathrooms: number | null;
         areaM2: Prisma.Decimal | null;
         priceFrom: Prisma.Decimal | null;
-        currency: string;
         description: string | null;
         planUrl: string | null;
         imageUrl: string | null;
         position: number;
-        active: boolean;
-        updatedAt: Date;
     }[];
     unidades: never[] | {
-        id: string;
         typology: string | null;
+        id: string;
         projectId: string;
-        code: string;
-        bedrooms: number | null;
-        areaM2: Prisma.Decimal | null;
         currency: string;
+        status: import(".prisma/client").$Enums.UnitStatus;
         updatedAt: Date;
+        code: string;
         typologyId: string | null;
         kind: import(".prisma/client").$Enums.UnitKind;
-        status: import(".prisma/client").$Enums.UnitStatus;
+        bedrooms: number | null;
+        bathrooms: number | null;
+        areaM2: Prisma.Decimal | null;
         price: Prisma.Decimal | null;
         floor: number | null;
         extra: Prisma.JsonValue | null;

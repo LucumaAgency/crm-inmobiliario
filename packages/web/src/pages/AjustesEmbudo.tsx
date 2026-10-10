@@ -7,6 +7,8 @@ interface Ajustes {
   motivosPerdida: string[];
   descuentoMaximoPct: number | null;
   nivelesInteres: [string, string, string];
+  proformaValidezDias: number;
+  proformaNota: string;
 }
 
 /**
@@ -28,11 +30,15 @@ export default function AjustesEmbudo() {
   const [nuevo, setNuevo] = useState('');
   const [descuento, setDescuento] = useState('');
   const [niveles, setNiveles] = useState<[string, string, string]>(['', '', '']);
+  const [validez, setValidez] = useState('3');
+  const [nota, setNota] = useState('');
   useEffect(() => {
     if (ajustes.data) {
       setDescuento(ajustes.data.descuentoMaximoPct == null ? '' : String(ajustes.data.descuentoMaximoPct));
       // Una API anterior a este ajuste no manda la clave: no puede tumbar toda la pantalla.
       setNiveles(ajustes.data.nivelesInteres ?? ['Frío', 'Tibio', 'Caliente']);
+      setValidez(String(ajustes.data.proformaValidezDias ?? 3));
+      setNota(ajustes.data.proformaNota ?? '');
     }
   }, [ajustes.data]);
 
@@ -128,6 +134,37 @@ export default function AjustesEmbudo() {
             </label>
           ))}
         </div>
+      </div>
+
+      <div className="card">
+        <strong>Proformas</strong>
+        <p className="meta" style={{ marginTop: 6 }}>
+          Validez y nota legal al pie de cada proforma. Los datos de la inmobiliaria (razón social,
+          RUC, logo) van en cada proyecto, pestaña «Datos para proformas».
+        </p>
+        <div className="rejilla-2">
+          <div>
+            <label htmlFor="pf-dias">Días de validez</label>
+            <input
+              id="pf-dias"
+              inputMode="numeric"
+              value={validez}
+              onChange={(e) => setValidez(e.target.value)}
+              onBlur={() => { const n = Number(validez); if (Number.isInteger(n) && n >= 1 && n <= 90 && n !== ajustes.data?.proformaValidezDias) guardar.mutate({ proformaValidezDias: n }); else setValidez(String(ajustes.data?.proformaValidezDias ?? 3)); }}
+              style={{ width: 90 }}
+            />
+          </div>
+        </div>
+        <label htmlFor="pf-nota">Nota al pie</label>
+        <textarea
+          id="pf-nota"
+          rows={3}
+          value={nota}
+          maxLength={1000}
+          onChange={(e) => setNota(e.target.value)}
+          onBlur={() => { if (nota.trim() && nota.trim() !== ajustes.data?.proformaNota) guardar.mutate({ proformaNota: nota.trim() }); }}
+        />
+        <p className="meta">Se guarda al salir del campo. Al final se agrega sola la fecha de vencimiento.</p>
       </div>
 
       <div className="card">

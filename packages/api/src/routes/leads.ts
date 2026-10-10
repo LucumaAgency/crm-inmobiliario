@@ -7,6 +7,9 @@ import { enqueue } from '../lib/jobs.js';
 import { guardarAudio, rutaPrivada } from '../lib/privados.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { includeIntereses, reemplazarIntereses, validarIntereses, vaciarIntereses } from '../services/intereses.js';
+import { ErrorProforma, emitirProforma, moneda, rutaPdf, topeDescuento } from '../services/proformas.js';
+import { proformaEmail, sendMail } from '../lib/mail.js';
+import { enviarDocumento } from '../services/whatsapp.js';
 import fs from 'node:fs';
 import { z } from 'zod';
 import {
@@ -196,6 +199,128 @@ export default async function leadRoutes(app: FastifyInstance) {
       etapas,
       leads: leads.map(({ contactId, ...l }) => ({ ...l, unread: unreadPorContacto.get(contactId) ?? 0 })),
     };
+  });
+
+  // ------------------------------------------------------------- proformas
+
+  const selectProforma = {
+    id: true, number: true, createdAt: true, validUntil: true, currency: true, listTotal: true,
+    discountPct: true, discountAmount: true, finalTotal: true, items: true, emailSentAt: true, emailTo: true,
+    whatsappSentAt: true, createdBy: { select: { id: true, name: true } },
+  } as const;
+
+  app.get<{ Params: { id: string } }>('/:id/proformas', async (req, reply) => {
+    const user = req.user!;
+    const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) }, select: { id: true } });
+    if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
+    const [proformas, tope] = await Promise.all([
+      prisma.proforma.findMany({ where: { leadId: lead.id }, orderBy: { createdAt: 'desc' }, select: selectProforma }),
+      topeDescuento(user.id, user.organizationId),
+    ]);
+    return { proformas, descuentoMaximoPct: tope };
+  });
+
+  app.post<{ Params: { id: string } }>('/:id/proformas', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const parsed = z
+      .object({
+        unitIds: z.array(z.string()).min(1).max(10),
+        discountPct: z.number().min(0).max(100).optional(),
+        discountAmount: z.number().min(0).optional(),
+        note: z.string().max(1000).optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) }, select: { id: true } });
+    if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
+    try {
+      const p = await emitirProforma({ organizationId: user.organizationId, leadId: lead.id, userId: user.id, ...parsed.data });
+      await audit(user.organizationId, user.id, 'proforma.create', { entity: 'proforma', entityId: p.id, meta: { number: p.number, finalTotal: p.finalTotal }, ip: req.ip });
+      return prisma.proforma.findUnique({ where: { id: p.id }, select: selectProforma });
+    } catch (e) {
+      if (e instanceof ErrorProforma) return reply.code(e.statusCode).send({ error: e.message });
+      throw e;
+    }
+  });
+
+  /** Busca la proforma comprobando que el usuario puede ver su lead. */
+  async function proformaVisible(id: string, user: import('../lib/auth.js').SessionUser) {
+    return prisma.proforma.findFirst({
+      where: { id, lead: { ...scopeForUser(user) } },
+      include: { lead: { include: { contact: true, project: true } } },
+    });
+  }
+
+  app.get<{ Params: { id: string } }>('/proformas/:id/pdf', async (req, reply) => {
+    const p = await proformaVisible(req.params.id, req.user!);
+    if (!p) return reply.code(404).send({ error: 'Proforma no encontrada' });
+    const ruta = rutaPdf(p.pdfPath);
+    if (!fs.existsSync(ruta)) return reply.code(404).send({ error: 'El PDF ya no está en el servidor' });
+    reply.header('Content-Type', 'application/pdf');
+    reply.header('Content-Disposition', `${req.query && (req.query as { descargar?: string }).descargar ? 'attachment' : 'inline'}; filename="Proforma ${p.number}.pdf"`);
+    return reply.send(fs.createReadStream(ruta));
+  });
+
+  app.post<{ Params: { id: string } }>('/proformas/:id/email', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const parsed = z.object({ to: z.string().email().optional() }).safeParse(req.body ?? {});
+    if (!parsed.success) return reply.code(400).send({ error: 'Correo inválido' });
+    const p = await proformaVisible(req.params.id, user);
+    if (!p) return reply.code(404).send({ error: 'Proforma no encontrada' });
+    const to = parsed.data.to ?? p.lead.contact.email;
+    if (!to) return reply.code(400).send({ error: 'El lead no tiene correo: escríbelo o indícalo aquí' });
+    const agent = p.agent as { name: string; email: string; phone: string | null };
+    const correo = proformaEmail({
+      clientName: (p.client as { name: string }).name,
+      projectName: p.lead.project?.name ?? '',
+      number: p.number,
+      agentName: agent.name,
+      agentPhone: agent.phone,
+      validUntil: p.validUntil.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Lima' }),
+      finalTotal: moneda(Number(p.finalTotal), p.currency),
+    });
+    await sendMail({
+      to,
+      ...correo,
+      fromName: `${agent.name} · ${p.lead.project?.legalName ?? p.lead.project?.name ?? ''}`.trim(),
+      replyTo: agent.email || undefined,
+      bcc: agent.email || undefined,
+      attachments: [{ filename: `Proforma ${p.number}.pdf`, path: rutaPdf(p.pdfPath), contentType: 'application/pdf' }],
+    });
+    await prisma.proforma.update({ where: { id: p.id }, data: { emailSentAt: new Date(), emailTo: to } });
+    await prisma.activity.create({
+      data: { leadId: p.leadId, userId: user.id, type: 'email', body: `Proforma ${p.number} enviada por correo a ${to}`, meta: { proformaId: p.id } as never },
+    });
+    await prisma.lead.update({ where: { id: p.leadId }, data: { lastActivityAt: new Date() } });
+    return { ok: true, to };
+  });
+
+  app.post<{ Params: { id: string } }>('/proformas/:id/whatsapp', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const p = await proformaVisible(req.params.id, user);
+    if (!p) return reply.code(404).send({ error: 'Proforma no encontrada' });
+    const conversacion = await prisma.waConversation.findFirst({
+      where: { organizationId: user.organizationId, contactId: p.lead.contactId },
+      orderBy: { lastInboundAt: 'desc' },
+    });
+    if (!conversacion) return reply.code(409).send({ error: 'Este lead no tiene conversación de WhatsApp con el número del CRM' });
+    try {
+      await enviarDocumento({
+        conversationId: conversacion.id,
+        userId: user.id,
+        rutaAbsoluta: rutaPdf(p.pdfPath),
+        filename: `Proforma ${p.number}.pdf`,
+        caption: `Proforma ${p.number} · ${p.lead.project?.name ?? ''} · ${moneda(Number(p.finalTotal), p.currency)}`,
+      });
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      return reply.code(err.statusCode ?? 500).send({ error: err.message });
+    }
+    await prisma.proforma.update({ where: { id: p.id }, data: { whatsappSentAt: new Date() } });
+    await prisma.activity.create({
+      data: { leadId: p.leadId, userId: user.id, type: 'whatsapp', body: `Proforma ${p.number} enviada por WhatsApp`, meta: { proformaId: p.id } as never },
+    });
+    return { ok: true };
   });
 
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {

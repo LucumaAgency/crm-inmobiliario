@@ -220,6 +220,37 @@ export async function enviarTexto(datos) {
         body: datos.text,
     });
 }
+/**
+ * Envía un PDF como documento. Solo dentro de la ventana de 24 h: fuera de ella haría
+ * falta una plantilla con encabezado de documento, que es otra aprobación en Meta.
+ * El archivo se sube a Meta primero (media id) y el mensaje lo referencia.
+ */
+export async function enviarDocumento(datos) {
+    const conv = await cargarConversacion(datos.conversationId);
+    if (!ventanaAbierta(conv)) {
+        throw Object.assign(new Error('La ventana de 24 horas se cerró: pide al cliente que te escriba o usa una plantilla.'), { statusCode: 409 });
+    }
+    return crearYEncolar(conv, {
+        userId: datos.userId,
+        type: 'document',
+        body: datos.caption ?? datos.filename,
+        payload: { rutaAbsoluta: datos.rutaAbsoluta, filename: datos.filename, caption: datos.caption ?? null },
+    });
+}
+async function subirMedia(phoneNumberId, token, rutaAbsoluta, filename, mime) {
+    const fs = await import('node:fs');
+    const form = new FormData();
+    form.append('messaging_product', 'whatsapp');
+    form.append('type', mime);
+    form.append('file', new Blob([await fs.promises.readFile(rutaAbsoluta)], { type: mime }), filename);
+    const url = `https://graph.facebook.com/${env.meta.graphVersion}/${phoneNumberId}/media`;
+    const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+    const datos = (await res.json().catch(() => ({})));
+    if (!res.ok || !datos.id) {
+        throw Object.assign(new Error(`Cloud API ${res.status}: ${datos.error?.message ?? 'no se pudo subir el archivo'}`), { statusCode: res.status });
+    }
+    return datos.id;
+}
 export async function enviarPlantilla(datos) {
     const conv = await cargarConversacion(datos.conversationId);
     return crearYEncolar(conv, {
@@ -267,14 +298,37 @@ export async function despacharMensaje(messageId) {
     if (mensaje.status !== 'pendiente')
         return; // ya salió: la cola reintentó de más
     const numero = mensaje.conversation.waNumber;
-    const cuerpo = mensaje.type === 'template'
-        ? cuerpoPlantilla(mensaje.conversation.waId, mensaje.raw)
-        : {
-            messaging_product: 'whatsapp',
-            to: mensaje.conversation.waId,
-            type: 'text',
-            text: { preview_url: true, body: mensaje.body ?? '' },
-        };
+    let cuerpo;
+    try {
+        if (mensaje.type === 'template') {
+            cuerpo = cuerpoPlantilla(mensaje.conversation.waId, mensaje.raw);
+        }
+        else if (mensaje.type === 'document') {
+            const raw = (mensaje.raw ?? {});
+            const mediaId = await subirMedia(numero.phoneNumberId, descifrar(numero.accessTokenEnc), raw.rutaAbsoluta ?? '', raw.filename ?? 'documento.pdf', 'application/pdf');
+            cuerpo = {
+                messaging_product: 'whatsapp',
+                to: mensaje.conversation.waId,
+                type: 'document',
+                document: { id: mediaId, filename: raw.filename ?? 'documento.pdf', ...(raw.caption ? { caption: raw.caption } : {}) },
+            };
+        }
+        else {
+            cuerpo = {
+                messaging_product: 'whatsapp',
+                to: mensaje.conversation.waId,
+                type: 'text',
+                text: { preview_url: true, body: mensaje.body ?? '' },
+            };
+        }
+    }
+    catch (err) {
+        const e = err;
+        await prisma.waMessage.update({ where: { id: mensaje.id }, data: { status: 'fallido', error: redactarSecretos(e.message).slice(0, 1000) } });
+        if (e.statusCode && e.statusCode >= 400 && e.statusCode < 500)
+            return;
+        throw err;
+    }
     try {
         const res = await llamarCloud(`${numero.phoneNumberId}/messages`, descifrar(numero.accessTokenEnc), cuerpo);
         const waMessageId = res.messages?.[0]?.id;

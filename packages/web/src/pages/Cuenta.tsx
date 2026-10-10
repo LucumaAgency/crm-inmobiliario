@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState as useStateReact } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
 const MINIMO = 10;
@@ -37,6 +38,8 @@ export default function Cuenta({ tienePassword }: { tienePassword: boolean }) {
   }
 
   return (
+    <>
+    <Telefono />
     <div className="card" style={{ maxWidth: 440 }}>
       <strong>{tienePassword ? 'Cambiar contraseña' : 'Crear contraseña'}</strong>
       <p className="meta" style={{ marginTop: 6 }}>
@@ -84,6 +87,32 @@ export default function Cuenta({ tienePassword }: { tienePassword: boolean }) {
       {aviso && <p className="error">{aviso}</p>}
       {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}
       {guardar.isSuccess && <p className="ok">Contraseña guardada.</p>}
+    </div>
+    </>
+  );
+}
+
+/** Teléfono del asesor: sale en la proforma para que el cliente lo llame. */
+function Telefono() {
+  const qc = useQueryClient();
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ user: { phone: string | null } }>('/auth/me') });
+  const [phone, setPhone] = useStateReact('');
+  useEffect(() => { if (me.data) setPhone(me.data.user.phone ?? ''); }, [me.data]);
+  const guardar = useMutation({
+    mutationFn: () => api.post('/auth/perfil', { phone: phone.trim() || null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+  return (
+    <div className="card" style={{ maxWidth: 440 }}>
+      <strong>Tu teléfono</strong>
+      <p className="meta" style={{ marginTop: 6 }}>Aparece en las proformas que emites, como contacto del asesor.</p>
+      <form onSubmit={(e) => { e.preventDefault(); guardar.mutate(); }}>
+        <label htmlFor="tel">Teléfono</label>
+        <input id="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="967 272 598" />
+        <button className="btn" style={{ marginTop: 12 }} disabled={guardar.isPending}>Guardar</button>
+      </form>
+      {guardar.isSuccess && <p className="ok">Teléfono guardado.</p>}
+      {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}
     </div>
   );
 }
