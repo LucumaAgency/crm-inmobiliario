@@ -25,7 +25,9 @@
     "password": "tsx packages/api/src/set-password.ts",
     "password:prod": "node packages/api/dist/set-password.js",
     "admin:prod": "node packages/api/dist/set-password.js --admin",
-    "admin": "tsx packages/api/src/set-password.ts --admin"
+    "admin": "tsx packages/api/src/set-password.ts --admin",
+    "org": "tsx packages/api/src/crear-org.ts",
+    "org:prod": "node packages/api/dist/crear-org.js"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
