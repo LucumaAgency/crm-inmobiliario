@@ -80,6 +80,10 @@ async function procesar(job: { id: string; type: string; payload: unknown }) {
       const { despacharMensaje } = await import('./whatsapp.js');
       return despacharMensaje(String((job.payload as { messageId: string }).messageId));
     }
+    case 'wa.media.fetch': {
+      const { descargarMedia } = await import('./whatsapp.js');
+      return descargarMedia(String((job.payload as { messageId: string }).messageId));
+    }
     case 'voz.procesar': {
       const { procesarNotaVoz } = await import('./notas-voz.js');
       return procesarNotaVoz(String((job.payload as { notaId: string }).notaId));

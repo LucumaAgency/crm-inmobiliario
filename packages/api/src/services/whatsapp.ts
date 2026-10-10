@@ -15,7 +15,11 @@
  *    llenaría el historial de ruido y haría inútil la ficha. La conversación es su propio
  *    hilo; al lead solo suben los hechos: entró por un anuncio, volvió a escribir.
  */
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { prisma } from '../db.js';
+import { rutaPrivada } from '../lib/privados.js';
 import { env } from '../env.js';
 import { normalizePhonePE } from '@lucuma-crm/shared';
 import { descifrar, redactarSecretos } from '../lib/secretos.js';
@@ -46,7 +50,8 @@ interface MensajeEntrante {
   document?: { id?: string; mime_type?: string; filename?: string; caption?: string };
   audio?: { id?: string; mime_type?: string };
   video?: { id?: string; mime_type?: string; caption?: string };
-  location?: { latitude?: number; longitude?: number; name?: string };
+  sticker?: { id?: string; mime_type?: string; animated?: boolean };
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
   /** Solo en los chats abiertos desde un anuncio Click-to-WhatsApp. */
   referral?: {
     source_url?: string;
@@ -236,6 +241,69 @@ async function recibirUno(
   ]);
 
   logLine(`wa: mensaje de +${waId} → lead ${leadId ?? 'sin lead'}`);
+
+  // Imagen, audio, sticker, video o documento: se descarga aparte para que el webhook
+  // responda rápido (Meta reintenta si tarda) y el archivo quede en el CRM.
+  if (media && typeof media.id === 'string' && media.id) {
+    const guardado = await prisma.waMessage.findUnique({ where: { waMessageId: mensaje.id }, select: { id: true } });
+    if (guardado) await enqueue('wa.media.fetch', { messageId: guardado.id });
+  }
+}
+
+/** Tamaño máximo que se descarga de Meta. Un video de WhatsApp puede pasar de 16 MB; se deja fuera. */
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
+
+const EXT: Record<string, string> = {
+  'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif',
+  'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a', 'audio/aac': '.aac', 'audio/amr': '.amr', 'audio/opus': '.opus',
+  'video/mp4': '.mp4', 'video/3gpp': '.3gp',
+  'application/pdf': '.pdf',
+};
+
+/**
+ * Descarga el archivo de un mensaje entrante y lo guarda en privados/<org>/wa/.
+ *
+ * Meta no manda el archivo en el webhook, solo un id: hay que pedir la URL (vence a los
+ * minutos) y bajarla con el token del número. Hasta ahora el CRM solo anotaba «[image] se
+ * ve en el teléfono», y el asesor tenía que ir al celular a ver qué mandó el cliente.
+ * Lo que no se puede bajar (muy grande, URL vencida) queda marcado con `media.error` y
+ * la ficha vuelve al aviso de antes.
+ */
+export async function descargarMedia(messageId: string): Promise<void> {
+  const m = await prisma.waMessage.findUnique({
+    where: { id: messageId },
+    include: { conversation: { include: { waNumber: true } } },
+  });
+  if (!m) return;
+  const media = (m.media ?? {}) as { id?: string; mime?: string; path?: string; error?: string; filename?: string };
+  if (!media.id || media.path) return;
+  const token = descifrar(m.conversation.waNumber.accessTokenEnc);
+  const organizationId = m.conversation.organizationId;
+  try {
+    const info = (await llamarCloud(`${media.id}`, token)) as { url?: string; mime_type?: string; file_size?: number };
+    if (!info.url) throw new Error('Meta no devolvió la URL del archivo');
+    if (info.file_size && info.file_size > MAX_MEDIA_BYTES) throw new Error('Archivo demasiado grande para guardarlo');
+    const res = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Descarga ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_MEDIA_BYTES) throw new Error('Archivo demasiado grande para guardarlo');
+    const mime = (info.mime_type ?? media.mime ?? 'application/octet-stream').split(';')[0]!.trim();
+    const ext = EXT[mime] ?? (media.filename ? path.extname(media.filename) : '') ?? '';
+    const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 32);
+    const relativa = path.posix.join(organizationId, 'wa', hash.slice(0, 2), hash + ext);
+    const destino = rutaPrivada(relativa);
+    await fs.promises.mkdir(path.dirname(destino), { recursive: true });
+    await fs.promises.writeFile(destino, buf);
+    await prisma.waMessage.update({
+      where: { id: m.id },
+      data: { media: { ...media, mime, path: relativa, bytes: buf.length, error: null } as never },
+    });
+    logLine(`wa: media guardado ${m.id} (${mime}, ${buf.length} bytes)`);
+  } catch (err) {
+    const detalle = redactarSecretos(err instanceof Error ? err.message : String(err));
+    await prisma.waMessage.update({ where: { id: m.id }, data: { media: { ...media, error: detalle.slice(0, 300) } as never } });
+    logError('wa: no se pudo descargar media', m.id, detalle);
+  }
 }
 
 /** Estados de entrega de lo que enviamos nosotros. */
@@ -623,14 +691,16 @@ function interpretar(m: MensajeEntrante): {
       };
     case 'audio':
       return { texto: undefined, tipo, media: { id: m.audio?.id, mime: m.audio?.mime_type } };
+    case 'sticker':
+      return { texto: undefined, tipo, media: { id: m.sticker?.id, mime: m.sticker?.mime_type ?? 'image/webp', animated: m.sticker?.animated ?? false } };
     case 'location':
       return {
-        texto: m.location?.name,
+        texto: m.location?.name ?? m.location?.address,
         tipo,
         media: { lat: m.location?.latitude, lng: m.location?.longitude },
       };
     default:
-      // Sticker, contacto, reacción... El asesor ve que llegó algo y lo abre en el móvil.
+      // Contacto, reacción... El asesor ve que llegó algo y lo abre en el móvil.
       return { texto: undefined, tipo: 'unsupported', media: null };
   }
 }

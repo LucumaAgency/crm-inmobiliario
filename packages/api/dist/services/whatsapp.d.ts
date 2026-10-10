@@ -52,10 +52,16 @@ interface MensajeEntrante {
         mime_type?: string;
         caption?: string;
     };
+    sticker?: {
+        id?: string;
+        mime_type?: string;
+        animated?: boolean;
+    };
     location?: {
         latitude?: number;
         longitude?: number;
         name?: string;
+        address?: string;
     };
     /** Solo en los chats abiertos desde un anuncio Click-to-WhatsApp. */
     referral?: {
@@ -85,6 +91,16 @@ interface EstadoMensaje {
  * antes de responder 200 es lo que garantiza que no se pierde si el proceso muere.
  */
 export declare function recibirMensajes(valor: ValorMensajes): Promise<void>;
+/**
+ * Descarga el archivo de un mensaje entrante y lo guarda en privados/<org>/wa/.
+ *
+ * Meta no manda el archivo en el webhook, solo un id: hay que pedir la URL (vence a los
+ * minutos) y bajarla con el token del número. Hasta ahora el CRM solo anotaba «[image] se
+ * ve en el teléfono», y el asesor tenía que ir al celular a ver qué mandó el cliente.
+ * Lo que no se puede bajar (muy grande, URL vencida) queda marcado con `media.error` y
+ * la ficha vuelve al aviso de antes.
+ */
+export declare function descargarMedia(messageId: string): Promise<void>;
 export interface EnvioTexto {
     conversationId: string;
     userId: string;
@@ -112,17 +128,17 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    type: string;
-    waMessageId: string | null;
-    conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+    type: string;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
+    conversationId: string;
+    userId: string | null;
 }>;
 /**
  * Envía un PDF como documento. Solo dentro de la ventana de 24 h: fuera de ella haría
@@ -139,33 +155,33 @@ export declare function enviarDocumento(datos: {
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    type: string;
-    waMessageId: string | null;
-    conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+    type: string;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
+    conversationId: string;
+    userId: string | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    type: string;
-    waMessageId: string | null;
-    conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+    type: string;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     sentAt: Date | null;
+    conversationId: string;
+    userId: string | null;
 }>;
 /**
  * Envía de verdad. Lo llama la cola.

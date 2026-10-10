@@ -368,6 +368,14 @@ export default async function leadRoutes(app) {
         });
         if (!conversacion)
             return { conversacion: null, ventanaAbierta: false };
+        // Mensajes con archivo que aún no se bajó (anteriores a esta función o fallidos por
+        // red): se vuelve a intentar al abrir la ficha, de a pocos.
+        const pendientes = conversacion.messages.filter((m) => {
+            const md = m.media;
+            return md?.id && !md.path && !md.error;
+        }).slice(-10);
+        for (const m of pendientes)
+            await enqueue('wa.media.fetch', { messageId: m.id });
         if (conversacion.unread > 0) {
             await prisma.waConversation.update({ where: { id: conversacion.id }, data: { unread: 0 } });
         }
@@ -375,6 +383,30 @@ export default async function leadRoutes(app) {
             conversacion: { ...conversacion, unread: 0 },
             ventanaAbierta: ventanaAbierta(conversacion),
         };
+    });
+    /** Archivo de un mensaje (imagen, audio, sticker, documento), solo para quien puede ver el lead. */
+    app.get('/whatsapp/media/:id', async (req, reply) => {
+        const user = req.user;
+        const m = await prisma.waMessage.findUnique({
+            where: { id: req.params.id },
+            include: { conversation: { select: { organizationId: true, contactId: true } } },
+        });
+        if (!m || m.conversation.organizationId !== user.organizationId)
+            return reply.code(404).send({ error: 'No encontrado' });
+        const visible = await prisma.lead.findFirst({ where: { contactId: m.conversation.contactId, ...scopeForUser(user) }, select: { id: true } });
+        if (!visible)
+            return reply.code(404).send({ error: 'No encontrado' });
+        const media = (m.media ?? {});
+        if (!media.path)
+            return reply.code(404).send({ error: 'Archivo no descargado' });
+        const ruta = rutaPrivada(media.path);
+        if (!fs.existsSync(ruta))
+            return reply.code(404).send({ error: 'Archivo no está en el servidor' });
+        reply.header('Content-Type', media.mime ?? 'application/octet-stream');
+        reply.header('Cache-Control', 'private, max-age=86400');
+        if (media.filename)
+            reply.header('Content-Disposition', `inline; filename="${media.filename.replace(/"/g, '')}"`);
+        return reply.send(fs.createReadStream(ruta));
     });
     /** Enviar. Texto dentro de la ventana de 24 h, plantilla fuera de ella. */
     app.post('/:id/whatsapp', { preHandler: escritura }, async (req, reply) => {
