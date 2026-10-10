@@ -286,7 +286,7 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
             </select>
             <p className="meta" style={{ marginTop: 8 }}>
               <strong>Descuento máximo</strong> es el tope (%) que ese usuario puede ofrecer en una
-              proforma. Vacío = usa el de la organización (Embudo → Descuentos). Los precios de lista
+              cotización. Vacío = usa el de la organización (Embudo → Descuentos). Los precios de lista
               solo los cambian gerentes y administradores, y cada cambio queda en el registro.
             </p>
             <p className="meta" style={{ marginTop: 8 }}>

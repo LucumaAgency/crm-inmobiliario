@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { usePuede } from '../lib/permisos.js';
+import { useEtiquetas } from '../lib/vertical.js';
 import Icono from '../components/Icono.js';
 import Kpi from '../components/Kpi.js';
 
@@ -144,6 +145,8 @@ function Fila({
  */
 export default function Seguimientos({ rol: _rol }: { rol: string }) {
   const puede = usePuede();
+  const L = useEtiquetas();
+  TIPOS.visita = L.visita;
   const gestiona = puede('leads.ver_todos');
   const puedeEditar = puede('leads.editar');
   const [vista, setVista] = useState<'mios' | 'equipo'>(!puedeEditar && gestiona ? 'equipo' : 'mios');
@@ -241,7 +244,7 @@ export default function Seguimientos({ rol: _rol }: { rol: string }) {
         </>
       )}
       <p className="meta" style={{ textAlign: 'center' }}>
-        Registrar una llamada, WhatsApp, correo o visita en la ficha del lead cierra solo sus seguimientos de hoy y los vencidos.
+        Registrar una llamada, WhatsApp, correo o {L.visita.toLowerCase()} en la ficha del lead cierra solo sus seguimientos de hoy y los vencidos.
       </p>
     </>
   );

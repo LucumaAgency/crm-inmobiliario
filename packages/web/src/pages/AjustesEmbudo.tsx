@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import Icono from '../components/Icono.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 interface Ajustes {
   motivosPerdida: string[];
@@ -17,6 +18,7 @@ interface Ajustes {
  */
 export default function AjustesEmbudo() {
   const qc = useQueryClient();
+  const L = useEtiquetas();
   const ajustes = useQuery({ queryKey: ['ajustes'], queryFn: () => api.get<Ajustes>('/ajustes') });
   const guardar = useMutation({
     mutationFn: (cambios: Partial<Ajustes>) => api.patch('/ajustes', cambios),
@@ -137,10 +139,10 @@ export default function AjustesEmbudo() {
       </div>
 
       <div className="card">
-        <strong>Proformas</strong>
+        <strong>{L.documentos}</strong>
         <p className="meta" style={{ marginTop: 6 }}>
-          Validez y nota legal al pie de cada proforma. Los datos de la inmobiliaria (razón social,
-          RUC, logo) van en cada proyecto, pestaña «Datos para proformas».
+          Validez y nota legal al pie de cada {L.documento.toLowerCase()}. Los datos de quien emite (razón social,
+          RUC, logo) van en cada {L.proyecto.toLowerCase()}, pestaña «Datos para {L.documentos.toLowerCase()}».
         </p>
         <div className="rejilla-2">
           <div>
@@ -170,7 +172,7 @@ export default function AjustesEmbudo() {
       <div className="card">
         <strong>Descuentos</strong>
         <p className="meta" style={{ marginTop: 6 }}>
-          Tope de descuento (%) que un asesor puede ofrecer en una proforma si no tiene uno
+          Tope de descuento (%) que un asesor puede ofrecer en una {L.documento.toLowerCase()} si no tiene uno
           propio en Usuarios. Vacío = sin tope. Los precios de lista los cambia solo gerencia,
           y cada cambio queda en el registro de auditoría.
         </p>

@@ -1,4 +1,4 @@
-import { activityInput, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
+import { activityInput, etiquetas, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -245,7 +245,8 @@ export default async function leadRoutes(app) {
         if (!fs.existsSync(ruta))
             return reply.code(404).send({ error: 'El PDF ya no está en el servidor' });
         reply.header('Content-Type', 'application/pdf');
-        reply.header('Content-Disposition', `${req.query && req.query.descargar ? 'attachment' : 'inline'}; filename="Proforma ${p.number}.pdf"`);
+        const nombreDoc = etiquetas((await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { vertical: true } }))?.vertical).documento;
+        reply.header('Content-Disposition', `${req.query && req.query.descargar ? 'attachment' : 'inline'}; filename="${nombreDoc} ${p.number}.pdf"`);
         return reply.send(fs.createReadStream(ruta));
     });
     app.post('/proformas/:id/email', { preHandler: escritura }, async (req, reply) => {
@@ -260,7 +261,11 @@ export default async function leadRoutes(app) {
         if (!to)
             return reply.code(400).send({ error: 'El lead no tiene correo: escríbelo o indícalo aquí' });
         const agent = p.agent;
+        const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { vertical: true } });
+        const L = etiquetas(org?.vertical);
         const correo = proformaEmail({
+            docName: L.documento,
+            projectLabel: L.proyecto,
             clientName: p.client.name,
             projectName: p.lead.project?.name ?? '',
             number: p.number,
@@ -275,11 +280,11 @@ export default async function leadRoutes(app) {
             fromName: `${agent.name} · ${p.lead.project?.legalName ?? p.lead.project?.name ?? ''}`.trim(),
             replyTo: agent.email || undefined,
             bcc: agent.email || undefined,
-            attachments: [{ filename: `Proforma ${p.number}.pdf`, path: rutaPdf(p.pdfPath), contentType: 'application/pdf' }],
+            attachments: [{ filename: `${L.documento} ${p.number}.pdf`, path: rutaPdf(p.pdfPath), contentType: 'application/pdf' }],
         });
         await prisma.proforma.update({ where: { id: p.id }, data: { emailSentAt: new Date(), emailTo: to } });
         await prisma.activity.create({
-            data: { leadId: p.leadId, userId: user.id, type: 'email', body: `Proforma ${p.number} enviada por correo a ${to}`, meta: { proformaId: p.id } },
+            data: { leadId: p.leadId, userId: user.id, type: 'email', body: `${L.documento} ${p.number} enviada por correo a ${to}`, meta: { proformaId: p.id } },
         });
         await prisma.lead.update({ where: { id: p.leadId }, data: { lastActivityAt: new Date() } });
         return { ok: true, to };
@@ -295,13 +300,14 @@ export default async function leadRoutes(app) {
         });
         if (!conversacion)
             return reply.code(409).send({ error: 'Este lead no tiene conversación de WhatsApp con el número del CRM' });
+        const docNombre = etiquetas((await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { vertical: true } }))?.vertical).documento;
         try {
             await enviarDocumento({
                 conversationId: conversacion.id,
                 userId: user.id,
                 rutaAbsoluta: rutaPdf(p.pdfPath),
-                filename: `Proforma ${p.number}.pdf`,
-                caption: `Proforma ${p.number} · ${p.lead.project?.name ?? ''} · ${moneda(Number(p.finalTotal), p.currency)}`,
+                filename: `${docNombre} ${p.number}.pdf`,
+                caption: `${docNombre} ${p.number} · ${p.lead.project?.name ?? ''} · ${moneda(Number(p.finalTotal), p.currency)}`,
             });
         }
         catch (e) {
@@ -310,7 +316,7 @@ export default async function leadRoutes(app) {
         }
         await prisma.proforma.update({ where: { id: p.id }, data: { whatsappSentAt: new Date() } });
         await prisma.activity.create({
-            data: { leadId: p.leadId, userId: user.id, type: 'whatsapp', body: `Proforma ${p.number} enviada por WhatsApp`, meta: { proformaId: p.id } },
+            data: { leadId: p.leadId, userId: user.id, type: 'whatsapp', body: `${docNombre} ${p.number} enviada por WhatsApp`, meta: { proformaId: p.id } },
         });
         return { ok: true };
     });

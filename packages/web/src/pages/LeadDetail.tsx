@@ -42,6 +42,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const soloLectura = !puede('leads.editar');
   const L = useEtiquetas();
   const vertical = useVertical();
+  const nombreTipo = (t: string) => (t === 'visita' ? L.visita.toLowerCase() : t);
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<(typeof TIPOS)[number]>('llamada');
   const [body, setBody] = useState('');
@@ -359,7 +360,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
               <div>
                 <label>Agendar</label>
                 <select value={segTipo} onChange={(e) => setSegTipo(e.target.value as typeof segTipo)}>
-                  {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{nombreTipo(t)}</option>)}
                 </select>
               </div>
               <div>
@@ -381,7 +382,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           <strong>Registrar actividad</strong>
           <label>Qué pasó</label>
           <select value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>
-            {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {TIPOS.map((t) => <option key={t} value={t}>{nombreTipo(t)}</option>)}
           </select>
           <label>Detalle</label>
           <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Qué se conversó" />
@@ -393,12 +394,12 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             <div>
               <label>Tipo</label>
               <select value={nextType} onChange={(e) => setNextType(e.target.value as typeof nextType)}>
-                {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{t}</option>)}
+                {TIPOS_SEGUIMIENTO.map((t) => <option key={t} value={t}>{nombreTipo(t)}</option>)}
               </select>
             </div>
           </div>
           <p className="meta" style={{ marginTop: 6 }}>
-            Registrar una llamada, WhatsApp, correo o visita cierra los seguimientos de hoy y los
+            Registrar una llamada, WhatsApp, correo o {L.visita.toLowerCase()} cierra los seguimientos de hoy y los
             vencidos de este lead. Agenda siempre el siguiente paso.
           </p>
           <button

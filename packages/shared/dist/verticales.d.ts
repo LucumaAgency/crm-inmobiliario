@@ -29,6 +29,8 @@ export interface Etiquetas {
     /** Placeholder del nombre de un proyecto nuevo. */
     ejemploProyecto: string;
     ejemploUnidad: string;
+    /** Actividad presencial: Visita (a caseta) / Reunión. */
+    visita: string;
 }
 export declare const ETIQUETAS: Record<Vertical, Etiquetas>;
 export declare function esVertical(x: string): x is Vertical;

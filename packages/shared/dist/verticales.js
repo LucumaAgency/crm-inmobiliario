@@ -14,6 +14,7 @@ export const ETIQUETAS = {
         usaStock: true,
         ejemploProyecto: 'Edificio Domus',
         ejemploUnidad: '601',
+        visita: 'Visita',
     },
     agencia: {
         vertical: 'Agencia',
@@ -29,6 +30,7 @@ export const ETIQUETAS = {
         usaStock: false,
         ejemploProyecto: 'Posicionamiento SEO',
         ejemploUnidad: 'Crecimiento',
+        visita: 'Reunión',
     },
 };
 export function esVertical(x) {

@@ -21,6 +21,8 @@ export declare function proformaEmail(d: {
     agentPhone: string | null;
     validUntil: string;
     finalTotal: string;
+    docName?: string;
+    projectLabel?: string;
 }): {
     subject: string;
     html: string;

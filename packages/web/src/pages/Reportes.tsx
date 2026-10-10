@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { useEtiquetas } from '../lib/vertical.js';
 import Icono from '../components/Icono.js';
 import { KpiContenido } from '../components/Kpi.js';
 import MatrizPuntos from '../components/MatrizPuntos.js';
@@ -50,6 +51,7 @@ function Barras({
 }
 
 export default function Reportes() {
+  const L = useEtiquetas();
   const [dias, setDias] = useState(30);
   const [proyecto, setProyecto] = useState('');
   const [metrica, setMetrica] = useState<Metrica>('leads');
@@ -94,8 +96,8 @@ export default function Reportes() {
         <span className="empuja" />
         <label className="control" style={{ margin: 0 }}>
           <Icono nombre="carpeta" tam={15} />
-          <select value={proyecto} onChange={(e) => setProyecto(e.target.value)} aria-label="Proyecto">
-            <option value="">Todos los proyectos</option>
+          <select value={proyecto} onChange={(e) => setProyecto(e.target.value)} aria-label={L.proyecto}>
+            <option value="">Todos los {L.proyectos.toLowerCase()}</option>
             {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <Icono nombre="abajo" tam={14} />
@@ -244,7 +246,7 @@ export default function Reportes() {
 
       <section className="panel" style={{ marginTop: 16 }}>
         <div className="panel-cab">
-          <h2 className="titulo-panel">Leads por proyecto</h2>
+          <h2 className="titulo-panel">Leads por {L.proyecto.toLowerCase()}</h2>
         </div>
         <div className="panel-cuerpo">
           <Barras

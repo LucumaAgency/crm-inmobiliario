@@ -63,7 +63,7 @@ export default function Login() {
         <p className="meta" style={{ marginTop: 0 }}>
           {tenant.data?.tenant
             ? `CRM de ${tenant.data.tenant.name}`
-            : 'Gestión comercial inmobiliaria'}
+            : 'Gestión comercial'}
         </p>
 
         <form onSubmit={modo === 'password' ? entrar : pedirEnlace}>

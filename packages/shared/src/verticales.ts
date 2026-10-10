@@ -31,6 +31,8 @@ export interface Etiquetas {
   /** Placeholder del nombre de un proyecto nuevo. */
   ejemploProyecto: string;
   ejemploUnidad: string;
+  /** Actividad presencial: Visita (a caseta) / Reunión. */
+  visita: string;
 }
 
 export const ETIQUETAS: Record<Vertical, Etiquetas> = {
@@ -48,6 +50,7 @@ export const ETIQUETAS: Record<Vertical, Etiquetas> = {
     usaStock: true,
     ejemploProyecto: 'Edificio Domus',
     ejemploUnidad: '601',
+    visita: 'Visita',
   },
   agencia: {
     vertical: 'Agencia',
@@ -63,6 +66,7 @@ export const ETIQUETAS: Record<Vertical, Etiquetas> = {
     usaStock: false,
     ejemploProyecto: 'Posicionamiento SEO',
     ejemploUnidad: 'Crecimiento',
+    visita: 'Reunión',
   },
 };
 

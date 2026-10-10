@@ -58,14 +58,17 @@ function direccionDe(from: string) {
   return m ? m[1]! : from;
 }
 
-export function proformaEmail(d: { clientName: string; projectName: string; number: string; agentName: string; agentPhone: string | null; validUntil: string; finalTotal: string }) {
+export function proformaEmail(d: { clientName: string; projectName: string; number: string; agentName: string; agentPhone: string | null; validUntil: string; finalTotal: string; docName?: string; projectLabel?: string }) {
+  const doc = (d.docName ?? 'Proforma');
+  const docMin = doc.toLowerCase();
+  const proyecto = (d.projectLabel ?? 'proyecto').toLowerCase();
   return {
-    subject: `Proforma ${d.number} · ${d.projectName}`,
+    subject: `${doc} ${d.number} · ${d.projectName}`,
     html: `<p>Hola ${escapeHtml(d.clientName)},</p>
-<p>Te comparto la proforma <strong>${escapeHtml(d.number)}</strong> del proyecto <strong>${escapeHtml(d.projectName)}</strong>, por un precio final de <strong>${escapeHtml(d.finalTotal)}</strong>. Va adjunta en PDF.</p>
+<p>Te comparto la ${docMin} <strong>${escapeHtml(d.number)}</strong> del ${proyecto} <strong>${escapeHtml(d.projectName)}</strong>, por un precio final de <strong>${escapeHtml(d.finalTotal)}</strong>. Va adjunta en PDF.</p>
 <p>Tiene validez hasta el ${escapeHtml(d.validUntil)}. Si tienes dudas o quieres coordinar una visita, respóndeme por este correo${d.agentPhone ? ` o escríbeme al ${escapeHtml(d.agentPhone)}` : ''}.</p>
 <p>Saludos,<br>${escapeHtml(d.agentName)}</p>`,
-    text: `Hola ${d.clientName}, te comparto la proforma ${d.number} del proyecto ${d.projectName} (precio final ${d.finalTotal}), adjunta en PDF. Validez hasta el ${d.validUntil}. Saludos, ${d.agentName}${d.agentPhone ? ` · ${d.agentPhone}` : ''}`,
+    text: `Hola ${d.clientName}, te comparto la ${docMin} ${d.number} del ${proyecto} ${d.projectName} (precio final ${d.finalTotal}), adjunta en PDF. Validez hasta el ${d.validUntil}. Saludos, ${d.agentName}${d.agentPhone ? ` · ${d.agentPhone}` : ''}`,
   };
 }
 

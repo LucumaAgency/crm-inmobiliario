@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FormField, FormSchema } from '@lucuma-crm/shared';
 import { api } from '../lib/api.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 /**
  * Constructor de formularios.
@@ -19,8 +20,8 @@ const SEMANTICOS = [
   ['phone', 'Teléfono'],
   ['document', 'Documento'],
   ['message', 'Mensaje'],
-  ['unit_interest', 'Unidad de interés'],
-  ['project_interest', 'Proyecto de interés'],
+  ['unit_interest', '{unidad} de interés'],
+  ['project_interest', '{proyecto} de interés'],
   ['custom', 'Personalizado'],
 ] as const;
 
@@ -44,6 +45,8 @@ const VACIO: FormSchema = {
 };
 
 export default function FormularioEditor() {
+  const L = useEtiquetas();
+  const etiquetaCampo = (t: string) => t.replace('{unidad}', L.unidad).replace('{proyecto}', L.proyecto);
   const { id } = useParams();
   const nuevo = id === 'nuevo';
   const navigate = useNavigate();
@@ -114,9 +117,9 @@ export default function FormularioEditor() {
         <label>Nombre del formulario</label>
         <input value={schema.name} onChange={(e) => setSchema({ ...schema, name: e.target.value })} />
 
-        <label>Proyecto</label>
+        <label>{L.proyecto}</label>
         <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-          <option value="">Sin proyecto</option>
+          <option value="">Sin {L.proyecto.toLowerCase()}</option>
           {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
 
@@ -155,7 +158,7 @@ export default function FormularioEditor() {
               value={f.semantic}
               onChange={(e) => actualizarCampo(i, { semantic: e.target.value as FormField['semantic'] })}
             >
-              {SEMANTICOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {SEMANTICOS.map(([v, l]) => <option key={v} value={v}>{etiquetaCampo(l)}</option>)}
             </select>
 
             <label>Tipo de control</label>
@@ -168,8 +171,8 @@ export default function FormularioEditor() {
 
             {f.semantic === 'unit_interest' && (
               <p className="meta" style={{ marginTop: 8 }}>
-                Este campo se llena solo con las unidades disponibles del proyecto. No hay que
-                escribir las opciones a mano ni actualizarlas cuando se vende un departamento.
+                Este campo se llena solo con {L.unidades.toLowerCase()} disponibles del {L.proyecto.toLowerCase()}. No hay que
+                escribir las opciones a mano ni actualizarlas.
               </p>
             )}
 
