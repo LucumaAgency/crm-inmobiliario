@@ -29,16 +29,17 @@ export declare function topeDescuento(userId: string, organizationId: string): P
 export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     number: string;
     id: string;
-    organizationId: string;
-    leadId: string;
+    createdAt: Date;
     projectId: string;
-    createdById: string | null;
+    currency: string;
+    leadId: string;
+    organizationId: string;
     year: number;
+    createdById: string | null;
     seq: number;
     client: import("@prisma/client/runtime/library").JsonValue;
     agent: import("@prisma/client/runtime/library").JsonValue;
     items: import("@prisma/client/runtime/library").JsonValue;
-    currency: string;
     listTotal: import("@prisma/client/runtime/library").Decimal;
     discountPct: import("@prisma/client/runtime/library").Decimal;
     discountAmount: import("@prisma/client/runtime/library").Decimal;
@@ -50,7 +51,6 @@ export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     emailSentAt: Date | null;
     emailTo: string | null;
     whatsappSentAt: Date | null;
-    createdAt: Date;
 }>;
 export declare function moneda(n: number, currency: string): string;
 export declare function rutaPdf(pdfPath: string): string;

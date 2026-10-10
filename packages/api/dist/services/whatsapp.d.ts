@@ -110,15 +110,15 @@ export declare function ventanaAbierta(conv: {
  */
 export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    body: string | null;
     id: string;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     createdAt: Date;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
@@ -137,15 +137,15 @@ export declare function enviarDocumento(datos: {
     caption?: string;
 }): Promise<{
     error: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    body: string | null;
     id: string;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     createdAt: Date;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
@@ -153,15 +153,15 @@ export declare function enviarDocumento(datos: {
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    body: string | null;
     id: string;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
     createdAt: Date;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
