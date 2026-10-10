@@ -11,6 +11,7 @@ import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js'
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import type { ApiError } from '../lib/api.js';
 import { usePuede } from '../lib/permisos.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Detalle {
   id: string;
@@ -39,6 +40,8 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const { id } = useParams();
   const puede = usePuede();
   const soloLectura = !puede('leads.editar');
+  const L = useEtiquetas();
+  const vertical = useVertical();
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<(typeof TIPOS)[number]>('llamada');
   const [body, setBody] = useState('');
@@ -224,8 +227,9 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         {!edicion ? (
           <>
             <div className="meta" style={{ marginTop: 6 }}>
-              {lead.project?.name ?? 'Sin proyecto'}
-              {lead.unit && ` · Última consulta: unidad ${lead.unit.code} · ${lead.unit.bedrooms ?? '?'} dorm · ${lead.unit.areaM2 ?? '?'} m² · ${precio(lead.unit.price, lead.unit.currency)}`}
+              {lead.project?.name ?? `Sin ${L.proyecto.toLowerCase()}`}
+              {lead.unit && vertical === 'inmobiliaria' && ` · Última consulta: unidad ${lead.unit.code} · ${lead.unit.bedrooms ?? '?'} dorm · ${lead.unit.areaM2 ?? '?'} m² · ${precio(lead.unit.price, lead.unit.currency)}`}
+              {lead.unit && vertical !== 'inmobiliaria' && ` · Última consulta: ${lead.unit.code}`}
             </div>
             {(lead.typologyInterests.length > 0 || lead.unitInterests.length > 0) ? (
               <div className="interes-resumen">
@@ -239,9 +243,9 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
                   <span
                     key={u.unitId}
                     className={u.unit.status === 'disponible' ? 'chip chip-verde' : 'chip chip-gris'}
-                    title={u.unit.status === 'disponible' ? 'Unidad disponible' : `Unidad ${u.unit.status.replace('_', ' ')}`}
+                    title={u.unit.status === 'disponible' ? `${L.unidad} disponible` : `${L.unidad} ${u.unit.status.replace('_', ' ')}`}
                   >
-                    Unidad {u.unit.code}
+                    {vertical === 'inmobiliaria' ? `Unidad ${u.unit.code}` : `${u.unit.typologyRef?.name ?? ''} ${u.unit.code}`.trim()}
                     {u.unit.price && ` · ${precio(u.unit.price, u.unit.currency)}`}
                     {u.unit.status !== 'disponible' && ` · ${u.unit.status.replace('_', ' ')}`}
                   </span>
@@ -250,7 +254,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             ) : (
               lead.project && (
                 <p className="meta" style={{ marginTop: 6 }}>
-                  Sin tipologías ni unidades marcadas. Anota aquí lo que compara el cliente: es el
+                  {L.usaTipologias ? 'Sin tipologías ni unidades marcadas.' : 'Sin paquetes marcados.'} Anota aquí lo que compara el cliente: es el
                   insumo de la siguiente llamada.
                 </p>
               )
@@ -264,7 +268,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
               guardarInteres.mutate(edicion);
             }}
           >
-            <label>Proyecto</label>
+            <label>{L.proyecto}</label>
             <select
               value={edicion.projectId}
               onChange={(e) => {
@@ -273,12 +277,12 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
                 setEdicion(projectId === edicion.projectId ? edicion : { projectId, typologyIds: [], unitIds: [] });
               }}
             >
-              <option value="">Sin proyecto</option>
+              <option value="">Sin {L.proyecto.toLowerCase()}</option>
               {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             {edicion.projectId && edicion.projectId !== (lead.project?.id ?? '') && (
               <p className="meta" style={{ marginTop: 6 }}>
-                Al cambiar de proyecto se quitan las tipologías y unidades del anterior.
+                Al cambiar de {L.proyecto.toLowerCase()} se quitan {L.usaTipologias ? 'las tipologías y unidades' : 'los paquetes'} del anterior.
               </p>
             )}
             <SelectorInteres

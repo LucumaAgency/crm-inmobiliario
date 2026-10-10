@@ -1,0 +1,2316 @@
+[
+ {
+  "id": "posicionamiento-seo",
+  "orden": 1,
+  "bloque": 1,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 01",
+  "nombre": "Posicionamiento SEO",
+  "lede": "Aparecer cuando tu cliente busca lo que vendes. Es el servicio con el retorno más lento y el más duradero: lo que se construye no se apaga cuando dejas de pagar.",
+  "nota": "<b>Compromiso de 3 meses.</b> El SEO no muestra resultados antes y cobrar por un mes suelto sería venderte humo. Por encima de S/ 2.000 el plan se cotiza a medida: hemos llegado a S/ 5.000 al mes en proyectos con varias sedes.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Base",
+    "precio": "S/ 800",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Negocio local que compite en una ciudad y necesita empezar a existir en Google.",
+    "bloques": [
+     {
+      "grupo": "Contenido",
+      "items": [
+       "5 blogs al mes con intención comercial"
+      ]
+     },
+     {
+      "grupo": "Trabajo mensual",
+      "items": [
+       "Perfil de Google optimizado y gestión de reseñas",
+       "Corrección de lo técnico que frena la indexación",
+       "Search Console y Analytics configurados a tu nombre"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte mensual de posiciones, clics y trabajo hecho"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Crecimiento",
+    "precio": "S/ 1.200",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "PYME que ya compite en su rubro y necesita ganar terreno mes a mes.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Base, con estos volúmenes:"
+     },
+     {
+      "grupo": "Contenido",
+      "items": [
+       "10 blogs al mes",
+       "3 landings al mes, por servicio o por zona"
+      ]
+     },
+     {
+      "grupo": "Trabajo mensual",
+      "items": [
+       "Estrategia de keywords por servicio, no por intuición",
+       "Optimización on-page de las páginas que ya tienen impresiones",
+       "Enlazado interno hacia las páginas que venden"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Google Tag Manager instalado y ordenado",
+       "Eventos de conversión: WhatsApp, teléfono y formulario"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Auditoría técnica trimestral",
+       "Seguimiento de competencia directa"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Competitivo",
+    "precio": "S/ 2.000",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Empresa con varios servicios o varias sedes que pelea keywords disputadas.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Crecimiento, con estos volúmenes:"
+     },
+     {
+      "grupo": "Contenido",
+      "items": [
+       "20 blogs al mes",
+       "5 landings al mes"
+      ]
+     },
+     {
+      "grupo": "Trabajo mensual",
+      "items": [
+       "Trabajo de autoridad: menciones y enlaces",
+       "SEO técnico continuo, no solo trimestral"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Reporte para gerencia con costo por lead orgánico"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "google-ads",
+  "orden": 2,
+  "bloque": 1,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 02",
+  "nombre": "Google Ads",
+  "lede": "Capturar la demanda que ya existe. Alguien está buscando tu servicio ahora mismo: el trabajo es estar ahí y que el clic no se desperdicie.",
+  "nota": "<b>La inversión publicitaria va aparte</b> y se paga directo a Google. Estos precios son la gestión. Si el presupuesto de medios no alcanza para generar datos suficientes, te lo decimos antes de empezar.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Arranque",
+    "precio": "S/ 600",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Un solo servicio o una sola zona, para validar si el canal funciona antes de escalar.",
+    "bloques": [
+     {
+      "grupo": "Campañas",
+      "items": [
+       "1 campaña de búsqueda",
+       "Investigación de keywords y de competencia",
+       "Keywords negativas para filtrar lo que no compra",
+       "Anuncios con precio y zona"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Conversiones configuradas: formulario, llamada y WhatsApp"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte mensual con costo por lead"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Gestión",
+    "precio": "S/ 1.200",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Varios servicios o varias zonas compitiendo por el mismo presupuesto.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Arranque, con estos volúmenes:"
+     },
+     {
+      "grupo": "Campañas",
+      "items": [
+       "Hasta 3 campañas separadas por servicio o zona",
+       "Optimización quincenal de pujas y anuncios",
+       "Extensiones y segmentación por ubicación"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "1 landing de destino incluida",
+       "Remarketing básico"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Multiproyecto",
+    "precio": "S/ 2.000",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Inmobiliarias y empresas con varias líneas que necesitan saber cuál rinde.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Gestión, con estos volúmenes:"
+     },
+     {
+      "grupo": "Campañas",
+      "items": [
+       "Campañas ilimitadas por proyecto o línea de negocio",
+       "Optimización semanal",
+       "Pruebas A/B de anuncios y de landing"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Medición hasta el CRM, con origen del lead registrado",
+       "Reporte para gerencia: costo por lead y por visita"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "meta-ads",
+  "orden": 3,
+  "bloque": 1,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 03",
+  "nombre": "Meta Ads",
+  "lede": "Generar demanda donde todavía no la hay. Instagram y Facebook interrumpen a alguien que estaba viendo otra cosa, así que el trabajo está en el mensaje y en la pieza.",
+  "nota": "<b>La inversión publicitaria va aparte.</b> Mismos precios que Google Ads: el trabajo de gestión es equivalente. En Meta el cuello de botella suele ser la pieza, no el presupuesto.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Arranque",
+    "precio": "S/ 600",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Primera campaña, para probar mensaje y público sin comprometer presupuesto grande.",
+    "bloques": [
+     {
+      "grupo": "Campañas",
+      "items": [
+       "1 campaña activa",
+       "Definición de públicos y segmentación",
+       "Hasta 4 piezas al mes"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Pixel instalado y eventos de conversión"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte mensual con costo por resultado"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Gestión",
+    "precio": "S/ 1.200",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Marca que necesita presencia sostenida y no solo campañas sueltas.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Arranque, con estos volúmenes:"
+     },
+     {
+      "grupo": "Campañas",
+      "items": [
+       "Hasta 3 campañas simultáneas",
+       "Hasta 10 piezas al mes",
+       "Públicos personalizados y similares",
+       "Remarketing a quien visitó la web"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Always on",
+    "precio": "S/ 2.000",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Presencia continua con embudo completo, de descubrimiento a conversión.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Gestión, con estos volúmenes:"
+     },
+     {
+      "grupo": "Campañas",
+      "items": [
+       "Embudo completo: reconocimiento, consideración y conversión",
+       "Hasta 20 piezas al mes, con variantes por público",
+       "Pruebas A/B continuas de creatividad y copy"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Catálogo conectado para e-commerce",
+       "Reporte de atribución cruzada con Google Ads"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "redes-sociales-y-contenido",
+  "orden": 4,
+  "bloque": 1,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 04",
+  "nombre": "Redes sociales y contenido",
+  "lede": "Producción, publicación y medición. No solo diseñar piezas: grabamos, publicamos, conseguimos colaboraciones y miramos qué funcionó para ajustar el mes siguiente.",
+  "nota": "<b>Los blogs no están aquí: viven en los planes de SEO.</b> Este servicio cubre redes sociales de punta a punta. La inversión de paid media y el pago a las creadoras van aparte del precio de gestión.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Base",
+    "precio": "S/ 1.500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Marca que necesita presencia constante y bien hecha, sin complicarse.",
+    "bloques": [
+     {
+      "grupo": "Estrategia",
+      "items": [
+       "Elaboración de brief de marca",
+       "Plan de acción para redes sociales",
+       "Grilla de contenido mensual",
+       "Línea gráfica alineada a la identidad de marca"
+      ]
+     },
+     {
+      "grupo": "Producción",
+      "items": [
+       "3 reels",
+       "1 reel bonus adaptado para TikTok",
+       "4 posts estáticos",
+       "8 historias",
+       "1 visita mensual para grabación"
+      ]
+     },
+     {
+      "grupo": "Gestión",
+      "items": [
+       "Publicación del contenido en todas las cuentas",
+       "Paid media: 1 campaña"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Análisis básico de métricas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Crecimiento",
+    "precio": "S/ 2.000",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Marca que ya publica y quiere sumar alcance con voces de fuera.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Base, con estos volúmenes:"
+     },
+     {
+      "grupo": "Producción",
+      "items": [
+       "5 reels",
+       "1 reel bonus adaptado para TikTok",
+       "4 posts estáticos, 1 por semana",
+       "8 historias",
+       "1 visita mensual para grabación"
+      ]
+     },
+     {
+      "grupo": "Alcance",
+      "items": [
+       "Colaboración con hasta 3 creadoras"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Análisis de métricas completo"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Integral",
+    "precio": "S/ 2.500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Marca que trata las redes como canal de venta y necesita volumen y optimización.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Crecimiento, con estos volúmenes:"
+     },
+     {
+      "grupo": "Estrategia",
+      "items": [
+       "Estrategia integral de redes sociales",
+       "Grilla y planificación de contenido"
+      ]
+     },
+     {
+      "grupo": "Producción",
+      "items": [
+       "8 reels",
+       "2 reels bonus adaptados para TikTok",
+       "5 posts estáticos, 1 por semana",
+       "12 historias, 4 por semana",
+       "2 visitas mensuales para grabación"
+      ]
+     },
+     {
+      "grupo": "Alcance",
+      "items": [
+       "Colaboración con hasta 5 creadoras"
+      ]
+     },
+     {
+      "grupo": "Medición",
+      "items": [
+       "Análisis de métricas y optimización"
+      ]
+     },
+     {
+      "grupo": "Gestión",
+      "items": [
+       "Paid media: hasta 2 campañas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "mantenimiento-web",
+  "orden": 5,
+  "bloque": 1,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 05",
+  "nombre": "Mantenimiento web",
+  "lede": "Que la web siga funcionando sin que tengas que pensar en ella. Es el servicio menos vistoso y el que evita los problemas más caros.",
+  "nota": "<b>El hosting y el dominio van aparte</b> y quedan siempre a tu nombre. Si prefieres que los gestionemos nosotros, se suma al plan como costo trasladado, sin margen.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Esencial",
+    "precio": "S/ 150",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Webs pequeñas que no cambian mucho y solo necesitan estar seguras y al día.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Actualizaciones de WordPress, plugins y plantilla",
+       "Respaldos semanales con restauración probada",
+       "Monitoreo de caída del sitio",
+       "Seguridad: firewall y revisión de accesos"
+      ]
+     },
+     {
+      "grupo": "Soporte",
+      "items": [
+       "Respuesta en 48 horas hábiles"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Activo",
+    "precio": "S/ 350",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Webs que cambian contenido a menudo: catálogos, proyectos, promociones.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Esencial, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Respaldos diarios",
+       "2 horas mensuales de cambios de contenido",
+       "Optimización de velocidad trimestral",
+       "Revisión de enlaces rotos"
+      ]
+     },
+     {
+      "grupo": "Soporte",
+      "items": [
+       "Respuesta en 24 horas hábiles"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Gestionado",
+    "precio": "S/ 700",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "E-commerce y sistemas a medida donde una caída cuesta ventas.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Activo, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "5 horas mensuales de cambios y mejoras",
+       "Entorno de pruebas antes de tocar producción",
+       "Monitoreo de rendimiento continuo",
+       "Informe mensual de estado técnico"
+      ]
+     },
+     {
+      "grupo": "Soporte",
+      "items": [
+       "Respuesta en 4 horas hábiles"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "desarrollo-web",
+  "orden": 6,
+  "bloque": 1,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 06",
+  "nombre": "Desarrollo web",
+  "lede": "Webs rápidas, medibles y pensadas para vender. El precio no lo define el diseño: lo definen cuántas páginas y funcionalidades tiene, y quién las va a actualizar después.",
+  "nota": "<b>Todos los paquetes salen medidos</b>: GA4 y Search Console configurados desde el día uno. Si necesitas un sistema propio o una tienda con reglas de negocio a medida, tienen servicio aparte en este catálogo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Landing",
+    "precio": "desde S/ 500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Una sola página para una campaña, un servicio o un lanzamiento.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Página única con secciones de venta",
+       "Formulario de contacto y WhatsApp",
+       "Diseño adaptado a móvil",
+       "Base técnica de SEO: títulos, velocidad, sitemap",
+       "Medición con GA4, Search Console y Tag Manager"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 a 2 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Web",
+    "precio": "desde S/ 1.000",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "La web de la empresa: servicios, casos, blog y captación.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Landing, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Varias páginas, una por servicio",
+       "Blog listo para publicar",
+       "Panel para que tu equipo edite sin código",
+       "Identidad aplicada y piezas gráficas",
+       "Schema y SEO técnico completo",
+       "Medición con GA4 y Search Console, con eventos de conversión"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "3 a 5 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "E-commerce",
+    "precio": "desde S/ 3.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Tienda en línea con catálogo, pasarela y gestión de pedidos.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Web, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Catálogo con buscador y filtros",
+       "Pasarela de pago peruana, Yape y Plin",
+       "Gestor de inventario y pedidos",
+       "Cupones y promociones",
+       "Costo de delivery personalizado por distrito",
+       "Medición con GA4, Search Console y Tag Manager",
+       "Capacitación al equipo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "5 a 8 semanas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "medicion-y-analitica",
+  "orden": 7,
+  "bloque": 1,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 07",
+  "nombre": "Medición y analítica",
+  "lede": "Saber qué funciona. Es el servicio más barato del catálogo y el que cambia todas las decisiones que vienen después: sin medición, cualquier otra inversión se evalúa a ciegas.",
+  "nota": "<b>Es el mejor primer servicio para un cliente nuevo.</b> Cuesta poco, se entrega rápido y casi siempre destapa problemas que justifican el resto del trabajo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Diagnóstico",
+    "precio": "S/ 600",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Ya tienes analítica instalada pero no confías en los números.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Auditoría de lo que está instalado y de lo que se está midiendo",
+       "Detección de conteo duplicado y de datos cruzados entre propiedades",
+       "Revisión de Search Console y de la propiedad correcta",
+       "Informe con hallazgos priorizados"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 semana"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Implementación",
+    "precio": "S/ 1.500",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Quieres medir de verdad: qué clics, qué formularios y de dónde vienen.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Diagnóstico, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Google Tag Manager instalado y ordenado",
+       "GA4 con eventos de WhatsApp, teléfono, correo y formulario",
+       "Páginas de gracias para medir envíos y reservas",
+       "Eventos clave marcados como conversión",
+       "Google Ads y Meta Pixel conectados"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 a 2 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Medición avanzada",
+    "precio": "S/ 2.800",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Necesitas conectar el marketing con las ventas reales, no con formularios enviados.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Implementación, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Medición por proyecto, sede o línea de negocio",
+       "Seguimiento del lead hasta el CRM, con campaña de origen",
+       "Mapas de calor y grabaciones de sesión",
+       "Panel de reportes para gerencia",
+       "Capacitación al equipo para leerlo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "3 a 4 semanas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "integracion-web-con-tu-crm",
+  "orden": 8,
+  "bloque": 1,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 08",
+  "nombre": "Integración web con tu CRM",
+  "lede": "Que el lead entre solo al CRM, asignado al asesor y con su origen registrado. Se acaba la transcripción a mano y el reporte de marketing por fin cuadra con el de ventas.",
+  "nota": "<b>Con Sperant la integración ya está desarrollada y probada en producción</b>, así que no se cobra un desarrollo desde cero. Integramos cualquier CRM con API: no te amarramos a ninguno.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Estándar",
+    "precio": "S/ 1.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Tu CRM tiene API documentada y solo hay que conectar el formulario.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Conexión por API entre el formulario y el CRM",
+       "Creación automática del lead con sus campos",
+       "Origen y campaña registrados",
+       "Pruebas en ambiente de prueba antes de producción"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 a 2 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Con asignación",
+    "precio": "S/ 1.800",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Varios asesores o varios proyectos que necesitan repartir los leads.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Estándar, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Asignación automática al asesor según proyecto o zona",
+       "Varios formularios y puntos de captación conectados",
+       "WhatsApp registrado como origen",
+       "Alertas de leads sin atender"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 a 3 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "A medida",
+    "precio": "desde S/ 3.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "CRM sin API pública, o lógica de negocio propia que hay que replicar.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Con asignación, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Desarrollo de la integración desde cero",
+       "Sincronización en dos direcciones si el CRM lo permite",
+       "Campos y estados personalizados",
+       "Documentación técnica y soporte ante cambios de la API"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "4 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "google-business-y-seo-local",
+  "orden": 9,
+  "bloque": 2,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 09",
+  "nombre": "Google Business y SEO local",
+  "lede": "Aparecer en el mapa cuando alguien busca cerca. Es el canal más rentable para un negocio con local, y el único que funciona incluso sin web.",
+  "nota": "<b>Se puede contratar sin web.</b> Es el único servicio del catálogo que funciona por sí solo para un negocio que todavía no tiene sitio propio, y suele ser la puerta de entrada a todo lo demás.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Ficha activa",
+    "precio": "S/ 350",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Negocio con local que tiene la ficha abandonada o mal cargada.",
+    "bloques": [
+     {
+      "grupo": "Ficha",
+      "items": [
+       "Categorías, servicios y atributos cargados uno a uno",
+       "Descripción y horarios optimizados",
+       "Fotos ordenadas y subidas cada mes"
+      ]
+     },
+     {
+      "grupo": "Reseñas",
+      "items": [
+       "Sistema para pedir reseñas a tus clientes",
+       "Respuesta a todas las reseñas"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte mensual de llamadas, rutas y clics a la web"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Local",
+    "precio": "S/ 600",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Negocio que compite por búsquedas de su distrito y alrededores.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Ficha activa, y además:"
+     },
+     {
+      "grupo": "Ficha",
+      "items": [
+       "4 publicaciones al mes en la ficha",
+       "Preguntas y respuestas propias"
+      ]
+     },
+     {
+      "grupo": "Web",
+      "items": [
+       "Datos de negocio coherentes entre web y ficha",
+       "Schema de negocio local"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Alta en directorios relevantes de tu rubro"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Multisede",
+    "precio": "S/ 900",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Varias sedes o varias zonas de servicio que compiten entre sí.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Local, y además:"
+     },
+     {
+      "grupo": "Ficha",
+      "items": [
+       "Gestión de todas las fichas, una por sede",
+       "Publicaciones diferenciadas por sede"
+      ]
+     },
+     {
+      "grupo": "Web",
+      "items": [
+       "Página de ubicación por sede"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Reporte comparativo entre sedes"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "email-marketing-y-automatizacion",
+  "orden": 10,
+  "bloque": 2,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 10",
+  "nombre": "Email marketing y automatización",
+  "lede": "Hablarle a quien ya te dejó su correo. Es el canal más barato que existe porque la audiencia ya es tuya y no hay que pagar por alcanzarla.",
+  "nota": "<b>La herramienta va aparte.</b> Trabajamos sobre Brevo, Mailchimp o la que ya uses. La cuenta queda a tu nombre y la base de contactos es tuya, siempre.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Campañas",
+    "precio": "S/ 500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Tienes una base de contactos y no le escribes nunca.",
+    "bloques": [
+     {
+      "grupo": "Envíos",
+      "items": [
+       "2 campañas al mes",
+       "Diseño de plantilla con tu identidad",
+       "Segmentación básica de la lista"
+      ]
+     },
+     {
+      "grupo": "Técnico",
+      "items": [
+       "Dominio verificado para que no caigas en spam"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte de aperturas, clics y bajas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Automatización",
+    "precio": "S/ 900",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Quieres que el correo trabaje solo mientras tú haces otra cosa.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Campañas, y además:"
+     },
+     {
+      "grupo": "Envíos",
+      "items": [
+       "4 campañas al mes"
+      ]
+     },
+     {
+      "grupo": "Automatizaciones",
+      "items": [
+       "Bienvenida para nuevos suscriptores",
+       "Recuperación de carrito o de cotización abandonada",
+       "Seguimiento posterior a la compra o a la reunión"
+      ]
+     },
+     {
+      "grupo": "Captación",
+      "items": [
+       "Formulario de captación en la web"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Ciclo completo",
+    "precio": "S/ 1.500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Base grande, varios productos o un ciclo de venta largo.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Automatización, y además:"
+     },
+     {
+      "grupo": "Envíos",
+      "items": [
+       "8 campañas al mes, segmentadas por comportamiento"
+      ]
+     },
+     {
+      "grupo": "Automatizaciones",
+      "items": [
+       "Secuencias por segmento y por etapa",
+       "Puntuación de contactos según interacción"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Pruebas A/B de asunto y contenido",
+       "Sincronización con tu CRM"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "branding",
+  "orden": 11,
+  "bloque": 2,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 11",
+  "nombre": "Branding",
+  "lede": "Cómo se ve y cómo suena tu marca, definido de una vez para que todo lo demás sea coherente. Sin esto, cada pieza que se produce parte de cero.",
+  "nota": "<b>El branding rinde cuando se aplica.</b> Un manual que nadie usa es dinero perdido, así que los tres paquetes incluyen las plantillas para que tu equipo produzca sin volver a nosotros.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Identidad esencial",
+    "precio": "S/ 1.800",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Marca nueva o marca que solo necesita ordenar lo visual.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Logotipo e isotipo con sus variantes",
+       "Paleta de color y tipografías",
+       "Manual básico de uso, 10 a 15 páginas",
+       "Archivos editables y para web"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 a 3 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Marca completa",
+    "precio": "S/ 3.500",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Marca que necesita además saber qué decir y a quién.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Identidad esencial, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Territorio de marca: propuesta de valor y tono de voz",
+       "Manual extendido con aplicaciones reales",
+       "Papelería y plantillas de documento",
+       "Kit de redes: portadas, marcos y plantillas de publicación"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "4 a 6 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Sistema de marca",
+    "precio": "S/ 6.500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Empresa con varias líneas, sedes o submarcas que hay que ordenar.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Marca completa, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Arquitectura de marca y submarcas",
+       "Naming de líneas o productos",
+       "Sistema gráfico con texturas e ilustración propia",
+       "Aplicación en señalética, vehículos o packaging",
+       "Capacitación al equipo para usarlo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "6 a 10 semanas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "produccion-audiovisual",
+  "orden": 12,
+  "bloque": 2,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 12",
+  "nombre": "Producción audiovisual",
+  "lede": "Video y fotografía propios. Material que sirve para la web, para las redes y para las campañas, grabado una vez y usado durante meses.",
+  "nota": "<b>Actores, locaciones y licencias de música se cotizan aparte.</b> Los paquetes cubren equipo, dirección, grabación y edición. Si el proyecto los necesita, se presupuestan antes de empezar.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Sesión",
+    "precio": "S/ 1.200",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Necesitas material base: producto, equipo o local.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Media jornada de grabación en tu local",
+       "30 fotografías editadas",
+       "2 videos cortos verticales",
+       "Entrega en formatos para web y redes"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 semana desde la grabación"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Producción",
+    "precio": "S/ 2.800",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Una pieza con guion: presentación de empresa, servicio o proyecto.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Sesión, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Jornada completa de grabación",
+       "Guion y dirección",
+       "1 video principal de 60 a 90 segundos",
+       "6 videos cortos derivados",
+       "60 fotografías editadas",
+       "Locución y musicalización"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 a 3 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Campaña",
+    "precio": "S/ 5.500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Lanzamiento que necesita varias piezas coordinadas.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Producción, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "2 jornadas de grabación, en locación si hace falta",
+       "3 videos principales con variantes por público",
+       "15 videos cortos para pauta",
+       "Animación y motion graphics",
+       "Versiones adaptadas a cada formato de anuncio"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "4 a 6 semanas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "desarrollos-wordpress-a-medida",
+  "orden": 13,
+  "bloque": 2,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 13",
+  "nombre": "Desarrollos WordPress a medida",
+  "lede": "Lo que tu web necesita y no existe como plugin. Funcionalidad hecha para tu caso, no un plugin genérico con veinte opciones que no usas.",
+  "nota": "<b>El código es tuyo.</b> Se entrega con su repositorio y su documentación, sin licencias ni dependencias que te aten a nosotros para poder seguir usándolo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Ajuste",
+    "precio": "S/ 900",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Algo puntual: un formulario especial, un filtro, una automatización pequeña.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Desarrollo de una funcionalidad concreta",
+       "Compatible con tu plantilla y tus plugins actuales",
+       "Probado en entorno de pruebas antes de producción",
+       "30 días de garantía sobre el desarrollo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 a 2 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Plugin propio",
+    "precio": "S/ 3.000",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Una funcionalidad completa con su panel de administración.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Ajuste, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Plugin propio, instalable y actualizable",
+       "Panel de configuración para tu equipo",
+       "Integración con WooCommerce si hace falta",
+       "Documentación de uso",
+       "90 días de garantía"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "3 a 5 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Sistema",
+    "precio": "desde S/ 7.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Lógica de negocio completa: inventarios, reservas, catálogos con reglas propias.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Plugin propio, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Varios módulos trabajando juntos",
+       "Roles y permisos por tipo de usuario",
+       "Integración con servicios externos por API",
+       "Reportes propios dentro del panel",
+       "Capacitación al equipo y soporte de lanzamiento"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "6 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "white-label-wordpress",
+  "orden": 14,
+  "bloque": 2,
+  "modalidad": "agencia",
+  "eyebrow": "Para agencias 14",
+  "nombre": "White label WordPress",
+  "lede": "Desarrollamos bajo tu marca. Tú mantienes la relación con el cliente y nosotros ponemos el equipo técnico, sin aparecer en ninguna parte.",
+  "nota": "<b>Precios para agencias, por debajo del catálogo público.</b> A cambio pedimos volumen o continuidad: el descuento se sostiene porque no hay costo comercial de por medio.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Landing",
+    "precio": "S/ 700",
+    "unidad": "por web",
+    "destacado": false,
+    "para_quien": "Páginas sueltas para campañas de tus clientes.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Página única maquetada desde tu diseño",
+       "Adaptada a móvil y optimizada en velocidad",
+       "Entrega en tu hosting o en el del cliente",
+       "Sin marca nuestra en ninguna parte"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 semana"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Corporativa",
+    "precio": "S/ 2.500",
+    "unidad": "por web",
+    "destacado": true,
+    "para_quien": "El grueso del trabajo: webs de empresa para tu cartera.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Landing, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Hasta 8 páginas",
+       "Panel para que el cliente edite",
+       "SEO técnico de base",
+       "Revisiones incluidas hasta la aprobación"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "3 a 4 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Compleja",
+    "precio": "desde S/ 5.000",
+    "unidad": "por web",
+    "destacado": false,
+    "para_quien": "E-commerce, catálogos con filtros o desarrollos con lógica propia.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Corporativa, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Tienda o catálogo con reglas de negocio",
+       "Desarrollos a medida",
+       "Migraciones desde otras plataformas",
+       "Soporte técnico durante el lanzamiento"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "5 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "white-label-marketing",
+  "orden": 15,
+  "bloque": 2,
+  "modalidad": "agencia",
+  "eyebrow": "Para agencias 15",
+  "nombre": "White label marketing",
+  "lede": "El equipo de SEO, Ads y contenido que tu agencia no tiene, trabajando con tu nombre y reportando en tu formato.",
+  "nota": "<b>Nunca hablamos con tu cliente por nuestra cuenta.</b> Si en algún momento hace falta, entramos como parte de tu equipo y con tu correo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Un canal",
+    "precio": "S/ 600",
+    "unidad": "/ mes por cliente",
+    "destacado": false,
+    "para_quien": "Cubres un solo servicio para uno de tus clientes.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "SEO, Google Ads o contenido, a elegir",
+       "Reporte mensual con tu marca",
+       "Un punto de contacto técnico",
+       "Sin contacto directo con tu cliente"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Acceso a nuestras plantillas de reporte"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Dos canales",
+    "precio": "S/ 1.200",
+    "unidad": "/ mes por cliente",
+    "destacado": true,
+    "para_quien": "Combinas SEO con Ads o con contenido.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Un canal, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Dos servicios coordinados entre sí",
+       "Reunión mensual de coordinación contigo",
+       "Apoyo para preparar la reunión con tu cliente"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Equipo completo",
+    "precio": "S/ 2.200",
+    "unidad": "/ mes por cliente",
+    "destacado": false,
+    "para_quien": "Nos haces cargo de toda la ejecución de ese cliente.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Dos canales, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "SEO, Ads, contenido y medición",
+       "Reporte para gerencia listo para presentar",
+       "Disponibilidad para llamadas técnicas con tu cliente, bajo tu marca"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "growth-partnership",
+  "orden": 16,
+  "bloque": 2,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 16",
+  "nombre": "Growth partnership",
+  "lede": "Todo junto y con un equipo dedicado. Deja de ser una lista de servicios contratados y pasa a ser una sociedad: cada semana entra una hipótesis, se prueba y se queda lo que los números respaldan.",
+  "nota": "<b>Cuesta menos que contratar los servicios por separado</b> y bastante menos que un equipo interno equivalente. A cambio pedimos 6 meses de compromiso: la lógica de experimentar y acumular aprendizaje no funciona en tres.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Socio",
+    "precio": "S/ 3.500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Empresa que quiere un equipo de marketing sin contratarlo.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "SEO plan Crecimiento",
+       "Google Ads plan Gestión",
+       "Redes sociales plan Base",
+       "Medición y reportes"
+      ]
+     },
+     {
+      "grupo": "Trabajo",
+      "items": [
+       "Reunión quincenal",
+       "2 experimentos al mes",
+       "Un responsable de cuenta asignado"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Socio ampliado",
+    "precio": "S/ 5.500",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Varias líneas de negocio o varias zonas trabajando a la vez.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Socio, con estos volúmenes:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "SEO plan Competitivo",
+       "Google Ads y Meta Ads",
+       "Redes sociales plan Crecimiento",
+       "Email marketing"
+      ]
+     },
+     {
+      "grupo": "Trabajo",
+      "items": [
+       "Reunión semanal",
+       "4 experimentos al mes",
+       "Reporte para directorio"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Equipo dedicado",
+    "precio": "S/ 8.000",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Operación completa, con capacidad de producción propia.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Socio ampliado, con estos volúmenes:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Todos los canales activos",
+       "Redes sociales plan Integral",
+       "Producción audiovisual mensual",
+       "Desarrollos web incluidos hasta cierto alcance"
+      ]
+     },
+     {
+      "grupo": "Trabajo",
+      "items": [
+       "Equipo asignado con disponibilidad semanal",
+       "Plan trimestral con objetivos de negocio"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "inteligencia-artificial-y-automatizacion",
+  "orden": 17,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 17",
+  "nombre": "Inteligencia artificial y automatización",
+  "lede": "Que el negocio responda y opere sin que alguien esté delante. Chatbots que atienden de madrugada y automatizaciones que eliminan el trabajo repetitivo.",
+  "nota": "<b>El consumo de la API va aparte</b> y se paga según uso. Es un costo bajo y predecible, y se estima antes de empezar para que no haya sorpresas.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Asistente",
+    "precio": "S/ 1.500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Un chatbot que responde las preguntas de siempre y deriva las difíciles.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Chatbot en la web entrenado con tu información",
+       "Respuestas a preguntas frecuentes y precios",
+       "Derivación a WhatsApp cuando hace falta una persona",
+       "Registro de las conversaciones"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 a 3 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Asistente conectado",
+    "precio": "S/ 3.500",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "El bot además consulta tus datos y agenda.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Asistente, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Conexión con tu catálogo, stock o agenda",
+       "Captura de datos del interesado y envío al CRM",
+       "Atención en WhatsApp además de la web",
+       "Panel para ajustar respuestas sin programar"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "4 a 6 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Automatización de procesos",
+    "precio": "desde S/ 7.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Tareas internas repetitivas que hoy consumen horas del equipo.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Asistente conectado, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Automatización de procesos internos con IA",
+       "Generación asistida de contenido o fichas",
+       "Clasificación y enrutamiento de consultas",
+       "Integración con las herramientas que ya usas"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "6 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "tienda-en-linea",
+  "orden": 18,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 18",
+  "nombre": "Tienda en línea",
+  "lede": "Vender sin intermediarios y con el dato del cliente en tu poder. WooCommerce, que es lo que mejor conocemos y lo que no te ata a una cuota mensual por vender.",
+  "nota": "<b>La pasarela cobra su comisión aparte</b> y se contrata a tu nombre. Nosotros la integramos, pero el dinero va directo a tu cuenta desde el primer día.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Básica",
+    "precio": "desde S/ 3.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Catálogo acotado y un solo método de pago.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Hasta 50 productos cargados",
+       "Pasarela de pago peruana",
+       "Cálculo de envío",
+       "Correos de confirmación y seguimiento",
+       "Panel para gestionar pedidos y stock",
+       "Medición con GA4 y Search Console"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "5 a 7 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Completa",
+    "precio": "S/ 12.000",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Catálogo grande con variantes, promociones y varios medios de pago.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Básica, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Productos con variantes y atributos",
+       "Buscador con filtros",
+       "Cupones y promociones",
+       "Varias pasarelas, incluido Yape y Plin",
+       "Carrito y checkout optimizados",
+       "Medición de embudo de compra"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "7 a 10 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "A medida",
+    "precio": "desde S/ 20.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Reglas de negocio propias: mayoristas, suscripciones o importaciones masivas.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Completa, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Precios por tipo de cliente o por volumen",
+       "Suscripciones y pedidos recurrentes",
+       "Importación masiva de catálogo",
+       "Integración con tu sistema de inventario",
+       "Desarrollos a medida del checkout"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "10 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "auditoria-web-y-seo",
+  "orden": 19,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 19",
+  "nombre": "Auditoría web y SEO",
+  "lede": "Saber qué está fallando antes de invertir en arreglarlo. Se entrega como informe con hallazgos priorizados, no como una lista de errores de una herramienta automática.",
+  "nota": "<b>Si después contratas SEO, la auditoría se descuenta del primer mes.</b> Así el diagnóstico no es un costo extra sino un adelanto, y quien solo quiere el informe también puede llevárselo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Express",
+    "precio": "S/ 800",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Una revisión rápida para saber si vale la pena seguir.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Rastreo completo del sitio",
+       "Revisión técnica: indexación, velocidad, móvil",
+       "Títulos, descripciones y estructura de encabezados",
+       "Informe con los 10 hallazgos más importantes"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "1 semana"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Completa",
+    "precio": "S/ 1.800",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Diagnóstico a fondo con plan de trabajo priorizado.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Express, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Análisis de keywords y de oportunidades perdidas",
+       "Revisión de contenido: canibalización y páginas flacas",
+       "Análisis de la competencia directa",
+       "Revisión de conversión: dónde se cae el visitante",
+       "Plan de trabajo priorizado por impacto"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Integral",
+    "precio": "S/ 3.500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Sitios grandes o varias propiedades que hay que comparar.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Completa, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Auditoría de perfil de enlaces",
+       "Revisión de la medición y de los datos que se están recogiendo",
+       "Auditoría de campañas activas si las hay",
+       "Presentación de resultados al equipo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "3 semanas"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "traduccion-y-sitios-multi-idioma",
+  "orden": 20,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 20",
+  "nombre": "Traducción y sitios multi-idioma",
+  "lede": "Abrir tu web a otro mercado sin duplicar el trabajo ni romper el SEO. La traducción mal montada es una de las formas más rápidas de perder posiciones.",
+  "nota": "<b>La licencia del plugin de traducción va aparte</b> y queda a tu nombre. Traducir con IA abarata mucho el volumen, pero siempre pasa por revisión: una web mal traducida cuesta más credibilidad de la que ahorra.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Segundo idioma",
+    "precio": "S/ 1.200",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Añadir inglés o portugués a una web que ya existe.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Instalación y configuración del sistema multi-idioma",
+       "Traducción de hasta 10 páginas",
+       "Selector de idioma en el menú",
+       "URLs y etiquetas hreflang correctas"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "2 a 3 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Sitio completo",
+    "precio": "S/ 2.500",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "Toda la web, incluido el blog, en un segundo idioma.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Segundo idioma, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Traducción de hasta 40 páginas y entradas",
+       "Menús, formularios y mensajes del sistema",
+       "SEO adaptado: títulos y descripciones por idioma",
+       "Panel para que tu equipo traduzca lo nuevo"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "4 a 5 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Multi-mercado",
+    "precio": "desde S/ 4.500",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Tres idiomas o más, o contenido distinto por país.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Sitio completo, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Tres o más idiomas",
+       "Contenido propio por mercado, no solo traducido",
+       "Traducción asistida por IA con revisión humana",
+       "Estructura de URLs por país"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "6 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "plataformas-a-medida",
+  "orden": 21,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 21",
+  "nombre": "Plataformas a medida",
+  "lede": "Cuando lo que necesitas no es una web sino un sistema. Aplicación propia, fuera de WordPress, construida para una operación concreta.",
+  "nota": "<b>Ya hemos construido varias:</b> subastas en vivo, punto de venta con inventario multi-sede, marketplace y valuadores. No es territorio nuevo, pero cada una se cotiza después de una reunión técnica, nunca desde un catálogo.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Piloto",
+    "precio": "desde S/ 12.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Validar la idea con una versión funcional y acotada.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Definición funcional y arquitectura",
+       "Versión funcional con el flujo principal",
+       "Usuarios y permisos básicos",
+       "Desplegada y funcionando",
+       "Código y repositorio a tu nombre"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "8 a 12 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Producto",
+    "precio": "S/ 25.000",
+    "unidad": "proyecto",
+    "destacado": true,
+    "para_quien": "El sistema completo, listo para operar con usuarios reales.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Piloto, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Todos los módulos del alcance acordado",
+       "Panel de administración y reportes",
+       "Integraciones por API con lo que ya usas",
+       "Capacitación al equipo",
+       "Soporte de lanzamiento"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "12 a 20 semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Plataforma",
+    "precio": "desde S/ 40.000",
+    "unidad": "proyecto",
+    "destacado": false,
+    "para_quien": "Multi-empresa, multi-sede o con facturación y cumplimiento.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Producto, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Multi-tenant o multi-sede",
+       "Integraciones con entidades externas",
+       "Roles avanzados y auditoría de acciones",
+       "Plan de mantenimiento y evolución"
+      ]
+     },
+     {
+      "grupo": "Plazo",
+      "items": [
+       "20 semanas o más"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "optimizacion-de-conversion",
+  "orden": 22,
+  "bloque": 3,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 22",
+  "nombre": "Optimización de conversión",
+  "lede": "Sacar más de las visitas que ya tienes. Es el trabajo más rentable cuando ya llega tráfico: no cuesta más captarlo, solo aprovecharlo mejor.",
+  "nota": "<b>Necesita tráfico para funcionar.</b> Con pocas visitas al mes no hay datos suficientes para concluir nada, y lo honesto es decirlo antes: en ese caso primero toca captar.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Diagnóstico continuo",
+    "precio": "S/ 800",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Ya tienes tráfico y sospechas que se está perdiendo por el camino.",
+    "bloques": [
+     {
+      "grupo": "Análisis",
+      "items": [
+       "Mapas de calor y grabaciones de sesión",
+       "Embudo de conversión medido paso a paso",
+       "Detección de dónde se cae el visitante"
+      ]
+     },
+     {
+      "grupo": "Mejoras",
+      "items": [
+       "2 mejoras implementadas al mes"
+      ]
+     },
+     {
+      "grupo": "Reportes",
+      "items": [
+       "Reporte mensual de conversión por página"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Pruebas",
+    "precio": "S/ 1.500",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Quieres decidir con datos y no con opiniones del equipo.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Diagnóstico continuo, y además:"
+     },
+     {
+      "grupo": "Mejoras",
+      "items": [
+       "4 mejoras al mes",
+       "Pruebas A/B sobre las páginas que más pesan",
+       "Reescritura de textos y llamadas a la acción"
+      ]
+     },
+     {
+      "grupo": "Análisis",
+      "items": [
+       "Encuestas rápidas a visitantes"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Programa",
+    "precio": "S/ 2.500",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Volumen suficiente para probar de forma continua y acumular aprendizaje.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Pruebas, y además:"
+     },
+     {
+      "grupo": "Mejoras",
+      "items": [
+       "Pruebas continuas en varias páginas a la vez",
+       "Rediseño de plantillas completas cuando el dato lo justifique",
+       "Optimización del formulario y del checkout"
+      ]
+     },
+     {
+      "grupo": "Extra",
+      "items": [
+       "Documentación de aprendizajes para el equipo"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "prospeccion-y-generacion-de-leads",
+  "orden": 23,
+  "bloque": 3,
+  "modalidad": "recurrente",
+  "eyebrow": "Servicio recurrente 23",
+  "nombre": "Prospección y generación de leads",
+  "lede": "Listas de empresas que encajan con lo que vendes, con sus datos verificados y listas para que tu equipo comercial trabaje.",
+  "nota": "<b>Trabajamos solo con datos públicos</b> de fichas de Google y directorios abiertos. Ni compramos bases ni usamos datos personales obtenidos de otra forma.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Lista",
+    "precio": "S/ 600",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Tu equipo vende bien pero se le acaban los contactos.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "150 empresas al mes de tu rubro y tu zona",
+       "Datos verificados: teléfono, web y ficha de Google",
+       "Filtradas por criterios que tú defines",
+       "Entrega en hoja de cálculo lista para usar"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Lista calificada",
+    "precio": "S/ 1.200",
+    "unidad": "/ mes",
+    "destacado": true,
+    "para_quien": "Quieres llegar sabiendo por dónde entrar en cada empresa.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Lista, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "300 empresas al mes",
+       "Diagnóstico rápido de cada una: si tiene web, si mide, si rankea",
+       "Priorizadas por oportunidad detectada",
+       "Mensaje sugerido de primer contacto"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Con contacto",
+    "precio": "S/ 2.000",
+    "unidad": "/ mes",
+    "destacado": false,
+    "para_quien": "Además del listado, el primer contacto ya hecho.",
+    "bloques": [
+     {
+      "mas": "Todo lo del plan Lista calificada, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Primer contacto por correo o formulario",
+       "Seguimiento de respuestas",
+       "Entrega de los interesados a tu equipo",
+       "Reporte de tasa de respuesta"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "formacion-y-consultoria",
+  "orden": 24,
+  "bloque": 3,
+  "modalidad": "proyecto",
+  "eyebrow": "Servicio por proyecto 24",
+  "nombre": "Formación y consultoría",
+  "lede": "Para empresas que prefieren hacerlo en casa. Enseñamos a tu equipo a ejecutar y quedamos como apoyo, no como proveedor permanente.",
+  "nota": "<b>Es el servicio que menos nos conviene vender y por eso lo ofrecemos.</b> Hay empresas que tienen equipo y solo necesitan criterio. Forzarlas a un contrato mensual termina mal para las dos partes.",
+  "packs": [
+   {
+    "n": "Paquete 1",
+    "nombre": "Sesión",
+    "precio": "S/ 500",
+    "unidad": "sesión",
+    "destacado": false,
+    "para_quien": "Una duda concreta o una decisión que hay que tomar con criterio.",
+    "bloques": [
+     {
+      "grupo": "Incluye",
+      "items": [
+       "2 horas de sesión en línea o presencial en Lima",
+       "Revisión previa de tu caso",
+       "Resumen con conclusiones y pasos"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 2",
+    "nombre": "Taller",
+    "precio": "S/ 1.500",
+    "unidad": "taller",
+    "destacado": true,
+    "para_quien": "Que tu equipo aprenda a operar una herramienta o un canal.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Sesión, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "Media jornada con tu equipo",
+       "Material y plantillas para seguir usando",
+       "Ejercicios con tus propios datos",
+       "Una sesión de seguimiento a las dos semanas"
+      ]
+     }
+    ]
+   },
+   {
+    "n": "Paquete 3",
+    "nombre": "Programa",
+    "precio": "S/ 4.000",
+    "unidad": "programa",
+    "destacado": false,
+    "para_quien": "Acompañamiento para montar la función de marketing en casa.",
+    "bloques": [
+     {
+      "mas": "Todo lo de Taller, y además:"
+     },
+     {
+      "grupo": "Incluye",
+      "items": [
+       "4 sesiones repartidas en dos meses",
+       "Procesos y plantillas documentados",
+       "Revisión del trabajo del equipo entre sesiones",
+       "Disponibilidad por mensaje durante el programa"
+      ]
+     }
+    ]
+   }
+  ]
+ }
+]

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { precio } from '../lib/format.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 interface Tipologia { id: string; name: string; bedrooms: number | null; areaM2: string | null; priceFrom: string | null; currency: string; active: boolean }
 interface Unidad { id: string; code: string; status: string; bedrooms: number | null; areaM2: string | null; price: string | null; currency: string; typologyRef: { id: string; name: string } | null }
@@ -26,10 +27,11 @@ const ESTADO: Record<string, string> = {
  * Las unidades se agrupan por tipología para que la lista de 40 departamentos se lea.
  */
 export default function SelectorInteres({ projectId, typologyIds, unitIds, onChange, disabled }: Props) {
+  const L = useEtiquetas();
   const tipologias = useQuery({
     queryKey: ['typologies', projectId],
     queryFn: () => api.get<Tipologia[]>(`/projects/${projectId}/typologies`),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && L.usaTipologias,
   });
   const unidades = useQuery({
     queryKey: ['units', projectId],
@@ -38,12 +40,12 @@ export default function SelectorInteres({ projectId, typologyIds, unitIds, onCha
   });
 
   if (!projectId) return null;
-  if (tipologias.isLoading || unidades.isLoading) return <p className="meta">Cargando inventario…</p>;
+  if ((L.usaTipologias && tipologias.isLoading) || unidades.isLoading) return <p className="meta">Cargando {L.inventario.toLowerCase()}…</p>;
 
   const tips = (tipologias.data ?? []).filter((t) => t.active || typologyIds.includes(t.id));
   const unis = unidades.data ?? [];
   if (tips.length === 0 && unis.length === 0) {
-    return <p className="meta">Este proyecto todavía no tiene tipologías ni unidades cargadas.</p>;
+    return <p className="meta">Este {L.proyecto.toLowerCase()} todavía no tiene {L.usaTipologias ? 'tipologías ni unidades' : 'paquetes'} cargados.</p>;
   }
 
   function alternar(lista: string[], id: string) {
@@ -87,7 +89,7 @@ export default function SelectorInteres({ projectId, typologyIds, unitIds, onCha
 
       {unis.length > 0 && (
         <>
-          <label>Unidades de interés</label>
+          <label>{L.unidades} de interés</label>
           {[...grupos.entries()].map(([k, g]) => (
             <div key={k} className="grupo-unidades">
               {grupos.size > 1 && <div className="meta grupo-titulo">{g.nombre}</div>}

@@ -186,7 +186,7 @@ export default async function authRoutes(app) {
             return reply.code(401).send({ error: 'No autenticado' });
         const org = await prisma.organization.findUnique({
             where: { id: req.user.organizationId },
-            select: { id: true, name: true },
+            select: { id: true, name: true, vertical: true },
         });
         const propio = await prisma.user.findUnique({
             where: { id: req.user.id },

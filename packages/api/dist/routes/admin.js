@@ -421,9 +421,11 @@ export default async function adminRoutes(app) {
         bedrooms: z.number().int().optional(),
         bathrooms: z.number().int().optional(),
         areaM2: z.number().optional(),
-        price: z.number().optional(),
+        price: z.number().nullable().optional(),
         currency: z.string().default('PEN'),
         floor: z.number().int().optional(),
+        /** Datos libres por vertical: en agencia, cobro («/ mes»), paraQuien, destacado, bloques. */
+        extra: z.record(z.unknown()).optional(),
     });
     app.post('/projects/:id/units', { preHandler: inventario }, async (req, reply) => {
         const parsed = unitInput.safeParse(req.body);
@@ -435,9 +437,9 @@ export default async function adminRoutes(app) {
         if (!project)
             return reply.code(404).send({ error: 'Proyecto no encontrado' });
         // Un select vacío llega como cadena vacía y rompería la clave foránea.
-        const { typologyId, ...resto } = parsed.data;
+        const { typologyId, extra, ...resto } = parsed.data;
         return prisma.unit.create({
-            data: { ...resto, typologyId: typologyId || null, projectId: project.id },
+            data: { ...resto, extra: extra, typologyId: typologyId || null, projectId: project.id },
         });
     });
     /**
@@ -575,20 +577,25 @@ export default async function adminRoutes(app) {
         });
         if (!unit)
             return reply.code(404).send({ error: 'Unidad no encontrada' });
-        const { typologyId, ...resto } = parsed.data;
-        if (resto.price !== undefined && String(resto.price) !== String(unit.price ?? '') && !tiene(req.user, 'inventario.precios')) {
+        const { typologyId, extra, ...resto } = parsed.data;
+        if (resto.price !== undefined && String(resto.price ?? '') !== String(unit.price ?? '') && !tiene(req.user, 'inventario.precios')) {
             return reply.code(403).send({ error: 'Sin permiso para cambiar precios de lista' });
         }
         const actualizada = await prisma.unit.update({
             where: { id: unit.id },
-            data: { ...resto, ...(typologyId === undefined ? {} : { typologyId: typologyId || null }) },
+            data: {
+                ...resto,
+                // `extra` se mezcla con lo que había: cambiar «para quién» no borra los bloques.
+                ...(extra === undefined ? {} : { extra: { ...(unit.extra ?? {}), ...extra } }),
+                ...(typologyId === undefined ? {} : { typologyId: typologyId || null }),
+            },
         });
         /**
          * Quién cambió el precio de lista y de cuánto a cuánto. Sperant no deja al cliente tocar
          * precios por una mala experiencia; aquí sí se puede, pero solo con `inventario.precios` y
          * con rastro. Es lo que hace defendible la decisión ante el dueño del proyecto.
          */
-        if (resto.price !== undefined && String(resto.price) !== String(unit.price ?? '')) {
+        if (resto.price !== undefined && String(resto.price ?? '') !== String(unit.price ?? '')) {
             await audit(req.user.organizationId, req.user.id, 'unit.price', {
                 entity: 'unit',
                 entityId: unit.id,

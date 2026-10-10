@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../lib/api.js';
 import { fecha, precio } from '../lib/format.js';
 import Icono from './Icono.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Item { unitId: string; kind: string; code: string; price: number; areaM2: number | null }
 interface Proforma {
@@ -11,7 +12,7 @@ interface Proforma {
   items: Item[]; emailSentAt: string | null; emailTo: string | null; whatsappSentAt: string | null;
   createdBy: { id: string; name: string } | null;
 }
-interface Unidad { id: string; code: string; kind: string; status: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null; typologyRef: { name: string } | null }
+interface Unidad { id: string; code: string; kind: string; status: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null; typologyRef: { name: string } | null; extra?: { cobro?: string | null; desde?: boolean; destacado?: boolean } | null }
 
 const KIND: Record<string, string> = { departamento: 'Departamentos', oficina: 'Oficinas', lote: 'Lotes', estacionamiento: 'Estacionamientos', deposito: 'Depósitos', otro: 'Otros' };
 const ORDEN = ['departamento', 'oficina', 'lote', 'otro', 'estacionamiento', 'deposito'];
@@ -31,6 +32,8 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
   puedeEditar: boolean;
 }) {
   const qc = useQueryClient();
+  const L = useEtiquetas();
+  const vertical = useVertical();
   const [abierto, setAbierto] = useState(false);
   const [unitIds, setUnitIds] = useState<string[]>(unitIdsInteres);
   // Dos campos ligados: escribir el % recalcula el monto y al revés. Manda el último tocado.
@@ -103,14 +106,14 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
   return (
     <div className="card">
       <div className="fila">
-        <strong>Proformas</strong>
+        <strong>{L.documentos}</strong>
         {puedeEditar && !abierto && (
           <button
             type="button"
             className="btn"
             style={{ padding: '6px 12px', fontSize: 13 }}
             disabled={!projectId}
-            title={projectId ? undefined : 'Asigna un proyecto al lead primero'}
+            title={projectId ? undefined : `Asigna un ${L.proyecto.toLowerCase()} al lead primero`}
             onClick={() => {
               setUnitIds(unitIdsInteres);
               setAsesor(me.data?.user.name ?? '');
@@ -118,22 +121,22 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
               setAbierto(true);
             }}
           >
-            <Icono nombre="mas" tam={14} />Nueva proforma
+            <Icono nombre="mas" tam={14} />Nueva {L.documento.toLowerCase()}
           </button>
         )}
       </div>
 
-      {!projectId && <p className="meta" style={{ marginTop: 6 }}>Para cotizar, primero asigna un proyecto en Interés.</p>}
+      {!projectId && <p className="meta" style={{ marginTop: 6 }}>Para cotizar, primero asigna un {L.proyecto.toLowerCase()} en Interés.</p>}
 
       {abierto && (
         <form
           style={{ marginTop: 10, borderTop: '1px solid var(--borde)', paddingTop: 10 }}
           onSubmit={(e) => { e.preventDefault(); if (unitIds.length && !pasaTope && !sinPrecio) emitir.mutate(); }}
         >
-          {unidades.isLoading && <p className="meta">Cargando unidades…</p>}
+          {unidades.isLoading && <p className="meta">Cargando {L.unidades.toLowerCase()}…</p>}
           {grupos.map(([kind, us]) => (
             <div key={kind} className="grupo-unidades">
-              <div className="meta grupo-titulo">{KIND[kind] ?? kind}</div>
+              {vertical === 'inmobiliaria' && <div className="meta grupo-titulo">{KIND[kind] ?? kind}</div>}
               <div className="casillas casillas-unidades">
                 {us.map((u) => {
                   const disponible = u.status === 'disponible';
@@ -142,7 +145,7 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
                     <label
                       key={u.id}
                       className={`casilla casilla-unidad ${marcada ? 'marcada' : ''} ${!disponible ? 'agotada' : ''}`}
-                      title={!disponible ? `Unidad ${u.status.replace('_', ' ')}: no se puede cotizar` : undefined}
+                      title={!disponible ? `${L.unidad} ${u.status.replace('_', ' ')}: no se puede cotizar` : undefined}
                     >
                       <input
                         type="checkbox"
@@ -151,8 +154,8 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
                         onChange={() => setUnitIds(marcada ? unitIds.filter((x) => x !== u.id) : [...unitIds, u.id])}
                       />
                       <span>
-                        <strong>{u.code}</strong>
-                        <span className="meta">{u.price ? precio(u.price, u.currency) : 'sin precio'}</span>
+                        <strong>{u.code}{u.extra?.destacado ? ' ★' : ''}</strong>
+                        <span className="meta">{u.price ? `${u.extra?.desde ? 'desde ' : ''}${precio(u.price, u.currency)}${u.extra?.cobro ? ` ${u.extra.cobro}` : ''}` : 'sin precio'}</span>
                       </span>
                     </label>
                   );
@@ -211,7 +214,7 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
           <div className="rejilla-2">
             <div>
               <label htmlFor="pf-asesor">Asesor comercial</label>
-              <input id="pf-asesor" value={asesor} onChange={(e) => setAsesor(e.target.value)} placeholder="Nombre como sale en la proforma" />
+              <input id="pf-asesor" value={asesor} onChange={(e) => setAsesor(e.target.value)} placeholder={`Nombre como sale en la ${L.documento.toLowerCase()}`} />
             </div>
             <div>
               <label htmlFor="pf-tel">Teléfono del asesor</label>
@@ -219,11 +222,11 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
             </div>
           </div>
           {pasaTope && <p className="error">El descuento supera tu máximo de {tope}%.</p>}
-          {sinPrecio && <p className="error">Alguna unidad elegida no tiene precio de lista.</p>}
+          {sinPrecio && <p className="error">Algún {L.unidad.toLowerCase()} elegido no tiene precio.</p>}
           {emitir.isError && <p className="error">{(emitir.error as ApiError).message}</p>}
           <div className="acciones">
             <button className="btn" disabled={!unitIds.length || pasaTope || sinPrecio || emitir.isPending}>
-              {emitir.isPending ? 'Generando…' : 'Emitir proforma'}
+              {emitir.isPending ? 'Generando…' : `Emitir ${L.documento.toLowerCase()}`}
             </button>
             <button type="button" className="btn btn-sec" onClick={() => { setAbierto(false); emitir.reset(); }}>Cancelar</button>
           </div>
@@ -231,7 +234,7 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
       )}
 
       {lista.data && lista.data.proformas.length === 0 && !abierto && projectId && (
-        <p className="meta" style={{ marginTop: 6 }}>Sin proformas todavía.</p>
+        <p className="meta" style={{ marginTop: 6 }}>Sin {L.documentos.toLowerCase()} todavía.</p>
       )}
 
       {lista.data && lista.data.proformas.length > 0 && (
@@ -243,7 +246,7 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
                 <div className="fila">
                   <span>
                     <a href={`/api/v1/leads/proformas/${p.id}/pdf`} target="_blank" rel="noreferrer" className="nombre" style={{ fontSize: 14 }}>
-                      Proforma {p.number}
+                      {L.documento} {p.number}
                     </a>
                     <span className="meta"> · {p.items.map((i) => i.code).join(' + ')}</span>
                   </span>

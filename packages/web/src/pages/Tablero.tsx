@@ -7,6 +7,7 @@ import Icono from '../components/Icono.js';
 import { ChipInteres } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import { usePuede } from '../lib/permisos.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 interface Etapa { id: string; name: string; color: string | null; isWon: boolean; isLost: boolean }
 interface Tarjeta {
@@ -41,6 +42,7 @@ interface Datos { etapas: Etapa[]; leads: Tarjeta[] }
 export default function Tablero({ rol: _rol }: { rol: string }) {
   const qc = useQueryClient();
   const puede = usePuede();
+  const L = useEtiquetas();
   const [projectId, setProjectId] = useState('');
   const [ownerId, setOwnerId] = useState('');
   const [arrastrando, setArrastrando] = useState<string | null>(null);
@@ -128,8 +130,8 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
     <>
       <div className="herramientas">
         <label className="control" style={{ margin: 0 }}>
-          <select value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Proyecto">
-            <option value="">Todos los proyectos</option>
+          <select value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label={L.proyecto}>
+            <option value="">Todos los {L.proyectos.toLowerCase()}</option>
             {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <Icono nombre="abajo" tam={14} />
@@ -290,7 +292,7 @@ function TarjetaLead({
         <ChipInteres nivel={l.interestLevel} compacto />
       </div>
       <div className="meta" style={{ marginTop: 3 }}>
-        {[l.project?.name, l.unit?.code && `Unidad ${l.unit.code}`].filter(Boolean).join(' · ') || 'Sin proyecto'}
+        {[l.project?.name, l.unit?.code && `Paquete ${l.unit.code}`].filter(Boolean).join(' · ') || '—'}
       </div>
       <div className="fila" style={{ marginTop: 8 }}>
         <span className="meta">{desde(l.lastActivityAt ?? l.createdAt)} · {l.owner?.name ?? 'sin asignar'}</span>

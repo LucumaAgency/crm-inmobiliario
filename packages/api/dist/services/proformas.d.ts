@@ -8,6 +8,10 @@ export interface ItemProforma {
     bathrooms: number | null;
     areaM2: number | null;
     price: number;
+    /** Agencia: nombre del servicio (proyecto), forma de cobro y para quién. */
+    service?: string;
+    billing?: string | null;
+    forWhom?: string | null;
 }
 export interface EmitirProformaInput {
     organizationId: string;
@@ -25,6 +29,8 @@ export interface EmitirProformaInput {
     agentName?: string;
     agentPhone?: string;
 }
+/** Nota por defecto de una propuesta de agencia, si la organización no escribió la suya. */
+export declare const PROPUESTA_NOTA_AGENCIA = "La presente propuesta tiene una validez de quince (15) d\u00EDas calendario desde su emisi\u00F3n. Los servicios por proyecto se pagan 50% al inicio y 50% a la entrega; los servicios recurrentes se facturan por adelantado cada mes. Los precios est\u00E1n expresados en soles.";
 export declare class ErrorProforma extends Error {
     statusCode: number;
     constructor(message: string, statusCode?: number);
@@ -34,17 +40,16 @@ export declare function topeDescuento(userId: string, organizationId: string): P
 export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     number: string;
     id: string;
-    createdAt: Date;
-    projectId: string;
-    currency: string;
-    leadId: string;
     organizationId: string;
-    year: number;
+    leadId: string;
+    projectId: string;
     createdById: string | null;
+    year: number;
     seq: number;
     client: import("@prisma/client/runtime/library").JsonValue;
     agent: import("@prisma/client/runtime/library").JsonValue;
     items: import("@prisma/client/runtime/library").JsonValue;
+    currency: string;
     listTotal: import("@prisma/client/runtime/library").Decimal;
     discountPct: import("@prisma/client/runtime/library").Decimal;
     discountAmount: import("@prisma/client/runtime/library").Decimal;
@@ -56,6 +61,7 @@ export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     emailSentAt: Date | null;
     emailTo: string | null;
     whatsappSentAt: Date | null;
+    createdAt: Date;
 }>;
 export declare function moneda(n: number, currency: string): string;
 export declare function rutaPdf(pdfPath: string): string;

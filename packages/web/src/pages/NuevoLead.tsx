@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import SelectorInteres from '../components/SelectorInteres.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 interface Props {
   onCerrar: () => void;
@@ -21,6 +22,7 @@ interface Proyecto { id: string; name: string }
 export default function NuevoLead({ onCerrar }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const L = useEtiquetas();
 
   const [fname, setFname] = useState('');
   const [lname, setLname] = useState('');
@@ -112,7 +114,7 @@ export default function NuevoLead({ onCerrar }: Props) {
               <input id="nl-doc" value={document} onChange={(e) => setDocument(e.target.value)} />
             </div>
             <div>
-              <label htmlFor="nl-proy">Proyecto</label>
+              <label htmlFor="nl-proy">{L.proyecto}</label>
               <select
                 id="nl-proy"
                 value={projectId}
@@ -122,7 +124,7 @@ export default function NuevoLead({ onCerrar }: Props) {
                   setUnitIds([]);
                 }}
               >
-                <option value="">Sin proyecto</option>
+                <option value="">Sin {L.proyecto.toLowerCase()}</option>
                 {proyectos.data?.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}

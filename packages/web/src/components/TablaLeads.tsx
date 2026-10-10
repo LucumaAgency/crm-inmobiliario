@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { desde } from '../lib/format.js';
 import { FUENTES } from '../lib/reportes.js';
 import { ChipInteres } from './NivelInteres.js';
+import { useEtiquetas } from '../lib/vertical.js';
 
 export interface LeadFila {
   id: string;
@@ -54,6 +55,7 @@ function Etapa({ stage }: { stage: LeadFila['stage'] }) {
 /** Escritorio: tabla. Móvil: tarjetas, que se leen con el pulgar. */
 export default function TablaLeads({ leads, compacta = false }: { leads: LeadFila[]; compacta?: boolean }) {
   const navegar = useNavigate();
+  const L = useEtiquetas();
 
   return (
     <>
@@ -62,7 +64,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
           <thead>
             <tr>
               <th>Nombre</th>
-              <th>Proyecto</th>
+              <th>{L.proyecto}</th>
               {!compacta && <th>Fuente</th>}
               <th>Etapa</th>
               <th>Interés</th>
@@ -86,7 +88,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
                 </td>
                 <td>
                   {l.project?.name ?? <span className="meta">—</span>}
-                  {l.unit && <div className="meta">Unidad {l.unit.code}</div>}
+                  {l.unit && <div className="meta">{L.unidad} {l.unit.code}</div>}
                 </td>
                 {!compacta && <td>{FUENTES[l.source] ?? l.source}</td>}
                 <td><Etapa stage={l.stage} /></td>
@@ -118,7 +120,7 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
                 <Etapa stage={l.stage} />
               </div>
               <div className="meta" style={{ marginTop: 4 }}>
-                {[l.project?.name, l.unit?.code && `Unidad ${l.unit.code}`, l.contact.phone]
+                {[l.project?.name, l.unit?.code && `${L.unidad} ${l.unit.code}`, l.contact.phone]
                   .filter(Boolean)
                   .join(' · ')}
               </div>

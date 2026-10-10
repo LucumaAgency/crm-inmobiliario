@@ -18,6 +18,9 @@ model Organization {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  /// Qué vende: `inmobiliaria` (proyectos → unidades, proformas) o `agencia` (servicios →
+  /// paquetes, propuestas). Lo común no sabe de verticales; esto decide qué módulo ve.
+  vertical  String   @default("inmobiliaria")
   createdAt DateTime @default(now())
 
   users    User[]
