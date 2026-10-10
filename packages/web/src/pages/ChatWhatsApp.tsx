@@ -15,6 +15,7 @@ interface Mensaje {
   direction: 'entrante' | 'saliente';
   type: string;
   body: string | null;
+  media: { id?: string; mime?: string; path?: string; error?: string; filename?: string; lat?: number; lng?: number; animated?: boolean } | null;
   templateName: string | null;
   status: 'pendiente' | 'enviado' | 'entregado' | 'leido' | 'fallido';
   error: string | null;
@@ -121,11 +122,7 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
       <div className="chat">
         {mensajes.map((m) => (
           <div key={m.id} className={m.direction === 'entrante' ? 'burbuja entra' : 'burbuja sale'}>
-            {m.body ? (
-              <span>{m.body}</span>
-            ) : (
-              <span className="meta">[{m.type}] se ve en el teléfono</span>
-            )}
+            <Contenido m={m} />
             <div className="meta acuse">
               {new Date(m.sentAt ?? m.createdAt).toLocaleString('es-PE', {
                 day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -204,4 +201,79 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
       {enviar.isError && <p className="error">{(enviar.error as Error).message}</p>}
     </div>
   );
+}
+
+
+const TIPO_ES: Record<string, string> = {
+  image: 'imagen', audio: 'audio', video: 'video', document: 'documento', sticker: 'sticker',
+  location: 'ubicación', unsupported: 'contenido', template: 'plantilla', text: 'texto',
+};
+
+/**
+ * Cuerpo de una burbuja según el tipo.
+ *
+ * Los archivos se descargan de Meta en segundo plano al llegar el mensaje; hasta que estén,
+ * o si no se pudieron bajar, se muestra el aviso de siempre. Los audios de WhatsApp vienen
+ * en ogg/opus, que Chrome y Firefox reproducen; Safari en iPhone no, y ahí queda el enlace.
+ */
+function Contenido({ m }: { m: Mensaje }) {
+  const url = m.media?.path ? `/api/v1/leads/whatsapp/media/${m.id}` : null;
+  const pendiente = m.media?.id && !m.media.path && !m.media.error;
+  const texto = m.body ? <span>{m.body}</span> : null;
+
+  if (m.type === 'location' && m.media?.lat != null && m.media?.lng != null) {
+    return (
+      <span>
+        <a href={`https://www.google.com/maps?q=${m.media.lat},${m.media.lng}`} target="_blank" rel="noreferrer">
+          📍 {m.body ?? 'Ubicación'}
+        </a>
+      </span>
+    );
+  }
+  if (!url) {
+    if (m.type === 'text' || m.type === 'template' || m.type === 'button' || m.type === 'interactive') {
+      return texto ?? <span className="meta">[{TIPO_ES[m.type] ?? m.type}]</span>;
+    }
+    if (m.type === 'document' && m.direction === 'saliente') return texto ?? <span className="meta">[documento]</span>;
+    return (
+      <span>
+        {texto}
+        <span className="meta" style={{ display: 'block' }}>
+          [{TIPO_ES[m.type] ?? m.type}] {pendiente ? 'descargando…' : m.media?.error ? 'no se pudo descargar; se ve en el teléfono' : 'se ve en el teléfono'}
+        </span>
+      </span>
+    );
+  }
+  switch (m.type) {
+    case 'image':
+      return (
+        <span>
+          <a href={url} target="_blank" rel="noreferrer"><img className="wa-imagen" src={url} alt={m.body ?? 'Imagen'} loading="lazy" /></a>
+          {texto && <span style={{ display: 'block', marginTop: 4 }}>{texto}</span>}
+        </span>
+      );
+    case 'sticker':
+      return <img className="wa-sticker" src={url} alt="Sticker" loading="lazy" />;
+    case 'audio':
+      return (
+        <span style={{ display: 'block' }}>
+          <audio className="wa-audio" controls preload="metadata" src={url} />
+          <a className="meta" href={url} target="_blank" rel="noreferrer" style={{ display: 'block' }}>abrir audio</a>
+        </span>
+      );
+    case 'video':
+      return (
+        <span>
+          <video className="wa-video" controls preload="metadata" src={url} />
+          {texto && <span style={{ display: 'block', marginTop: 4 }}>{texto}</span>}
+        </span>
+      );
+    default:
+      return (
+        <span>
+          <a href={url} target="_blank" rel="noreferrer">📎 {m.media?.filename ?? m.body ?? 'Documento'}</a>
+          {m.body && m.media?.filename && m.body !== m.media.filename && <span style={{ display: 'block' }}>{m.body}</span>}
+        </span>
+      );
+  }
 }

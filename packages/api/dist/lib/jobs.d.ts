@@ -1,4 +1,4 @@
-export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lead.fetch' | 'wa.send' | 'voz.procesar' | 'conversion.push' | 'retention.purge';
+export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lead.fetch' | 'wa.send' | 'wa.media.fetch' | 'voz.procesar' | 'conversion.push' | 'retention.purge';
 /**
  * Encola un trabajo.
  *
@@ -14,9 +14,9 @@ export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lea
 export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): Promise<{
     id: string;
     createdAt: Date;
+    type: string;
     status: import(".prisma/client").$Enums.JobStatus;
     lastError: string | null;
-    type: string;
     payload: import("@prisma/client/runtime/library").JsonValue;
     attempts: number;
     maxAttempts: number;

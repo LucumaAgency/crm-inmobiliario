@@ -249,8 +249,14 @@ alerta de los 15 minutos saltaría sobre un asesor que ya respondió.
   `PROGRESO.md` §3). El primer intento sale en el momento porque encolar algo vencido
   dispara la cola en línea; si Meta devuelve un 5xx, el reintento con espera no ocurre
   hasta que haya cron.
-- **No se descargan los archivos** que manda el cliente. El asesor ve que llegó una imagen
-  y la abre desde el teléfono. Descargarlos exige almacenamiento y política de retención.
+- **Archivos entrantes (desde 2026-10-10)**: imágenes, stickers, audios, videos y documentos
+  se descargan de Meta en segundo plano (job `wa.media.fetch`) a `privados/<org>/wa/` y se
+  ven en el chat de la ficha (imagen, sticker, reproductor de audio y video, enlace al
+  documento, ubicación con enlace a Maps). Tope 16 MB; lo que no se pudo bajar queda con
+  `media.error` y vuelve al aviso «se ve en el teléfono». Al abrir la ficha se reintentan los
+  pendientes. Se sirven por `GET /leads/whatsapp/media/:id` con control de acceso. Los audios
+  vienen en ogg/opus: Chrome y Firefox los reproducen, Safari en iPhone no (queda el enlace).
+  Pendiente: política de retención para esta carpeta.
 - **No hay bandeja compartida.** La conversación se atiende desde la ficha del lead, que es
   donde el asesor tiene el proyecto y la unidad a la vista. Si hiciera falta una bandeja
   multi-agente de verdad, sale más barato poner Chatwoot al lado que construirla.
