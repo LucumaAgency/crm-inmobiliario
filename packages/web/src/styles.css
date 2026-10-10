@@ -720,3 +720,4 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 .permisos-grupo legend { font-size: 11.5px; font-weight: 700; color: var(--tenue); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; padding: 0; }
 .casilla-permiso { width: 100%; }
 .casilla-permiso > span { flex: 1; }
+.descuento-doble { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }

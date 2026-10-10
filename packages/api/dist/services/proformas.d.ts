@@ -19,6 +19,8 @@ export interface EmitirProformaInput {
     discountAmount?: number;
     note?: string;
     validDays?: number;
+    /** Fecha de vencimiento elegida por el asesor (YYYY-MM-DD); manda sobre validDays. */
+    validUntil?: string;
 }
 export declare class ErrorProforma extends Error {
     statusCode: number;

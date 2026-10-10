@@ -39,6 +39,8 @@ export interface EmitirProformaInput {
   discountAmount?: number;
   note?: string;
   validDays?: number;
+  /** Fecha de vencimiento elegida por el asesor (YYYY-MM-DD); manda sobre validDays. */
+  validUntil?: string;
 }
 
 const KIND_ES: Record<string, string> = {
@@ -130,9 +132,17 @@ export async function emitirProforma(input: EmitirProformaInput) {
   const finalTotal = redondear(listTotal - discountAmount);
 
   const ajustes = await leerAjustes(input.organizationId);
-  const validDays = input.validDays ?? ajustes.proformaValidezDias;
   const ahora = new Date();
-  const validUntil = new Date(ahora.getTime() + validDays * 24 * 60 * 60 * 1000);
+  let validDays = input.validDays ?? ajustes.proformaValidezDias;
+  let validUntil = new Date(ahora.getTime() + validDays * 24 * 60 * 60 * 1000);
+  if (input.validUntil) {
+    // Fin del día elegido, hora de Lima (UTC-5).
+    const elegida = new Date(`${input.validUntil}T23:59:59-05:00`);
+    if (Number.isNaN(elegida.getTime())) throw new ErrorProforma('Fecha de vencimiento inválida');
+    if (elegida.getTime() < ahora.getTime()) throw new ErrorProforma('La fecha de vencimiento ya pasó');
+    validUntil = elegida;
+    validDays = Math.max(1, Math.ceil((elegida.getTime() - ahora.getTime()) / (24 * 60 * 60 * 1000)));
+  }
   const note = (input.note ?? ajustes.proformaNota).trim();
 
   const asesor = await prisma.user.findUnique({ where: { id: input.userId }, select: { name: true, email: true, phone: true } });

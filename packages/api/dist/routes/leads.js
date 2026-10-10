@@ -209,6 +209,7 @@ export default async function leadRoutes(app) {
             discountPct: z.number().min(0).max(100).optional(),
             discountAmount: z.number().min(0).optional(),
             note: z.string().max(1000).optional(),
+            validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)

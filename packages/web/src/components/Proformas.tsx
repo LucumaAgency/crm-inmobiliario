@@ -33,8 +33,11 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
   const qc = useQueryClient();
   const [abierto, setAbierto] = useState(false);
   const [unitIds, setUnitIds] = useState<string[]>(unitIdsInteres);
-  const [modo, setModo] = useState<'pct' | 'monto'>('pct');
-  const [descuento, setDescuento] = useState('');
+  // Dos campos ligados: escribir el % recalcula el monto y al revés. Manda el último tocado.
+  const [pct, setPct] = useState('');
+  const [monto, setMonto] = useState('');
+  const [ultimo, setUltimo] = useState<'pct' | 'monto'>('pct');
+  const [vence, setVence] = useState('');
   const [correoA, setCorreoA] = useState<{ id: string; to: string } | null>(null);
 
   const lista = useQuery({
@@ -52,15 +55,14 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
     qc.invalidateQueries({ queryKey: ['lead', leadId] });
   };
   const emitir = useMutation({
-    mutationFn: () => {
-      const n = Number(descuento.replace(',', '.'));
-      return api.post<Proforma>(`/leads/${leadId}/proformas`, {
+    mutationFn: () =>
+      api.post<Proforma>(`/leads/${leadId}/proformas`, {
         unitIds,
-        ...(descuento && Number.isFinite(n) && n > 0 ? (modo === 'pct' ? { discountPct: n } : { discountAmount: n }) : {}),
-      });
-    },
+        ...(montoDesc > 0 ? (ultimo === 'pct' ? { discountPct: numero(pct) } : { discountAmount: numero(monto) }) : {}),
+        ...(vence ? { validUntil: vence } : {}),
+      }),
     onSuccess: (p) => {
-      setAbierto(false); setDescuento('');
+      setAbierto(false); setPct(''); setMonto(''); setVence('');
       refrescar();
       window.open(`/api/v1/leads/proformas/${p.id}/pdf`, '_blank');
     },
@@ -86,9 +88,9 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
   const elegidas = (unidades.data ?? []).filter((u) => unitIds.includes(u.id));
   const moneda = elegidas[0]?.currency ?? 'PEN';
   const total = elegidas.reduce((s, u) => s + Number(u.price ?? 0), 0);
-  const n = Number(descuento.replace(',', '.'));
-  const montoDesc = !descuento || !Number.isFinite(n) || n <= 0 ? 0 : modo === 'pct' ? (total * n) / 100 : n;
+  const montoDesc = ultimo === 'pct' ? (total * numero(pct)) / 100 : numero(monto);
   const pctDesc = total > 0 ? (montoDesc / total) * 100 : 0;
+  const hoy = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const tope = lista.data?.descuentoMaximoPct ?? null;
   const pasaTope = tope != null && pctDesc > tope + 0.005;
   const sinPrecio = elegidas.some((u) => u.price == null);
@@ -152,19 +154,40 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
           <div className="rejilla-2" style={{ marginTop: 10 }}>
             <div>
               <label>Descuento {tope != null && <span className="meta">(tu máximo: {tope}%)</span>}</label>
-              <div className="porcentaje">
-                <input
-                  inputMode="decimal"
-                  value={descuento}
-                  onChange={(e) => setDescuento(e.target.value)}
-                  placeholder="0"
-                  style={{ width: 110, textAlign: 'right' }}
-                />
-                <select value={modo} onChange={(e) => setModo(e.target.value as 'pct' | 'monto')} style={{ width: 'auto', margin: 0 }}>
-                  <option value="pct">%</option>
-                  <option value="monto">{moneda === 'USD' ? 'US$' : 'S/'}</option>
-                </select>
+              <div className="descuento-doble">
+                <span className="porcentaje">
+                  <input
+                    inputMode="decimal"
+                    value={pct}
+                    placeholder="0"
+                    aria-label="Descuento en porcentaje"
+                    onChange={(e) => {
+                      setPct(e.target.value); setUltimo('pct');
+                      const n = numero(e.target.value);
+                      setMonto(n > 0 && total > 0 ? String(Math.round((total * n) / 100)) : '');
+                    }}
+                    style={{ width: 80, textAlign: 'right' }}
+                  />
+                  <span className="meta">%</span>
+                </span>
+                <span className="porcentaje">
+                  <span className="meta">{moneda === 'USD' ? 'US$' : 'S/'}</span>
+                  <input
+                    inputMode="decimal"
+                    value={monto}
+                    placeholder="0"
+                    aria-label="Descuento en monto"
+                    onChange={(e) => {
+                      setMonto(e.target.value); setUltimo('monto');
+                      const n = numero(e.target.value);
+                      setPct(n > 0 && total > 0 ? String(Math.round((n / total) * 10000) / 100) : '');
+                    }}
+                    style={{ width: 120, textAlign: 'right' }}
+                  />
+                </span>
               </div>
+              <label htmlFor="pf-vence" style={{ marginTop: 10 }}>Válida hasta <span className="meta">(vacío = {lista.data ? 'según ajustes' : '3 días'})</span></label>
+              <input id="pf-vence" type="date" min={hoy} value={vence} onChange={(e) => setVence(e.target.value)} style={{ width: 170 }} />
             </div>
             <div>
               <label>Resumen</label>
@@ -258,4 +281,14 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
       )}
     </div>
   );
+}
+
+/** "10,000" → 10000 · "3,5" → 3.5 · basura → 0. */
+function numero(t: string) {
+  const limpio = t.trim();
+  if (!limpio) return 0;
+  // Coma como decimal solo si hay una y no hay punto; si hay varias comas son miles.
+  const sinMiles = limpio.replace(/\s/g, '').replace(/,(?=\d{3}(\D|$))/g, '');
+  const n = Number(sinMiles.replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
