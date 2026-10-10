@@ -38,6 +38,9 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
   const [monto, setMonto] = useState('');
   const [ultimo, setUltimo] = useState<'pct' | 'monto'>('pct');
   const [vence, setVence] = useState('');
+  const [asesor, setAsesor] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ user: { name: string; phone: string | null } }>('/auth/me') });
   const [correoA, setCorreoA] = useState<{ id: string; to: string } | null>(null);
 
   const lista = useQuery({
@@ -60,6 +63,8 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
         unitIds,
         ...(montoDesc > 0 ? (ultimo === 'pct' ? { discountPct: numero(pct) } : { discountAmount: numero(monto) }) : {}),
         ...(vence ? { validUntil: vence } : {}),
+        agentName: asesor.trim() || undefined,
+        agentPhone: telefono.trim() || undefined,
       }),
     onSuccess: (p) => {
       setAbierto(false); setPct(''); setMonto(''); setVence('');
@@ -106,7 +111,12 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
             style={{ padding: '6px 12px', fontSize: 13 }}
             disabled={!projectId}
             title={projectId ? undefined : 'Asigna un proyecto al lead primero'}
-            onClick={() => { setUnitIds(unitIdsInteres); setAbierto(true); }}
+            onClick={() => {
+              setUnitIds(unitIdsInteres);
+              setAsesor(me.data?.user.name ?? '');
+              setTelefono(me.data?.user.phone ?? '');
+              setAbierto(true);
+            }}
           >
             <Icono nombre="mas" tam={14} />Nueva proforma
           </button>
@@ -196,6 +206,16 @@ export default function Proformas({ leadId, projectId, unitIdsInteres, tieneCorr
                 {montoDesc > 0 && <div className="fila"><span className="meta">Descuento ({pctDesc.toFixed(2)}%)</span><span>- {precio(montoDesc, moneda)}</span></div>}
                 <div className="fila"><strong>Precio final</strong><strong>{precio(total - montoDesc, moneda)}</strong></div>
               </div>
+            </div>
+          </div>
+          <div className="rejilla-2">
+            <div>
+              <label htmlFor="pf-asesor">Asesor comercial</label>
+              <input id="pf-asesor" value={asesor} onChange={(e) => setAsesor(e.target.value)} placeholder="Nombre como sale en la proforma" />
+            </div>
+            <div>
+              <label htmlFor="pf-tel">Teléfono del asesor</label>
+              <input id="pf-tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="967272598" />
             </div>
           </div>
           {pasaTope && <p className="error">El descuento supera tu máximo de {tope}%.</p>}

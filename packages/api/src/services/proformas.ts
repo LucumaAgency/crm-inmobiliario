@@ -41,6 +41,9 @@ export interface EmitirProformaInput {
   validDays?: number;
   /** Fecha de vencimiento elegida por el asesor (YYYY-MM-DD); manda sobre validDays. */
   validUntil?: string;
+  /** Nombre y teléfono del asesor tal como deben salir; por defecto los del usuario. */
+  agentName?: string;
+  agentPhone?: string;
 }
 
 const KIND_ES: Record<string, string> = {
@@ -152,7 +155,11 @@ export async function emitirProforma(input: EmitirProformaInput) {
     email: lead.contact.email,
     document: lead.contact.document,
   };
-  const agent = { name: asesor?.name ?? '', email: asesor?.email ?? '', phone: asesor?.phone ?? null };
+  const agent = {
+    name: input.agentName?.trim() || asesor?.name || '',
+    email: asesor?.email ?? '',
+    phone: input.agentPhone?.trim() || asesor?.phone || null,
+  };
 
   /**
    * Correlativo por año, serializado: dos asesores emitiendo a la vez no pueden sacar el
@@ -266,7 +273,6 @@ async function generarPdf(d: DatosPdf) {
   });
   doc.pipe(salida);
 
-  const GRIS = '#555555';
   const LINEA = '#BBBBBB';
   const ancho = doc.page.width - 96;
   const x0 = 48;
@@ -278,9 +284,6 @@ async function generarPdf(d: DatosPdf) {
     try { doc.image(logo, x0, y, { fit: [110, 60] }); } catch { /* logo ilegible: se omite */ }
   }
   doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
-  doc.font('Helvetica').fontSize(11).fillColor(GRIS);
-  if (d.project.district) doc.text(d.project.district, { width: ancho, align: 'right' });
-  if (d.project.address) doc.text(d.project.address, { width: ancho, align: 'right' });
   y = Math.max(doc.y, y + 64) + 10;
   doc.moveTo(x0, y).lineTo(x0 + ancho, y).lineWidth(2).strokeColor('#333333').stroke();
   y += 18;

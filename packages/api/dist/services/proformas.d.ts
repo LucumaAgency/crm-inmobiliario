@@ -21,6 +21,9 @@ export interface EmitirProformaInput {
     validDays?: number;
     /** Fecha de vencimiento elegida por el asesor (YYYY-MM-DD); manda sobre validDays. */
     validUntil?: string;
+    /** Nombre y teléfono del asesor tal como deben salir; por defecto los del usuario. */
+    agentName?: string;
+    agentPhone?: string;
 }
 export declare class ErrorProforma extends Error {
     statusCode: number;
@@ -31,17 +34,16 @@ export declare function topeDescuento(userId: string, organizationId: string): P
 export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     number: string;
     id: string;
-    createdAt: Date;
-    projectId: string;
-    currency: string;
-    leadId: string;
     organizationId: string;
-    year: number;
+    leadId: string;
+    projectId: string;
     createdById: string | null;
+    year: number;
     seq: number;
     client: import("@prisma/client/runtime/library").JsonValue;
     agent: import("@prisma/client/runtime/library").JsonValue;
     items: import("@prisma/client/runtime/library").JsonValue;
+    currency: string;
     listTotal: import("@prisma/client/runtime/library").Decimal;
     discountPct: import("@prisma/client/runtime/library").Decimal;
     discountAmount: import("@prisma/client/runtime/library").Decimal;
@@ -53,6 +55,7 @@ export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     emailSentAt: Date | null;
     emailTo: string | null;
     whatsappSentAt: Date | null;
+    createdAt: Date;
 }>;
 export declare function moneda(n: number, currency: string): string;
 export declare function rutaPdf(pdfPath: string): string;

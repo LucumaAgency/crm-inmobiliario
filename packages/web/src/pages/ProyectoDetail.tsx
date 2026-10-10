@@ -70,11 +70,9 @@ export default function ProyectoDetail() {
   const [editandoDatos, setEditandoDatos] = useState(false);
   const [dLegal, setDLegal] = useState('');
   const [dRuc, setDRuc] = useState('');
-  const [dDistrito, setDDistrito] = useState('');
-  const [dDireccion, setDDireccion] = useState('');
   const [logoError, setLogoError] = useState<string | null>(null);
   const guardarDatos = useMutation({
-    mutationFn: () => api.patch(`/projects/${id}`, { legalName: dLegal.trim(), ruc: dRuc.trim(), district: dDistrito.trim(), address: dDireccion.trim() }),
+    mutationFn: () => api.patch(`/projects/${id}`, { legalName: dLegal.trim(), ruc: dRuc.trim() }),
     onSuccess: () => { setEditandoDatos(false); qc.invalidateQueries({ queryKey: ['project', id] }); qc.invalidateQueries({ queryKey: ['projects'] }); },
   });
   async function subirLogo(archivo: File) {
@@ -227,21 +225,19 @@ export default function ProyectoDetail() {
             <strong>Datos para proformas</strong>
             {!editandoDatos && detalle.data && (
               <button type="button" className="btn btn-sec" style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => {
-                setDLegal(detalle.data!.legalName ?? ''); setDRuc(detalle.data!.ruc ?? ''); setDDistrito(detalle.data!.district ?? ''); setDDireccion(detalle.data!.address ?? '');
+                setDLegal(detalle.data!.legalName ?? ''); setDRuc(detalle.data!.ruc ?? '');
                 setEditandoDatos(true);
               }}>Editar</button>
             )}
           </div>
           <p className="meta" style={{ marginTop: 6 }}>
-            Lo que sale en la cabecera y en «Datos de la inmobiliaria» de cada proforma de este
-            proyecto. La razón social y el RUC son los de la empresa que vende este proyecto.
+            Lo que sale en «Datos de la inmobiliaria» de cada proforma de este proyecto: la razón
+            social y el RUC de la empresa que vende este proyecto, y el logo de la cabecera.
           </p>
           {detalle.data && !editandoDatos && (
             <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.7 }}>
               <div><span className="meta">Razón social: </span>{detalle.data.legalName ?? '—'}</div>
               <div><span className="meta">RUC: </span>{detalle.data.ruc ?? '—'}</div>
-              <div><span className="meta">Distrito: </span>{detalle.data.district ?? '—'}</div>
-              <div><span className="meta">Dirección: </span>{detalle.data.address ?? '—'}</div>
             </div>
           )}
           {editandoDatos && (
@@ -249,10 +245,6 @@ export default function ProyectoDetail() {
               <div className="rejilla-2">
                 <div><label htmlFor="d-legal">Razón social</label><input id="d-legal" value={dLegal} onChange={(e) => setDLegal(e.target.value)} placeholder="RESIDENCIAL ODRIOZOLA SAC" /></div>
                 <div><label htmlFor="d-ruc">RUC</label><input id="d-ruc" value={dRuc} onChange={(e) => setDRuc(e.target.value)} inputMode="numeric" /></div>
-              </div>
-              <div className="rejilla-2">
-                <div><label htmlFor="d-dist">Distrito</label><input id="d-dist" value={dDistrito} onChange={(e) => setDDistrito(e.target.value)} placeholder="Pueblo Libre" /></div>
-                <div><label htmlFor="d-dir">Dirección</label><input id="d-dir" value={dDireccion} onChange={(e) => setDDireccion(e.target.value)} placeholder="Calle Ernesto Odriozola 175" /></div>
               </div>
               {guardarDatos.isError && <p className="error">{(guardarDatos.error as Error).message}</p>}
               <div className="acciones">

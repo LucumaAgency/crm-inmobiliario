@@ -125,7 +125,11 @@ export async function emitirProforma(input) {
         email: lead.contact.email,
         document: lead.contact.document,
     };
-    const agent = { name: asesor?.name ?? '', email: asesor?.email ?? '', phone: asesor?.phone ?? null };
+    const agent = {
+        name: input.agentName?.trim() || asesor?.name || '',
+        email: asesor?.email ?? '',
+        phone: input.agentPhone?.trim() || asesor?.phone || null,
+    };
     /**
      * Correlativo por año, serializado: dos asesores emitiendo a la vez no pueden sacar el
      * mismo número. El bloqueo es la fila de la organización.
@@ -213,7 +217,6 @@ async function generarPdf(d) {
         salida.on('error', reject);
     });
     doc.pipe(salida);
-    const GRIS = '#555555';
     const LINEA = '#BBBBBB';
     const ancho = doc.page.width - 96;
     const x0 = 48;
@@ -227,11 +230,6 @@ async function generarPdf(d) {
         catch { /* logo ilegible: se omite */ }
     }
     doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
-    doc.font('Helvetica').fontSize(11).fillColor(GRIS);
-    if (d.project.district)
-        doc.text(d.project.district, { width: ancho, align: 'right' });
-    if (d.project.address)
-        doc.text(d.project.address, { width: ancho, align: 'right' });
     y = Math.max(doc.y, y + 64) + 10;
     doc.moveTo(x0, y).lineTo(x0 + ancho, y).lineWidth(2).strokeColor('#333333').stroke();
     y += 18;
