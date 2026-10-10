@@ -128,17 +128,17 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    sentAt: Date | null;
-    conversationId: string;
     userId: string | null;
+    sentAt: Date | null;
 }>;
 /**
  * Envía un PDF como documento. Solo dentro de la ventana de 24 h: fuera de ella haría
@@ -155,33 +155,33 @@ export declare function enviarDocumento(datos: {
     error: string | null;
     id: string;
     createdAt: Date;
-    direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    sentAt: Date | null;
-    conversationId: string;
     userId: string | null;
+    sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
-    direction: import(".prisma/client").$Enums.WaDirection;
-    waMessageId: string | null;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
+    waMessageId: string | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
-    sentAt: Date | null;
-    conversationId: string;
     userId: string | null;
+    sentAt: Date | null;
 }>;
 /**
  * Envía de verdad. Lo llama la cola.
