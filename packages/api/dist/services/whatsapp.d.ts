@@ -128,6 +128,7 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
+<<<<<<< HEAD
     status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
@@ -135,6 +136,16 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
+=======
+    userId: string | null;
+    type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+>>>>>>> vertical-agencia
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
@@ -155,6 +166,7 @@ export declare function enviarDocumento(datos: {
     error: string | null;
     id: string;
     createdAt: Date;
+<<<<<<< HEAD
     status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
@@ -162,6 +174,16 @@ export declare function enviarDocumento(datos: {
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
+=======
+    userId: string | null;
+    type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+>>>>>>> vertical-agencia
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
@@ -171,6 +193,7 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
     id: string;
     createdAt: Date;
+<<<<<<< HEAD
     status: import(".prisma/client").$Enums.WaMessageStatus;
     raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
@@ -178,6 +201,16 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
     body: string | null;
+=======
+    userId: string | null;
+    type: string;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    body: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
+    waMessageId: string | null;
+>>>>>>> vertical-agencia
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;

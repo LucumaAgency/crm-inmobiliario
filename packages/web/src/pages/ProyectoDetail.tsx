@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import ImportarUnidades from './ImportarUnidades.js';
+import PaquetesServicio from './PaquetesServicio.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Tipologia {
   id: string;
@@ -55,7 +57,9 @@ const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
 export default function ProyectoDetail() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
-  const [pestana, setPestana] = useState<'tipologias' | 'unidades' | 'datos'>('tipologias');
+  const vertical = useVertical();
+  const L = useEtiquetas();
+  const [pestana, setPestana] = useState<'tipologias' | 'unidades' | 'datos' | 'paquetes'>(vertical === 'agencia' ? 'paquetes' : 'tipologias');
   const [importando, setImportando] = useState(false);
 
   const proyectos = useQuery({
@@ -201,28 +205,38 @@ export default function ProyectoDetail() {
       </div>
 
       <div className="stats">
-        <div className="stat"><div className="n">{tipologias.data?.length ?? '—'}</div><div className="t">Tipologías</div></div>
-        <div className="stat"><div className="n">{unidades.data?.length ?? '—'}</div><div className="t">Unidades</div></div>
+        {vertical !== 'agencia' && <div className="stat"><div className="n">{tipologias.data?.length ?? '—'}</div><div className="t">Tipologías</div></div>}
+        <div className="stat"><div className="n">{unidades.data?.length ?? '—'}</div><div className="t">{L.unidades}</div></div>
         <div className="stat"><div className="n">{porEstado.disponible ?? 0}</div><div className="t">Disponibles</div></div>
         <div className="stat"><div className="n">{porEstado.vendido ?? 0}</div><div className="t">Vendidas</div></div>
       </div>
 
       <div className="pestanas">
-        <button type="button" className={pestana === 'tipologias' ? 'activa' : ''} onClick={() => setPestana('tipologias')}>
-          Tipologías
-        </button>
-        <button type="button" className={pestana === 'unidades' ? 'activa' : ''} onClick={() => setPestana('unidades')}>
-          Unidades
-        </button>
+        {vertical === 'agencia' ? (
+          <button type="button" className={pestana === 'paquetes' ? 'activa' : ''} onClick={() => setPestana('paquetes')}>
+            Paquetes
+          </button>
+        ) : (
+          <>
+            <button type="button" className={pestana === 'tipologias' ? 'activa' : ''} onClick={() => setPestana('tipologias')}>
+              Tipologías
+            </button>
+            <button type="button" className={pestana === 'unidades' ? 'activa' : ''} onClick={() => setPestana('unidades')}>
+              Unidades
+            </button>
+          </>
+        )}
         <button type="button" className={pestana === 'datos' ? 'activa' : ''} onClick={() => setPestana('datos')}>
-          Datos para proformas
+          Datos para {L.documentos.toLowerCase()}
         </button>
       </div>
+
+      {pestana === 'paquetes' && <PaquetesServicio projectId={id} />}
 
       {pestana === 'datos' && (
         <div className="card">
           <div className="fila">
-            <strong>Datos para proformas</strong>
+            <strong>Datos para {L.documentos.toLowerCase()}</strong>
             {!editandoDatos && detalle.data && (
               <button type="button" className="btn btn-sec" style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => {
                 setDLegal(detalle.data!.legalName ?? ''); setDRuc(detalle.data!.ruc ?? '');
@@ -231,8 +245,8 @@ export default function ProyectoDetail() {
             )}
           </div>
           <p className="meta" style={{ marginTop: 6 }}>
-            Lo que sale en «Datos de la inmobiliaria» de cada proforma de este proyecto: la razón
-            social y el RUC de la empresa que vende este proyecto, y el logo de la cabecera.
+            Lo que sale en «{L.datosEmisor}» de cada {L.documento.toLowerCase()}: la razón
+            social y el RUC de quien emite, y el logo de la cabecera.
           </p>
           {detalle.data && !editandoDatos && (
             <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.7 }}>
@@ -254,7 +268,7 @@ export default function ProyectoDetail() {
             </form>
           )}
           <div style={{ marginTop: 14, borderTop: '1px solid var(--borde)', paddingTop: 12 }}>
-            <label>Logo del proyecto (PNG o JPG)</label>
+            <label>Logo (PNG o JPG)</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {detalle.data?.logoUrl && <img src={detalle.data.logoUrl} alt="Logo" style={{ height: 48, maxWidth: 160, objectFit: 'contain' }} />}
               <label htmlFor="p-logo" className="btn btn-sec" style={{ cursor: 'pointer' }}>{detalle.data?.logoUrl ? 'Cambiar' : 'Subir logo'}</label>

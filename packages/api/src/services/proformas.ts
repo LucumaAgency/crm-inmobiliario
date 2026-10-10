@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../db.js';
-import { leerAjustes } from '../lib/ajustes.js';
+import { PROFORMA_NOTA_DEFECTO, leerAjustes } from '../lib/ajustes.js';
 import { privadosDir, rutaPrivada } from '../lib/privados.js';
 import { uploadsDir } from '../lib/media.js';
 
@@ -27,6 +27,10 @@ export interface ItemProforma {
   bathrooms: number | null;
   areaM2: number | null;
   price: number;
+  /** Agencia: nombre del servicio (proyecto), forma de cobro y para quién. */
+  service?: string;
+  billing?: string | null;
+  forWhom?: string | null;
 }
 
 export interface EmitirProformaInput {
@@ -54,6 +58,10 @@ const KIND_ES: Record<string, string> = {
   oficina: 'Oficina',
   otro: 'Otro',
 };
+
+/** Nota por defecto de una propuesta de agencia, si la organización no escribió la suya. */
+export const PROPUESTA_NOTA_AGENCIA =
+  'La presente propuesta tiene una validez de quince (15) días calendario desde su emisión. Los servicios por proyecto se pagan 50% al inicio y 50% a la entrega; los servicios recurrentes se facturan por adelantado cada mes. Los precios están expresados en soles.';
 
 export class ErrorProforma extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -102,9 +110,18 @@ export async function emitirProforma(input: EmitirProformaInput) {
     throw new ErrorProforma(`Sin precio de lista: ${sinPrecio.map((u) => u.code).join(', ')}. Cárgalo en el proyecto.`);
   }
 
+  const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { vertical: true, name: true } });
+  const vertical = org?.vertical ?? 'inmobiliaria';
   const items: ItemProforma[] = unidades
     .sort((a, b) => orden(a.kind) - orden(b.kind) || a.code.localeCompare(b.code))
     .map((u) => ({
+      ...(vertical === 'agencia'
+        ? {
+            service: lead.project!.name,
+            billing: ((u.extra as { cobro?: string | null } | null)?.cobro ?? null),
+            forWhom: ((u.extra as { paraQuien?: string | null } | null)?.paraQuien ?? null),
+          }
+        : {}),
       unitId: u.id,
       kind: u.kind,
       code: u.code,
@@ -135,6 +152,12 @@ export async function emitirProforma(input: EmitirProformaInput) {
   const finalTotal = redondear(listTotal - discountAmount);
 
   const ajustes = await leerAjustes(input.organizationId);
+  // Agencia sin nota ni validez propias: los valores de inmobiliaria (3 días, «reclamo») no aplican.
+  const agenciaSinAjustes = vertical === 'agencia' && ajustes.proformaNota === PROFORMA_NOTA_DEFECTO;
+  if (agenciaSinAjustes) {
+    ajustes.proformaNota = PROPUESTA_NOTA_AGENCIA;
+    if (ajustes.proformaValidezDias === 3) ajustes.proformaValidezDias = 15;
+  }
   const ahora = new Date();
   let validDays = input.validDays ?? ajustes.proformaValidezDias;
   let validUntil = new Date(ahora.getTime() + validDays * 24 * 60 * 60 * 1000);
@@ -202,6 +225,8 @@ export async function emitirProforma(input: EmitirProformaInput) {
   });
 
   await generarPdf({
+    vertical,
+    orgName: org?.name ?? '',
     destino: rutaPrivada(proforma.pdfPath),
     number: proforma.number,
     fecha: ahora,
@@ -223,7 +248,7 @@ export async function emitirProforma(input: EmitirProformaInput) {
       leadId: lead.id,
       userId: input.userId,
       type: 'sistema',
-      body: `Proforma ${proforma.number} emitida: ${items.map((i) => i.code).join(' + ')} · ${moneda(finalTotal, currency)}${discountPct ? ` (desc. ${discountPct}%)` : ''}`,
+      body: `${vertical === 'agencia' ? 'Propuesta' : 'Proforma'} ${proforma.number} emitida: ${items.map((i) => i.code).join(' + ')} · ${moneda(finalTotal, currency)}${discountPct ? ` (desc. ${discountPct}%)` : ''}`,
       meta: { proformaId: proforma.id } as never,
     },
   });
@@ -246,6 +271,8 @@ function fechaCorta(d: Date) {
 }
 
 interface DatosPdf {
+  vertical: string;
+  orgName: string;
   destino: string;
   number: string;
   fecha: Date;
@@ -265,7 +292,9 @@ interface DatosPdf {
 /** Dibuja el PDF. Una página A4, el mismo orden de bloques que la proforma de Sperant. */
 async function generarPdf(d: DatosPdf) {
   await fs.promises.mkdir(path.dirname(d.destino), { recursive: true });
-  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `Proforma ${d.number}`, Author: d.project.legalName ?? d.project.name } });
+  const agencia = d.vertical === 'agencia';
+  const nombreDoc = agencia ? 'Propuesta' : 'Proforma';
+  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `${nombreDoc} ${d.number}`, Author: d.project.legalName ?? d.project.name } });
   const salida = fs.createWriteStream(d.destino);
   const terminado = new Promise<void>((resolve, reject) => {
     salida.on('finish', () => resolve());
@@ -283,7 +312,12 @@ async function generarPdf(d: DatosPdf) {
   if (logo && fs.existsSync(logo) && /\.(png|jpe?g)$/i.test(logo)) {
     try { doc.image(logo, x0, y, { fit: [110, 60] }); } catch { /* logo ilegible: se omite */ }
   }
-  doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
+  if (agencia) {
+    doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text((d.project.legalName || d.orgName).toUpperCase(), x0, y, { width: ancho, align: 'right' });
+    doc.font('Helvetica').fontSize(11).fillColor('#555555').text(`Propuesta · ${d.project.name}`, { width: ancho, align: 'right' });
+  } else {
+    doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
+  }
   y = Math.max(doc.y, y + 64) + 10;
   doc.moveTo(x0, y).lineTo(x0 + ancho, y).lineWidth(2).strokeColor('#333333').stroke();
   y += 18;
@@ -310,15 +344,22 @@ async function generarPdf(d: DatosPdf) {
   par('DNI:', d.client.document);
   separador();
 
-  titulo('Datos de la(s) unidad(es)');
-  const cols = [
-    { t: 'Tipo de unidad', w: 0.30 },
-    { t: 'Unidad', w: 0.11 },
-    { t: 'Dorm.', w: 0.10 },
-    { t: 'Baños', w: 0.10 },
-    { t: 'Área (m²)', w: 0.17 },
-    { t: 'Precio', w: 0.22 },
-  ];
+  titulo(agencia ? 'Servicios propuestos' : 'Datos de la(s) unidad(es)');
+  const cols = agencia
+    ? [
+        { t: 'Servicio', w: 0.34 },
+        { t: 'Paquete', w: 0.20 },
+        { t: 'Cobro', w: 0.18 },
+        { t: 'Precio', w: 0.28 },
+      ]
+    : [
+        { t: 'Tipo de unidad', w: 0.30 },
+        { t: 'Unidad', w: 0.11 },
+        { t: 'Dorm.', w: 0.10 },
+        { t: 'Baños', w: 0.10 },
+        { t: 'Área (m²)', w: 0.17 },
+        { t: 'Precio', w: 0.22 },
+      ];
   const alto = 20;
   let cx = x0;
   doc.rect(x0, y, ancho, alto).fillAndStroke('#F0F0F0', LINEA);
@@ -332,30 +373,41 @@ async function generarPdf(d: DatosPdf) {
   for (const it of d.items) {
     cx = x0;
     doc.rect(x0, y, ancho, alto).lineWidth(0.5).strokeColor(LINEA).stroke();
-    const celdas = [
-      `${KIND_ES[it.kind] ?? it.kind}${it.typology && it.kind === 'departamento' ? ` ${it.typology}` : ''}`,
-      it.code,
-      it.bedrooms != null ? String(it.bedrooms) : '-',
-      it.bathrooms != null ? String(it.bathrooms) : '-',
-      it.areaM2 != null ? `${it.areaM2.toFixed(2)} m²` : '-',
-      moneda(it.price, d.currency),
-    ];
+    const celdas = agencia
+      ? [it.service ?? d.project.name, it.code, it.billing ?? 'único', moneda(it.price, d.currency)]
+      : [
+          `${KIND_ES[it.kind] ?? it.kind}${it.typology && it.kind === 'departamento' ? ` ${it.typology}` : ''}`,
+          it.code,
+          it.bedrooms != null ? String(it.bedrooms) : '-',
+          it.bathrooms != null ? String(it.bathrooms) : '-',
+          it.areaM2 != null ? `${it.areaM2.toFixed(2)} m²` : '-',
+          moneda(it.price, d.currency),
+        ];
     celdas.forEach((texto, i) => {
       doc.fillColor('#222222').text(texto, cx + 4, y + 6, { width: ancho * cols[i]!.w - 8, align: 'center', lineBreak: false, ellipsis: true });
       cx += ancho * cols[i]!.w;
     });
     y += alto;
   }
+  if (agencia) {
+    for (const it of d.items) {
+      if (!it.forWhom) continue;
+      y += 6;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#222222').text(`${it.code}: `, x0, y, { continued: true });
+      doc.font('Helvetica').fillColor('#444444').text(it.forWhom, { width: ancho });
+      y = doc.y;
+    }
+  }
   separador();
 
-  titulo('Precio de venta');
+  titulo(agencia ? 'Inversión' : 'Precio de venta');
   par('Precio total:', moneda(d.listTotal, d.currency));
   if (d.discountAmount > 0) par(`Descuento (${d.discountPct}%):`, `- ${moneda(d.discountAmount, d.currency)}`);
   doc.font('Helvetica-Bold');
   par('Precio total final:', moneda(d.finalTotal, d.currency));
   separador();
 
-  titulo('Datos de la inmobiliaria');
+  titulo(agencia ? 'Datos de la agencia' : 'Datos de la inmobiliaria');
   par('Razón social:', d.project.legalName);
   par('RUC:', d.project.ruc);
   par('Asesor comercial:', d.agent.name);
@@ -367,7 +419,7 @@ async function generarPdf(d: DatosPdf) {
   const cajaW = 230;
   const cajaX = x0 + ancho - cajaW;
   doc.rect(cajaX, y, cajaW, 44).lineWidth(0.8).strokeColor('#222222').stroke();
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#222222').text('Cotización N°:', cajaX + 8, y + 8, { width: 110 });
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#222222').text(agencia ? 'Propuesta N°:' : 'Cotización N°:', cajaX + 8, y + 8, { width: 110 });
   doc.font('Helvetica').text(d.number, cajaX + 118, y + 8, { width: cajaW - 126 });
   doc.font('Helvetica-Bold').text('Fecha:', cajaX + 8, y + 26, { width: 110 });
   doc.font('Helvetica').text(fechaCorta(d.fecha), cajaX + 118, y + 26, { width: cajaW - 126 });

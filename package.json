@@ -27,7 +27,11 @@
     "admin:prod": "node packages/api/dist/set-password.js --admin",
     "admin": "tsx packages/api/src/set-password.ts --admin",
     "org": "tsx packages/api/src/crear-org.ts",
-    "org:prod": "node packages/api/dist/crear-org.js"
+    "org:prod": "node packages/api/dist/crear-org.js",
+    "vertical": "tsx packages/api/src/vertical.ts",
+    "vertical:prod": "node packages/api/dist/vertical.js",
+    "catalogo": "tsx packages/api/src/importar-catalogo.ts",
+    "catalogo:prod": "node packages/api/dist/importar-catalogo.js"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

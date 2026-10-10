@@ -16,7 +16,10 @@ export declare function enqueue(type: JobType, payload: unknown, runAt?: Date): 
     createdAt: Date;
     status: import(".prisma/client").$Enums.JobStatus;
     lastError: string | null;
+<<<<<<< HEAD
     type: string;
+=======
+>>>>>>> vertical-agencia
     payload: import("@prisma/client/runtime/library").JsonValue;
     attempts: number;
     maxAttempts: number;

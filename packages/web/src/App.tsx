@@ -18,11 +18,13 @@ import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
 import { PermisosContext } from './lib/permisos.js';
+import { VerticalContext } from './lib/vertical.js';
+import { etiquetas, type Vertical } from '@lucuma-crm/shared';
 import type { Permiso } from '@lucuma-crm/shared';
 
 interface Me {
   user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string };
-  organization: { id: string; name: string } | null;
+  organization: { id: string; name: string; vertical?: string } | null;
   tienePassword: boolean;
 }
 
@@ -86,6 +88,8 @@ export default function App() {
   if (isError || !data) return <Login />;
 
   const permisos = data.user.permissions ?? [];
+  const vertical = (data.organization?.vertical ?? 'inmobiliaria') as Vertical;
+  const L = etiquetas(vertical);
   const puede = (...p: Permiso[]) => p.some((x) => permisos.includes(x));
   const puedeGestionar = puede('embudo.configurar', 'usuarios.gestionar', 'canales.configurar', 'leads.exportar');
   const puedeFormularios = puede('canales.configurar');
@@ -93,7 +97,9 @@ export default function App() {
   const puedeReportes = puede('reportes.ver');
   const enlace = ({ isActive }: { isActive: boolean }) => (isActive ? 'activo' : '');
   const titulo =
-    TITULOS.find(([patron]) => matchPath(patron, location.pathname))?.[1] ?? 'Lucuma CRM';
+    (TITULOS.find(([patron]) => matchPath(patron, location.pathname))?.[1] ?? 'Lucuma CRM')
+      .replace(/^Proyectos$/, L.proyectos)
+      .replace(/^Proyecto$/, L.proyecto);
 
   async function salir() {
     await api.post('/auth/logout');
@@ -103,6 +109,7 @@ export default function App() {
 
   return (
     <PermisosContext.Provider value={permisos}>
+    <VerticalContext.Provider value={vertical}>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
         <div className="lateral-marca">
@@ -131,14 +138,15 @@ export default function App() {
           )}
 
           <div className="nav-seccion">
-            Proyectos
+            {L.proyectos}
             {puedeInventario && (
-              <NavLink to="/proyectos" aria-label="Gestionar proyectos" title="Gestionar proyectos">
+              <NavLink to="/proyectos" aria-label={`Gestionar ${L.proyectos.toLowerCase()}`} title={`Gestionar ${L.proyectos.toLowerCase()}`}>
                 <Icono nombre="mas" tam={15} />
               </NavLink>
             )}
           </div>
-          {proyectos.data?.map((p) => (
+          {/* Una inmobiliaria tiene 2-5 proyectos y caben en el menú; una agencia tiene 24 servicios y no. */}
+          {vertical === 'inmobiliaria' && proyectos.data?.map((p) => (
             <NavLink
               key={p.id}
               to={`/proyectos/${p.id}`}
@@ -148,9 +156,9 @@ export default function App() {
               <span>{p.name}</span>
             </NavLink>
           ))}
-          {proyectos.data?.length === 0 && (
+          {(vertical !== 'inmobiliaria' || proyectos.data?.length === 0) && (
             <NavLink to="/proyectos" className={enlace}>
-              <Icono nombre="proyectos" />Ver proyectos
+              <Icono nombre="proyectos" />{vertical === 'inmobiliaria' ? 'Ver proyectos' : L.inventario}
             </NavLink>
           )}
 
@@ -238,6 +246,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    </VerticalContext.Provider>
     </PermisosContext.Provider>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Crea una organización nueva con sus etapas por defecto y su primer administrador.
  *
- *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña]
+ *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia]
  *   npm run org:prod -- lucuma "Lucuma Agency" dev@lucumaagency.com MiClave123
  *
  * El slug es el subdominio (`lucuma.<CRM_BASE_DOMAIN>`): minúsculas, números y guiones.
@@ -13,6 +13,7 @@
  */
 import { prisma } from './db.js';
 import { generarPassword, hashPassword } from './lib/password.js';
+import { esVertical } from '@lucuma-crm/shared';
 
 const ETAPAS = [
   { slug: 'por-contactar', name: 'Por contactar', position: 1, color: '#94a3b8' },
@@ -25,7 +26,11 @@ const ETAPAS = [
 ];
 
 async function main() {
-  const [slug, nombre, correo, dada] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const iv = args.indexOf('--vertical');
+  const vertical = iv >= 0 ? args.splice(iv, 2)[1] : 'inmobiliaria';
+  const [slug, nombre, correo, dada] = args;
+  if (!esVertical(vertical ?? '')) { console.error('--vertical debe ser inmobiliaria o agencia'); process.exit(1); }
   if (!slug || !nombre || !correo) {
     console.error('Uso: npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña]');
     process.exit(1);
@@ -40,7 +45,7 @@ async function main() {
   }
 
   const password = dada || generarPassword();
-  const org = await prisma.organization.create({ data: { name: nombre, slug } });
+  const org = await prisma.organization.create({ data: { name: nombre, slug, vertical } });
   for (const e of ETAPAS) await prisma.stage.create({ data: { ...e, organizationId: org.id } });
   const admin = await prisma.user.create({
     data: {

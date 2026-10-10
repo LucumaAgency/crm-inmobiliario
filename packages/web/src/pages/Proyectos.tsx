@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Proyecto {
   id: string;
@@ -25,6 +26,8 @@ function aSlug(texto: string) {
 
 export default function Proyectos() {
   const qc = useQueryClient();
+  const L = useEtiquetas();
+  const vertical = useVertical();
   const [creando, setCreando] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -57,14 +60,16 @@ export default function Proyectos() {
   return (
     <>
       <div className="barra-acciones">
-        <h2 style={{ flex: 1, margin: 0, fontSize: 20 }}>Proyectos</h2>
-        <button type="button" className="btn" onClick={() => setCreando(true)}>+ Nuevo proyecto</button>
+        <h2 style={{ flex: 1, margin: 0, fontSize: 20 }}>{L.proyectos}</h2>
+        <button type="button" className="btn" onClick={() => setCreando(true)}>+ Nuevo {L.proyecto.toLowerCase()}</button>
       </div>
 
       {proyectos.isLoading && <div className="vacio">Cargando…</div>}
       {proyectos.data?.length === 0 && (
         <div className="vacio">
-          Todavía no hay proyectos. Crea el primero para cargar sus tipologías y unidades.
+          {vertical === 'agencia'
+            ? 'Todavía no hay servicios. Crea el primero y cárgale sus paquetes con precio.'
+            : 'Todavía no hay proyectos. Crea el primero para cargar sus tipologías y unidades.'}
         </div>
       )}
 
@@ -84,7 +89,7 @@ export default function Proyectos() {
         <div className="modal-fondo" onClick={() => setCreando(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-cab">
-              <h2>Nuevo proyecto</h2>
+              <h2>Nuevo {L.proyecto.toLowerCase()}</h2>
               <button type="button" className="cerrar" onClick={() => setCreando(false)} aria-label="Cerrar">×</button>
             </div>
             <form
@@ -98,7 +103,7 @@ export default function Proyectos() {
                 id="p-name"
                 value={name}
                 autoFocus
-                placeholder="Edificio Domus"
+                placeholder={L.ejemploProyecto}
                 onChange={(e) => {
                   setName(e.target.value);
                   if (!slugTocado) setSlug(aSlug(e.target.value));
@@ -115,20 +120,22 @@ export default function Proyectos() {
 
               <div className="rejilla-2">
                 <div>
-                  <label htmlFor="p-code">Código interno</label>
-                  <input id="p-code" value={code} onChange={(e) => setCode(e.target.value)} />
+                  <label htmlFor="p-code">{vertical === 'agencia' ? 'Modalidad' : 'Código interno'}</label>
+                  <input id="p-code" value={code} placeholder={vertical === 'agencia' ? 'recurrente / proyecto' : ''} onChange={(e) => setCode(e.target.value)} />
                 </div>
-                <div>
-                  <label htmlFor="p-address">Dirección</label>
-                  <input id="p-address" value={address} onChange={(e) => setAddress(e.target.value)} />
-                </div>
+                {vertical !== 'agencia' && (
+                  <div>
+                    <label htmlFor="p-address">Dirección</label>
+                    <input id="p-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+                  </div>
+                )}
               </div>
 
               {crear.isError && <p className="error">{(crear.error as Error).message}</p>}
 
               <div className="acciones" style={{ marginTop: 16 }}>
                 <button type="submit" className="btn" disabled={invalido || crear.isPending}>
-                  {crear.isPending ? 'Creando…' : 'Crear proyecto'}
+                  {crear.isPending ? 'Creando…' : `Crear ${L.proyecto.toLowerCase()}`}
                 </button>
                 <button type="button" className="btn btn-sec" onClick={() => setCreando(false)}>Cancelar</button>
               </div>
