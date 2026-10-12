@@ -73,8 +73,17 @@ export async function recibirMensajes(valor) {
 }
 async function recibirUno(numero, valor, mensaje) {
     const waId = mensaje.from;
-    if (!waId || !mensaje.id)
+    if (!waId || !mensaje.id) {
+        /**
+         * Nunca descartar en silencio. En producción hubo avisos con «1 mensaje» que no
+         * dejaban ni lead ni error: la única salida muda era esta. Se guarda el payload
+         * recortado para ver qué mandó Meta (sin `from` o sin `id`).
+         */
+        logLine(`wa: mensaje sin from/id, descartado. type=${mensaje.type ?? '?'} ` +
+            `payload=${JSON.stringify(mensaje).slice(0, 600)}`);
         return;
+    }
+    logLine(`wa: procesando mensaje ${mensaje.id} de +${waId} (type=${mensaje.type ?? '?'})`);
     // Idempotencia: Meta reintenta el webhook si no recibe el 200 a tiempo.
     const yaEstaba = await prisma.waMessage.findUnique({ where: { waMessageId: mensaje.id } });
     if (yaEstaba) {
