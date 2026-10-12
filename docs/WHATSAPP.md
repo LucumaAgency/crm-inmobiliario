@@ -62,6 +62,14 @@ Un mensaje entrante:
    persona entre varios asesores.
 4. Renueva la ventana de 24 horas.
 
+**Clientes sin número (`from_user_id`).** Desde 2026 WhatsApp permite escribir a una
+empresa sin compartir el teléfono. El mensaje llega sin `from` y con `from_user_id`
+(`PE.2205745070340369`); el perfil viene en `contacts[].user_id`. El CRM usa ese
+identificador como llave de la conversación, crea el contacto **sin teléfono** y le
+responde al mismo identificador en `to`. Hasta el 2026-10-12 estos mensajes se
+descartaban en silencio: era la causa de «los números nuevos no llegan». Si el cliente
+después comparte su número, hay que fusionar los dos contactos a mano.
+
 ## La ventana de 24 horas
 
 Desde el último mensaje del cliente se puede responder **texto libre**. Pasado ese plazo,

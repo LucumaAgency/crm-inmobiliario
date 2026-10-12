@@ -33,14 +33,22 @@ const VENTANA_HORAS = 24;
 /** El bloque `value` de un cambio con `field: "messages"`. */
 export interface ValorMensajes {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
-  contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
+  contacts?: Array<{ wa_id?: string; user_id?: string; profile?: { name?: string } }>;
   messages?: Array<MensajeEntrante>;
   statuses?: Array<EstadoMensaje>;
 }
 
 interface MensajeEntrante {
   id?: string;
+  /** Número del cliente (wa_id). Falta cuando el cliente NO comparte su número. */
   from?: string;
+  /**
+   * Identidad sin número, p. ej. `PE.2205745070340369`. WhatsApp la manda en vez de
+   * `from` cuando el usuario escribe sin compartir su teléfono con la empresa. Se
+   * responde al mismo identificador en `to`. Visto en producción el 2026-10-12: los
+   * clientes nuevos llegaban así y el CRM los descartaba.
+   */
+  from_user_id?: string;
   timestamp?: string;
   type?: string;
   text?: { body?: string };
@@ -128,7 +136,8 @@ async function recibirUno(
   valor: ValorMensajes,
   mensaje: MensajeEntrante
 ) {
-  const waId = mensaje.from;
+  const waId = mensaje.from ?? mensaje.from_user_id;
+  const conNumero = Boolean(mensaje.from);
   if (!waId || !mensaje.id) {
     /**
      * Nunca descartar en silencio. En producción hubo avisos con «1 mensaje» que no
@@ -151,11 +160,11 @@ async function recibirUno(
     return;
   }
 
-  const perfil = valor.contacts?.find((c) => c.wa_id === waId);
+  const perfil = valor.contacts?.find((c) => c.wa_id === waId || c.user_id === waId);
   const { texto, tipo, media } = interpretar(mensaje);
   const recibidoEn = mensaje.timestamp ? new Date(Number(mensaje.timestamp) * 1000) : new Date();
 
-  const conversacion = await conversacionDe(numero, waId, perfil?.profile?.name);
+  const conversacion = await conversacionDe(numero, waId, conNumero, perfil?.profile?.name);
 
   /**
    * ¿Este mensaje abre un lead?
@@ -180,7 +189,7 @@ async function recibirUno(
         idempotencyKey: `wa-${mensaje.id}`,
         values: limpiar({
           fname: perfil?.profile?.name ?? 'Contacto de WhatsApp',
-          phone: `+${waId}`,
+          phone: conNumero ? `+${waId}` : undefined,
           message: texto,
         }),
         ...(mensaje.referral
@@ -203,6 +212,9 @@ async function recibirUno(
         organizationId: numero.organizationId,
         projectId: numero.projectId,
         source: mensaje.referral ? 'whatsapp_ctwa' : 'whatsapp',
+        // Sin número no hay llave de deduplicación: el lead cuelga del contacto de la
+        // conversación, que ya existe. Con número, captureLead lo resuelve por teléfono.
+        contactId: conNumero ? undefined : conversacion.contactId,
       }
     );
     leadId = resultado.leadId;
@@ -254,7 +266,7 @@ async function recibirUno(
       : []),
   ]);
 
-  logLine(`wa: mensaje de +${waId} → lead ${leadId ?? 'sin lead'}`);
+  logLine(`wa: mensaje de ${conNumero ? '+' : 'user_id '}${waId} → lead ${leadId ?? 'sin lead'}`);
 
   // Imagen, audio, sticker, video o documento: se descarga aparte para que el webhook
   // responda rápido (Meta reintenta si tarda) y el archivo quede en el CRM.
@@ -631,6 +643,7 @@ async function cargarConversacion(id: string) {
 async function conversacionDe(
   numero: { id: string; organizationId: string },
   waId: string,
+  conNumero: boolean,
   nombre?: string
 ) {
   const existente = await prisma.waConversation.findUnique({
@@ -638,10 +651,14 @@ async function conversacionDe(
   });
   if (existente) return existente;
 
-  const telefono = normalizePhonePE(`+${waId}`) ?? `+${waId}`;
-  let contacto = await prisma.contact.findFirst({
-    where: { organizationId: numero.organizationId, phone: telefono },
-  });
+  // Con `from_user_id` no hay teléfono: el contacto nace sin número y la conversación
+  // es su única llave. Si después comparte el número, se puede fusionar a mano.
+  const telefono = conNumero ? normalizePhonePE(`+${waId}`) ?? `+${waId}` : null;
+  let contacto = telefono
+    ? await prisma.contact.findFirst({
+        where: { organizationId: numero.organizationId, phone: telefono },
+      })
+    : null;
   if (!contacto) {
     const { fname, lname } = partirNombre(nombre ?? '');
     contacto = await prisma.contact.create({

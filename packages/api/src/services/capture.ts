@@ -25,6 +25,12 @@ export interface CaptureContext {
   userAgent?: string;
   notifyEmails?: string[];
   projectId?: string | null;
+  /**
+   * Contacto ya resuelto por quien llama. Lo usa WhatsApp cuando el cliente escribe
+   * sin compartir su número (`from_user_id`): no hay teléfono ni correo con que
+   * deduplicar, y el contacto de la conversación es el único ancla.
+   */
+  contactId?: string;
 }
 
 export interface CaptureResult {
@@ -63,13 +69,18 @@ export async function captureLead(
   const document = normalizeDocument(campos.document);
 
   // 3) Contacto: identidad por documento → email → teléfono.
-  const contacto = await upsertContacto(ctx.organizationId, {
-    fname: campos.fname || 'Sin nombre',
-    lname: campos.lname,
-    email,
-    phone,
-    document,
-  });
+  const contacto = ctx.contactId
+    ? await prisma.contact.findUniqueOrThrow({ where: { id: ctx.contactId } })
+    : await upsertContacto(ctx.organizationId, {
+        fname: campos.fname || 'Sin nombre',
+        lname: campos.lname,
+        email,
+        phone,
+        document,
+      });
+  if (contacto.organizationId !== ctx.organizationId) {
+    throw new Error('captureLead: el contacto no pertenece a esta organización');
+  }
 
   // 4) Lead: ¿ya existe uno abierto del mismo contacto en el mismo proyecto?
   const projectId = ctx.projectId ?? campos.projectId ?? null;
