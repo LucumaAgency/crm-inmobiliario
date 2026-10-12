@@ -31,10 +31,10 @@ export default function Leads() {
       ),
     /**
      * Un lead entra por un webhook, no por algo que el asesor haga en esta pantalla: sin
-     * refresco habría que recargar para enterarse. Se sondea cada 20 s y además al volver
+     * refresco habría que recargar para enterarse. Se sondea cada 8 s y además al volver
      * a la pestaña, que es cuando de verdad se mira.
      */
-    refetchInterval: 20_000,
+    refetchInterval: 8_000,
     refetchOnWindowFocus: true,
     // Que el sondeo no parpadee la lista mientras se lee.
     placeholderData: (previo) => previo,

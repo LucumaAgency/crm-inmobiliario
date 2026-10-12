@@ -60,7 +60,8 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
     queryFn: () => api.get<Respuesta>(`/leads/${leadId}/whatsapp`),
     // El mensaje del cliente llega por webhook, no por esta pestaña: sin refresco, el
     // asesor cree que nadie le contestó.
-    refetchInterval: 15_000,
+    refetchInterval: 4_000,
+    refetchIntervalInBackground: false,
   });
 
   const plantillas = useQuery({

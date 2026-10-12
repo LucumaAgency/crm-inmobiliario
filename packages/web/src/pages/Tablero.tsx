@@ -60,7 +60,7 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
           ...(ownerId ? { ownerId } : {}),
         })}`
       ),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
     refetchOnWindowFocus: true,
     placeholderData: (previo) => previo,
   });
