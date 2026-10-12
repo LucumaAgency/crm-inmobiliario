@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, matchPath, useLocation, useNavigate }
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './lib/api.js';
 import Icono from './components/Icono.js';
+import { ding, prepararSonido } from './lib/sonido.js';
 import Login from './pages/Login.js';
 import AuthCallback from './pages/AuthCallback.js';
 import Resumen from './pages/Resumen.js';
@@ -59,8 +60,8 @@ interface NoLeidos {
  * Mensajes de WhatsApp sin leer, para toda la app.
  *
  * Sondea cada 8 s (igual que la lista de leads) y con eso alimenta tres cosas: el globo
- * junto a «Leads», el «(3)» delante del título de la pestaña, y una notificación del
- * navegador cuando el total SUBE. El permiso de notificaciones se pide en el primer clic
+ * junto a «Leads», el «(3)» delante del título de la pestaña, y un ding + notificación del
+ * navegador cuando el total SUBE (el ding se apaga en Mi cuenta). El permiso de notificaciones se pide en el primer clic
  * dentro del CRM, no al cargar: los navegadores bloquean el pedido sin gesto del usuario.
  */
 function useNoLeidos(activo: boolean) {
@@ -77,6 +78,7 @@ function useNoLeidos(activo: boolean) {
   useEffect(() => {
     if (!activo || typeof Notification === 'undefined') return;
     const pedir = () => {
+      prepararSonido();
       if (Notification.permission === 'default') void Notification.requestPermission();
     };
     window.addEventListener('click', pedir, { once: true });
@@ -91,7 +93,9 @@ function useNoLeidos(activo: boolean) {
   useEffect(() => {
     if (!data) return;
     // La primera lectura solo fija la línea base: no se avisa de lo que ya estaba.
-    if (anterior.current !== null && total > anterior.current && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    const subio = anterior.current !== null && total > anterior.current;
+    if (subio) ding();
+    if (subio && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       const c = data.conversaciones[0];
       const n = new Notification(c ? `WhatsApp de ${c.nombre}` : 'Mensaje nuevo de WhatsApp', {
         body: total === 1 ? '1 mensaje sin leer' : `${total} mensajes sin leer`,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useEffect, useState as useStateReact } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { ding, setSonidoActivo, sonidoActivo } from '../lib/sonido.js';
 
 const MINIMO = 10;
 
@@ -40,6 +41,7 @@ export default function Cuenta({ tienePassword }: { tienePassword: boolean }) {
   return (
     <>
     <Telefono />
+    <Sonido />
     <div className="card" style={{ maxWidth: 440 }}>
       <strong>{tienePassword ? 'Cambiar contraseña' : 'Crear contraseña'}</strong>
       <p className="meta" style={{ marginTop: 6 }}>
@@ -113,6 +115,21 @@ function Telefono() {
       </form>
       {guardar.isSuccess && <p className="ok">Teléfono guardado.</p>}
       {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}
+    </div>
+  );
+}
+
+function Sonido() {
+  const [activo, setActivo] = useStateReact(sonidoActivo());
+  return (
+    <div className="card" style={{ maxWidth: 440 }}>
+      <strong>Sonido de WhatsApp</strong>
+      <p className="meta" style={{ marginTop: 6 }}>Un ding cada vez que llega un mensaje nuevo, aunque la pestaña esté detrás. Se guarda en este navegador.</p>
+      <label className="interruptor">
+        <input type="checkbox" checked={activo} onChange={(e) => { setActivo(e.target.checked); setSonidoActivo(e.target.checked); if (e.target.checked) ding(true); }} />
+        <span><strong>Sonar al recibir mensajes</strong></span>
+      </label>
+      <button type="button" className="enlace-btn" onClick={() => ding(true)}>Probar sonido</button>
     </div>
   );
 }
