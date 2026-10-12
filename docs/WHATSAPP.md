@@ -68,7 +68,16 @@ empresa sin compartir el teléfono. El mensaje llega sin `from` y con `from_user
 identificador (BSUID) como llave de la conversación, crea el contacto **sin teléfono** y
 le responde con el campo `recipient` en vez de `to`: si el BSUID va en `to`, Meta lo
 lee como teléfono y el envío falla con 131026 «Message undeliverable». Las plantillas de
-autenticación (OTP) no se pueden mandar a un BSUID. Hasta el 2026-10-12 estos mensajes se
+autenticación (OTP) no se pueden mandar a un BSUID.
+
+Ojo con la migración de un cliente a su propio número: el BSUID está **ligado al
+portafolio de Meta Business** del número que recibió el mensaje. Si el cliente entró sin
+número por el número de Lucuma y después la inmobiliaria pasa a su WABA propia, ese BSUID
+no sirve desde el número nuevo y el envío rebota. Mitigación: pedir el teléfono a quien
+entra sin él, y migrar al número propio antes de acumular clientes. Formato del BSUID:
+dos letras de país, punto y hasta 128 caracteres (`PE.2205745070340369`); los de empresa
+matriz llevan `ENT.` (`PE.ENT.…`). Doc oficial:
+developers.facebook.com/documentation/business-messaging/whatsapp/business-scoped-user-ids/ Hasta el 2026-10-12 estos mensajes se
 descartaban en silencio: era la causa de «los números nuevos no llegan». Si el cliente
 después comparte su número, hay que fusionar los dos contactos a mano.
 
