@@ -394,7 +394,7 @@ export async function despacharMensaje(messageId) {
             const mediaId = await subirMedia(numero.phoneNumberId, descifrar(numero.accessTokenEnc), raw.rutaAbsoluta ?? '', raw.filename ?? 'documento.pdf', 'application/pdf');
             cuerpo = {
                 messaging_product: 'whatsapp',
-                to: mensaje.conversation.waId,
+                ...destinatario(mensaje.conversation.waId),
                 type: 'document',
                 document: { id: mediaId, filename: raw.filename ?? 'documento.pdf', ...(raw.caption ? { caption: raw.caption } : {}) },
             };
@@ -402,7 +402,7 @@ export async function despacharMensaje(messageId) {
         else {
             cuerpo = {
                 messaging_product: 'whatsapp',
-                to: mensaje.conversation.waId,
+                ...destinatario(mensaje.conversation.waId),
                 type: 'text',
                 text: { preview_url: true, body: mensaje.body ?? '' },
             };
@@ -627,13 +627,29 @@ function interpretar(m) {
             return { texto: undefined, tipo: 'unsupported', media: null };
     }
 }
+/**
+ * Destinatario de un envío según la llave de la conversación.
+ *
+ * Con número, `to`. Con BSUID (identidad sin número, `PE.2205…`), Meta exige el campo
+ * `recipient`; si se manda en `to`, lo lee como teléfono y responde con el estado
+ * `failed` 131026 «Message undeliverable». Visto en producción el 2026-10-12.
+ * Doc: developers.facebook.com/documentation/business-messaging/whatsapp/business-scoped-user-ids/
+ */
+export function esBsuid(waId) {
+    return /^[A-Z]{2}\.(ENT\.)?[A-Za-z0-9]+$/.test(waId);
+}
+function destinatario(waId) {
+    return esBsuid(waId)
+        ? { recipient_type: 'individual', recipient: waId }
+        : { to: waId };
+}
 function cuerpoPlantilla(waId, payload) {
     const nombre = String(payload?.name ?? '');
     const idioma = String(payload?.language ?? 'es');
     const variables = Array.isArray(payload?.variables) ? payload.variables : [];
     return {
         messaging_product: 'whatsapp',
-        to: waId,
+        ...destinatario(waId),
         type: 'template',
         template: {
             name: nombre,

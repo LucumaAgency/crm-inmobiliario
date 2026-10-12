@@ -217,4 +217,13 @@ export declare function plantillasDe(phoneNumberId: string): Promise<{
     templates: unknown[];
     error?: undefined;
 }>;
+/**
+ * Destinatario de un envío según la llave de la conversación.
+ *
+ * Con número, `to`. Con BSUID (identidad sin número, `PE.2205…`), Meta exige el campo
+ * `recipient`; si se manda en `to`, lo lee como teléfono y responde con el estado
+ * `failed` 131026 «Message undeliverable». Visto en producción el 2026-10-12.
+ * Doc: developers.facebook.com/documentation/business-messaging/whatsapp/business-scoped-user-ids/
+ */
+export declare function esBsuid(waId: string): boolean;
 export {};
