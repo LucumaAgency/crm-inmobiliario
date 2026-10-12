@@ -23,7 +23,7 @@ import { rutaPrivada } from '../lib/privados.js';
 import { env } from '../env.js';
 import { normalizePhonePE } from '@lucuma-crm/shared';
 import { descifrar, redactarSecretos } from '../lib/secretos.js';
-import { logError, logLine } from '../lib/log.js';
+import { logDir, logError, logLine } from '../lib/log.js';
 import { enqueue } from '../lib/jobs.js';
 import { partirNombre } from '../lib/nombres.js';
 import { captureLead } from './capture.js';
@@ -118,6 +118,7 @@ export async function recibirMensajes(valor: ValorMensajes): Promise<void> {
       await recibirUno(numero, valor, mensaje);
     } catch (err) {
       logError('wa: no se pudo registrar el mensaje', mensaje.id, err);
+      await guardarAvisoCrudo(numero, valor, err instanceof Error ? err.message : String(err));
     }
   }
 }
@@ -138,6 +139,7 @@ async function recibirUno(
       `wa: mensaje sin from/id, descartado. type=${mensaje.type ?? '?'} ` +
         `payload=${JSON.stringify(mensaje).slice(0, 600)}`
     );
+    await guardarAvisoCrudo(numero, valor, 'sin from/id');
     return;
   }
   logLine(`wa: procesando mensaje ${mensaje.id} de +${waId} (type=${mensaje.type ?? '?'})`);
@@ -670,6 +672,33 @@ async function conversacionDe(
       if (ganadora) return ganadora;
     }
     throw err;
+  }
+}
+
+/**
+ * Red de seguridad: el aviso completo de Meta, tal cual llegó, en `logs/wa-crudos.txt`.
+ *
+ * Meta no reintenta un webhook respondido con 200 y la Cloud API no permite pedir el
+ * historial: un mensaje que el CRM descarta o no logra registrar se pierde para siempre.
+ * Con el aviso crudo guardado, al menos queda el número del cliente (`contacts[].wa_id`)
+ * y el texto, y se puede contactar a mano o reprocesar.
+ */
+async function guardarAvisoCrudo(
+  numero: { phoneNumberId: string },
+  valor: ValorMensajes,
+  motivo: string
+): Promise<void> {
+  try {
+    const linea = JSON.stringify({
+      at: new Date().toISOString(),
+      phoneNumberId: numero.phoneNumberId,
+      motivo,
+      contacts: valor.contacts ?? [],
+      messages: valor.messages ?? [],
+    });
+    await fs.promises.appendFile(path.join(logDir, 'wa-crudos.txt'), linea + '\n');
+  } catch (err) {
+    logError('wa: no se pudo guardar el aviso crudo', err);
   }
 }
 
