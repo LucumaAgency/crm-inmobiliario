@@ -81,6 +81,19 @@ developers.facebook.com/documentation/business-messaging/whatsapp/business-scope
 descartaban en silencio: era la causa de «los números nuevos no llegan». Si el cliente
 después comparte su número, hay que fusionar los dos contactos a mano.
 
+## Adjuntos desde la ficha
+
+El asesor puede mandar un archivo al cliente desde el chat con «Adjuntar archivo»: JPG o
+PNG (hasta 5 MB, límite de Meta para imágenes), MP4, PDF, Word, Excel o PowerPoint, con
+tope de 8 MB (límite de subida de la plataforma). El texto escrito en el cuadro viaja
+como pie del archivo. Solo dentro de la ventana de 24 h.
+
+Ruta: `POST /leads/:id/whatsapp/adjunto` (multipart, `caption` antes de `archivo`). El
+archivo se guarda en `privados/<org>/wa-out/` con validación de firma (un «.pdf» que no
+empieza con `%PDF` se rechaza) y el mensaje nace con `media` lleno, así el chat lo muestra
+igual que uno entrante. La cola lo sube a Meta (`/media`) y lo manda con `type` image,
+video o document; las proformas usan el mismo camino.
+
 ## La ventana de 24 horas
 
 Desde el último mensaje del cliente se puede responder **texto libre**. Pasado ese plazo,

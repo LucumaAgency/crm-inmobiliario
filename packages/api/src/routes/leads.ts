@@ -4,12 +4,12 @@ import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
 import { enqueue } from '../lib/jobs.js';
-import { guardarAudio, rutaPrivada } from '../lib/privados.js';
+import { guardarAdjuntoWa, guardarAudio, rutaPrivada } from '../lib/privados.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { includeIntereses, reemplazarIntereses, validarIntereses, vaciarIntereses } from '../services/intereses.js';
 import { ErrorProforma, emitirProforma, moneda, rutaPdf, topeDescuento } from '../services/proformas.js';
 import { proformaEmail, sendMail } from '../lib/mail.js';
-import { enviarDocumento } from '../services/whatsapp.js';
+import { enviarAdjunto, enviarDocumento } from '../services/whatsapp.js';
 import fs from 'node:fs';
 import { z } from 'zod';
 import {
@@ -424,6 +424,63 @@ export default async function leadRoutes(app: FastifyInstance) {
     reply.header('Cache-Control', 'private, max-age=86400');
     if (media.filename) reply.header('Content-Disposition', `inline; filename="${media.filename.replace(/"/g, '')}"`);
     return reply.send(fs.createReadStream(ruta));
+  });
+
+  /**
+   * Adjuntar un archivo (imagen, video, PDF, Office) y mandarlo al cliente.
+   *
+   * Multipart: el campo `caption` va ANTES del archivo, como en las notas de voz. Solo
+   * dentro de la ventana de 24 h: Meta no acepta archivos fuera de ella salvo en una
+   * plantilla con cabecera de documento, que es otro flujo.
+   */
+  app.post<{ Params: { id: string } }>('/:id/whatsapp/adjunto', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const lead = await prisma.lead.findFirst({
+      where: { id: req.params.id, ...scopeForUser(user) },
+      select: { id: true, contactId: true, firstContactAt: true },
+    });
+    if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
+
+    const archivo = await req.file();
+    if (!archivo) return reply.code(400).send({ error: 'No llegó el archivo.' });
+    let contenido: Buffer;
+    try {
+      contenido = await archivo.toBuffer();
+    } catch {
+      return reply.code(413).send({ error: 'El archivo supera 8 MB.' });
+    }
+    const caption = String((archivo.fields.caption as { value?: string } | undefined)?.value ?? '').trim().slice(0, 1024);
+
+    const conversacion = await prisma.waConversation.findFirst({
+      where: { organizationId: user.organizationId, contactId: lead.contactId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!conversacion) return reply.code(409).send({ error: 'Todavía no hay conversación de WhatsApp con este contacto.' });
+
+    const res = await guardarAdjuntoWa(user.organizationId, contenido, archivo.mimetype, archivo.filename);
+    if ('error' in res) return reply.code(400).send({ error: res.error });
+
+    try {
+      const mensaje = await enviarAdjunto({
+        conversationId: conversacion.id,
+        userId: user.id,
+        tipo: res.tipo,
+        rutaRelativa: res.ruta,
+        filename: res.filename,
+        mime: res.mime,
+        bytes: res.bytes,
+        caption: caption || undefined,
+      });
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { lastActivityAt: new Date(), ...(lead.firstContactAt ? {} : { firstContactAt: new Date() }) },
+      });
+      return { ok: true, id: mensaje.id };
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      return reply.code(err.statusCode ?? 500).send({ error: err.message });
+    }
   });
 
   /** Enviar. Texto dentro de la ventana de 24 h, plantilla fuera de ella. */

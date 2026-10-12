@@ -71,6 +71,30 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const archivoRef = useRef<HTMLInputElement>(null);
+  const [errorAdjunto, setErrorAdjunto] = useState<string | null>(null);
+
+  /**
+   * Adjuntar un archivo. El texto escrito en el cuadro viaja como pie (caption) del
+   * archivo, así el asesor no manda dos mensajes para una sola idea.
+   */
+  const adjuntar = useMutation({
+    mutationFn: async (archivo: File) => {
+      const fd = new FormData();
+      // Los campos van ANTES del archivo: el servidor solo ve los que llegan antes.
+      fd.append('caption', texto.trim());
+      fd.append('archivo', archivo, archivo.name);
+      const res = await fetch(`/api/v1/leads/${leadId}/whatsapp/adjunto`, { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Error ${res.status}`);
+    },
+    onSuccess: () => {
+      setTexto(''); setErrorAdjunto(null);
+      qc.invalidateQueries({ queryKey: ['wa', leadId] });
+      qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: (e: Error) => setErrorAdjunto(e.message),
+  });
+
   const enviar = useMutation({
     mutationFn: (cuerpo: Record<string, unknown>) => api.post(`/leads/${leadId}/whatsapp`, cuerpo),
     onSuccess: () => {
@@ -148,11 +172,32 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Escribe tu respuesta"
           />
+          <input
+            ref={archivoRef}
+            type="file"
+            accept="image/jpeg,image/png,video/mp4,application/pdf,.doc,.docx,.xls,.xlsx,.pptx"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) adjuntar.mutate(f);
+            }}
+          />
           <div className="acciones">
-            <button type="submit" className="btn" disabled={!texto.trim() || enviar.isPending}>
+            <button type="submit" className="btn" disabled={!texto.trim() || enviar.isPending || adjuntar.isPending}>
               {enviar.isPending ? 'Enviando…' : 'Enviar'}
             </button>
+            <button
+              type="button"
+              className="btn btn-sec"
+              disabled={adjuntar.isPending || enviar.isPending}
+              onClick={() => archivoRef.current?.click()}
+              title="Imagen, video, PDF u Office, hasta 8 MB. El texto escrito va como pie del archivo."
+            >
+              {adjuntar.isPending ? 'Subiendo…' : '📎 Adjuntar archivo'}
+            </button>
           </div>
+          {errorAdjunto && <p className="error">{errorAdjunto}</p>}
         </form>
       ) : (
         <div style={{ borderTop: '1px solid var(--borde)', paddingTop: 12, marginTop: 12 }}>
