@@ -28,7 +28,17 @@ export function ding(forzar = false) {
   if (!forzar && !sonidoActivo()) return;
   if (!ctx) prepararSonido();
   if (!ctx) return;
-  if (ctx.state === 'suspended') void ctx.resume();
+  // En segundo plano el contexto suele quedar suspendido: hay que esperar a que
+  // reanude antes de programar la nota, o se pierde.
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(() => tocar(), () => undefined);
+    return;
+  }
+  tocar();
+}
+
+function tocar() {
+  if (!ctx) return;
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();

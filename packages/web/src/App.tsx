@@ -71,6 +71,9 @@ function useNoLeidos(activo: boolean) {
     queryFn: () => api.get<NoLeidos>('/leads/whatsapp/no-leidos'),
     enabled: activo,
     refetchInterval: 8_000,
+    // Sin esto React Query deja de sondear con la pestaña oculta: ni ding ni notificación
+    // mientras el asesor está en otra pestaña, que es justo cuando hacen falta.
+    refetchIntervalInBackground: true,
   });
   const total = data?.total ?? 0;
   const anterior = useRef<number | null>(null);
