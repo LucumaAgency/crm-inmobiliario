@@ -59,7 +59,7 @@ interface NoLeidos {
 /**
  * Mensajes de WhatsApp sin leer, para toda la app.
  *
- * Sondea cada 8 s (igual que la lista de leads) y con eso alimenta tres cosas: el globo
+ * Sondea cada 4 s (igual que el chat) y con eso alimenta tres cosas: el globo
  * junto a «Leads», el «(3)» delante del título de la pestaña, y un ding + notificación del
  * navegador cuando el total SUBE (el ding se apaga en Mi cuenta). El permiso de notificaciones se pide en el primer clic
  * dentro del CRM, no al cargar: los navegadores bloquean el pedido sin gesto del usuario.
@@ -70,7 +70,9 @@ function useNoLeidos(activo: boolean) {
     queryKey: ['wa-no-leidos'],
     queryFn: () => api.get<NoLeidos>('/leads/whatsapp/no-leidos'),
     enabled: activo,
-    refetchInterval: 8_000,
+    // 4 s, como el chat: con 8 s el ding llegaba varios segundos después de que el
+    // mensaje ya se veía en la ficha.
+    refetchInterval: 4_000,
     // Sin esto React Query deja de sondear con la pestaña oculta: ni ding ni notificación
     // mientras el asesor está en otra pestaña, que es justo cuando hacen falta.
     refetchIntervalInBackground: true,

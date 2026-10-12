@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { ding } from '../lib/sonido.js';
 
 interface Mensaje {
   id: string;
@@ -63,6 +64,20 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
     refetchInterval: 4_000,
     refetchIntervalInBackground: false,
   });
+
+  // Con la ficha abierta el mensaje se marca leído al cargarlo y el total global no sube,
+  // así que el ding sale de aquí: suena en cuanto este sondeo trae un entrante nuevo.
+  const entrantesRef = useRef<number | null>(null);
+  useEffect(() => {
+    const msgs = chat.data?.conversacion?.messages;
+    if (!msgs) return;
+    const entrantes = msgs.filter((m) => m.direction === 'entrante').length;
+    if (entrantesRef.current !== null && entrantes > entrantesRef.current) {
+      ding();
+      void qc.invalidateQueries({ queryKey: ['wa-no-leidos'] });
+    }
+    entrantesRef.current = entrantes;
+  }, [chat.data, qc]);
 
   const plantillas = useQuery({
     queryKey: ['wa-templates'],

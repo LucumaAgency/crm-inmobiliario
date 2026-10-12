@@ -101,7 +101,7 @@ h1, h2, h3 { letter-spacing: -0.01em; }
 /* Globo de WhatsApp sin leer junto a «Leads» */
 .lateral-nav .globo {
   margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
-  border-radius: 10px; background: var(--verde); color: #fff;
+  border-radius: 10px; background: var(--azul); color: #fff;
   font-size: 11.5px; font-weight: 700; line-height: 20px; text-align: center;
 }
 .lateral-nav .proyecto-nav span {
