@@ -6,6 +6,7 @@ export interface ValorMensajes {
     };
     contacts?: Array<{
         wa_id?: string;
+        user_id?: string;
         profile?: {
             name?: string;
         };
@@ -15,7 +16,15 @@ export interface ValorMensajes {
 }
 interface MensajeEntrante {
     id?: string;
+    /** Número del cliente (wa_id). Falta cuando el cliente NO comparte su número. */
     from?: string;
+    /**
+     * Identidad sin número, p. ej. `PE.2205745070340369`. WhatsApp la manda en vez de
+     * `from` cuando el usuario escribe sin compartir su teléfono con la empresa. Se
+     * responde al mismo identificador en `to`. Visto en producción el 2026-10-12: los
+     * clientes nuevos llegaban así y el CRM los descartaba.
+     */
+    from_user_id?: string;
     timestamp?: string;
     type?: string;
     text?: {

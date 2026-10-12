@@ -9,6 +9,12 @@ export interface CaptureContext {
     userAgent?: string;
     notifyEmails?: string[];
     projectId?: string | null;
+    /**
+     * Contacto ya resuelto por quien llama. Lo usa WhatsApp cuando el cliente escribe
+     * sin compartir su número (`from_user_id`): no hay teléfono ni correo con que
+     * deduplicar, y el contacto de la conversación es el único ancla.
+     */
+    contactId?: string;
 }
 export interface CaptureResult {
     leadId: string;

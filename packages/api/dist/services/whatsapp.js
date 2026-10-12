@@ -73,7 +73,8 @@ export async function recibirMensajes(valor) {
     }
 }
 async function recibirUno(numero, valor, mensaje) {
-    const waId = mensaje.from;
+    const waId = mensaje.from ?? mensaje.from_user_id;
+    const conNumero = Boolean(mensaje.from);
     if (!waId || !mensaje.id) {
         /**
          * Nunca descartar en silencio. En producción hubo avisos con «1 mensaje» que no
@@ -92,10 +93,10 @@ async function recibirUno(numero, valor, mensaje) {
         logLine(`wa: mensaje repetido, ignorado (${mensaje.id})`);
         return;
     }
-    const perfil = valor.contacts?.find((c) => c.wa_id === waId);
+    const perfil = valor.contacts?.find((c) => c.wa_id === waId || c.user_id === waId);
     const { texto, tipo, media } = interpretar(mensaje);
     const recibidoEn = mensaje.timestamp ? new Date(Number(mensaje.timestamp) * 1000) : new Date();
-    const conversacion = await conversacionDe(numero, waId, perfil?.profile?.name);
+    const conversacion = await conversacionDe(numero, waId, conNumero, perfil?.profile?.name);
     /**
      * ¿Este mensaje abre un lead?
      *
@@ -116,7 +117,7 @@ async function recibirUno(numero, valor, mensaje) {
             idempotencyKey: `wa-${mensaje.id}`,
             values: limpiar({
                 fname: perfil?.profile?.name ?? 'Contacto de WhatsApp',
-                phone: `+${waId}`,
+                phone: conNumero ? `+${waId}` : undefined,
                 message: texto,
             }),
             ...(mensaje.referral
@@ -137,6 +138,9 @@ async function recibirUno(numero, valor, mensaje) {
             organizationId: numero.organizationId,
             projectId: numero.projectId,
             source: mensaje.referral ? 'whatsapp_ctwa' : 'whatsapp',
+            // Sin número no hay llave de deduplicación: el lead cuelga del contacto de la
+            // conversación, que ya existe. Con número, captureLead lo resuelve por teléfono.
+            contactId: conNumero ? undefined : conversacion.contactId,
         });
         leadId = resultado.leadId;
     }
@@ -185,7 +189,7 @@ async function recibirUno(numero, valor, mensaje) {
             ]
             : []),
     ]);
-    logLine(`wa: mensaje de +${waId} → lead ${leadId ?? 'sin lead'}`);
+    logLine(`wa: mensaje de ${conNumero ? '+' : 'user_id '}${waId} → lead ${leadId ?? 'sin lead'}`);
     // Imagen, audio, sticker, video o documento: se descarga aparte para que el webhook
     // responda rápido (Meta reintenta si tarda) y el archivo quede en el CRM.
     if (media && typeof media.id === 'string' && media.id) {
@@ -514,16 +518,20 @@ async function cargarConversacion(id) {
  * quien escribió por el formulario web y después por WhatsApp tiene que ser una sola
  * persona en el CRM, no dos.
  */
-async function conversacionDe(numero, waId, nombre) {
+async function conversacionDe(numero, waId, conNumero, nombre) {
     const existente = await prisma.waConversation.findUnique({
         where: { waNumberId_waId: { waNumberId: numero.id, waId } },
     });
     if (existente)
         return existente;
-    const telefono = normalizePhonePE(`+${waId}`) ?? `+${waId}`;
-    let contacto = await prisma.contact.findFirst({
-        where: { organizationId: numero.organizationId, phone: telefono },
-    });
+    // Con `from_user_id` no hay teléfono: el contacto nace sin número y la conversación
+    // es su única llave. Si después comparte el número, se puede fusionar a mano.
+    const telefono = conNumero ? normalizePhonePE(`+${waId}`) ?? `+${waId}` : null;
+    let contacto = telefono
+        ? await prisma.contact.findFirst({
+            where: { organizationId: numero.organizationId, phone: telefono },
+        })
+        : null;
     if (!contacto) {
         const { fname, lname } = partirNombre(nombre ?? '');
         contacto = await prisma.contact.create({

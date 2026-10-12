@@ -29,13 +29,18 @@ export async function captureLead(input, schema, ctx) {
     const phone = normalizePhonePE(campos.phone);
     const document = normalizeDocument(campos.document);
     // 3) Contacto: identidad por documento → email → teléfono.
-    const contacto = await upsertContacto(ctx.organizationId, {
-        fname: campos.fname || 'Sin nombre',
-        lname: campos.lname,
-        email,
-        phone,
-        document,
-    });
+    const contacto = ctx.contactId
+        ? await prisma.contact.findUniqueOrThrow({ where: { id: ctx.contactId } })
+        : await upsertContacto(ctx.organizationId, {
+            fname: campos.fname || 'Sin nombre',
+            lname: campos.lname,
+            email,
+            phone,
+            document,
+        });
+    if (contacto.organizationId !== ctx.organizationId) {
+        throw new Error('captureLead: el contacto no pertenece a esta organización');
+    }
     // 4) Lead: ¿ya existe uno abierto del mismo contacto en el mismo proyecto?
     const projectId = ctx.projectId ?? campos.projectId ?? null;
     const unidad = await resolverUnidad(campos.unitInterest, projectId);
