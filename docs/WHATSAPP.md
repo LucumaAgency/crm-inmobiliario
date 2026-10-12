@@ -65,8 +65,10 @@ Un mensaje entrante:
 **Clientes sin número (`from_user_id`).** Desde 2026 WhatsApp permite escribir a una
 empresa sin compartir el teléfono. El mensaje llega sin `from` y con `from_user_id`
 (`PE.2205745070340369`); el perfil viene en `contacts[].user_id`. El CRM usa ese
-identificador como llave de la conversación, crea el contacto **sin teléfono** y le
-responde al mismo identificador en `to`. Hasta el 2026-10-12 estos mensajes se
+identificador (BSUID) como llave de la conversación, crea el contacto **sin teléfono** y
+le responde con el campo `recipient` en vez de `to`: si el BSUID va en `to`, Meta lo
+lee como teléfono y el envío falla con 131026 «Message undeliverable». Las plantillas de
+autenticación (OTP) no se pueden mandar a un BSUID. Hasta el 2026-10-12 estos mensajes se
 descartaban en silencio: era la causa de «los números nuevos no llegan». Si el cliente
 después comparte su número, hay que fusionar los dos contactos a mano.
 
