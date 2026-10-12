@@ -82,6 +82,17 @@ ${row('Proyecto', lead.project)}${row('Unidad de interés', lead.unit)}${row('Me
 <p><a href="${lead.url}">Abrir en el CRM</a></p>`,
     };
 }
+export function waInboundEmail(d) {
+    const quien = d.phone ? `${d.contactName} (${d.phone})` : d.contactName;
+    const lista = d.messages.map((m) => `<li style="margin:4px 0">${escapeHtml(m.slice(0, 300))}</li>`).join('');
+    return {
+        subject: `WhatsApp de ${d.contactName}${d.project ? ` · ${d.project}` : ''}`,
+        html: `<p><strong>${escapeHtml(quien)}</strong> te escribió por WhatsApp${d.project ? ` sobre ${escapeHtml(d.project)}` : ''}.</p>
+<ul style="font-family:sans-serif;font-size:14px;padding-left:18px">${lista}</ul>
+<p>${d.unread > 1 ? `${d.unread} mensajes sin leer. ` : ''}<a href="${d.url}">Responder desde el CRM</a></p>
+<p style="color:#888;font-size:12px">Se avisa una vez por conversación; los mensajes siguientes se acumulan hasta que abras el chat.</p>`,
+    };
+}
 function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

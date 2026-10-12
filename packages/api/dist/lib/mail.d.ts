@@ -45,3 +45,14 @@ export declare function newLeadEmail(lead: {
     subject: string;
     html: string;
 };
+export declare function waInboundEmail(d: {
+    contactName: string;
+    phone?: string | null;
+    project?: string | null;
+    unread: number;
+    messages: string[];
+    url: string;
+}): {
+    subject: string;
+    html: string;
+};

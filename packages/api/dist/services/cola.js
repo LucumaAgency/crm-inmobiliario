@@ -24,7 +24,7 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { logError, logLine } from '../lib/log.js';
 import { backoffMinutes } from '../lib/jobs.js';
-import { newLeadEmail, sendMail } from '../lib/mail.js';
+import { newLeadEmail, sendMail, waInboundEmail } from '../lib/mail.js';
 import { leadUrl } from './capture.js';
 const EJECUTOR_ID = randomUUID();
 const LOCK_VENCIDO_MIN = 10;
@@ -96,6 +96,8 @@ async function procesar(job) {
     }
 }
 async function enviarEmail(payload) {
+    if (payload.kind === 'wa_inbound')
+        return avisarMensajeEntrante(String(payload.conversationId));
     if (payload.kind !== 'new_lead')
         return;
     const lead = await prisma.lead.findUnique({
@@ -152,6 +154,44 @@ async function enviarEmail(payload) {
     if (fallos.length) {
         logError(`[cola] aviso del lead ${lead.id} no llegó a ${fallos.length} destinatario(s):`, fallos.join(' | '));
     }
+}
+/**
+ * Correo al asesor cuando el cliente escribe sobre un lead existente.
+ *
+ * Se manda desde la cola, no desde el webhook, así que puede haber pasado un minuto:
+ * si en ese rato alguien ya abrió el chat (`unread` en cero), no se avisa nada.
+ */
+async function avisarMensajeEntrante(conversationId) {
+    const c = await prisma.waConversation.findUnique({
+        where: { id: conversationId },
+        include: {
+            contact: { select: { fname: true, lname: true, phone: true } },
+            lead: {
+                select: {
+                    id: true,
+                    owner: { select: { email: true, name: true } },
+                    project: { select: { name: true } },
+                    organization: { select: { slug: true } },
+                },
+            },
+            messages: { where: { direction: 'entrante' }, orderBy: { createdAt: 'desc' }, take: 3 },
+        },
+    });
+    if (!c || c.unread === 0 || !c.lead)
+        return;
+    if (!c.lead.owner?.email) {
+        logLine(`[cola] mensaje entrante del lead ${c.lead.id} sin asesor asignado: no hay a quién avisar`);
+        return;
+    }
+    const mail = waInboundEmail({
+        contactName: `${c.contact.fname} ${c.contact.lname ?? ''}`.trim(),
+        phone: c.contact.phone,
+        project: c.lead.project?.name,
+        unread: c.unread,
+        messages: c.messages.reverse().map((m) => m.body ?? `[${m.type}]`),
+        url: leadUrl(c.lead.id, c.lead.organization?.slug),
+    });
+    await sendMail({ to: c.lead.owner.email, ...mail });
 }
 /** SLA de primer contacto: la conversión cae en picada después de la primera hora. */
 async function revisarSla(payload) {

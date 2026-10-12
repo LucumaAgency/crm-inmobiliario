@@ -112,6 +112,8 @@ async function recibirUno(numero, valor, mensaje) {
         })
         : null;
     let leadId = leadActivo?.id ?? null;
+    // Si este mensaje crea un lead, el aviso de «lead nuevo» ya sale desde captureLead.
+    let leadNuevo = false;
     if (mensaje.referral || !leadId) {
         const resultado = await captureLead({
             idempotencyKey: `wa-${mensaje.id}`,
@@ -143,6 +145,7 @@ async function recibirUno(numero, valor, mensaje) {
             contactId: conNumero ? undefined : conversacion.contactId,
         });
         leadId = resultado.leadId;
+        leadNuevo = !resultado.duplicated;
     }
     const vence = new Date(recibidoEn.getTime() + VENTANA_HORAS * 60 * 60 * 1000);
     await prisma.$transaction([
@@ -190,6 +193,18 @@ async function recibirUno(numero, valor, mensaje) {
             : []),
     ]);
     logLine(`wa: mensaje de ${conNumero ? '+' : 'user_id '}${waId} → lead ${leadId ?? 'sin lead'}`);
+    /**
+     * Aviso al asesor de que el cliente escribió sobre un lead que ya existía.
+     *
+     * Hasta aquí el único correo era el de lead nuevo: un cliente que respondía a las tres
+     * horas no generaba nada y el mensaje se quedaba esperando a que alguien abriera el
+     * CRM. Se avisa UNA vez por racha: solo cuando la conversación no tenía nada sin leer
+     * antes de este mensaje. Los siguientes se acumulan en el contador hasta que el asesor
+     * abre el chat, que lo pone en cero y rearma el aviso.
+     */
+    if (leadId && !leadNuevo && conversacion.unread === 0) {
+        await enqueue('email.send', { kind: 'wa_inbound', conversationId: conversacion.id, messageId: mensaje.id });
+    }
     // Imagen, audio, sticker, video o documento: se descarga aparte para que el webhook
     // responda rápido (Meta reintenta si tarda) y el archivo quede en el CRM.
     if (media && typeof media.id === 'string' && media.id) {

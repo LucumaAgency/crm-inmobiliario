@@ -391,6 +391,39 @@ export default async function leadRoutes(app) {
         };
     });
     /** Archivo de un mensaje (imagen, audio, sticker, documento), solo para quien puede ver el lead. */
+    /**
+     * Total de mensajes de WhatsApp sin leer en los leads que el usuario ve. Lo sondea el
+     * marco de la app para el globo del menú, el título de la pestaña y la notificación
+     * del navegador. Barato: una agregación sobre `unread > 0`, sin mensajes.
+     */
+    app.get('/whatsapp/no-leidos', async (req) => {
+        const user = req.user;
+        const alcance = tiene(user, 'leads.ver_todos') ? {} : { ownerId: user.id };
+        const conversaciones = await prisma.waConversation.findMany({
+            where: {
+                organizationId: user.organizationId,
+                unread: { gt: 0 },
+                lead: { is: { organizationId: user.organizationId, status: 'activo', ...alcance } },
+            },
+            orderBy: { lastInboundAt: 'desc' },
+            take: 20,
+            select: {
+                unread: true,
+                lastInboundAt: true,
+                leadId: true,
+                contact: { select: { fname: true, lname: true } },
+            },
+        });
+        return {
+            total: conversaciones.reduce((n, c) => n + c.unread, 0),
+            conversaciones: conversaciones.map((c) => ({
+                leadId: c.leadId,
+                nombre: `${c.contact.fname} ${c.contact.lname ?? ''}`.trim(),
+                unread: c.unread,
+                lastInboundAt: c.lastInboundAt,
+            })),
+        };
+    });
     app.get('/whatsapp/media/:id', async (req, reply) => {
         const user = req.user;
         const m = await prisma.waMessage.findUnique({
