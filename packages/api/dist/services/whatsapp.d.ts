@@ -176,6 +176,38 @@ export declare function enviarDocumento(datos: {
     userId: string | null;
     sentAt: Date | null;
 }>;
+/**
+ * Adjunto subido por el asesor desde la ficha (imagen, video o documento).
+ *
+ * A diferencia de la proforma, el archivo ya vive en `privados/` y se referencia por
+ * ruta relativa; `media` queda lleno desde el inicio para que el chat lo muestre igual
+ * que uno entrante (misma ruta `/leads/whatsapp/media/:id`).
+ */
+export declare function enviarAdjunto(datos: {
+    conversationId: string;
+    userId: string;
+    tipo: 'image' | 'video' | 'document';
+    rutaRelativa: string;
+    filename: string;
+    mime: string;
+    bytes: number;
+    caption?: string;
+}): Promise<{
+    error: string | null;
+    id: string;
+    createdAt: Date;
+    status: import(".prisma/client").$Enums.WaMessageStatus;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
+    type: string;
+    waMessageId: string | null;
+    conversationId: string;
+    direction: import(".prisma/client").$Enums.WaDirection;
+    body: string | null;
+    media: import("@prisma/client/runtime/library").JsonValue | null;
+    templateName: string | null;
+    userId: string | null;
+    sentAt: Date | null;
+}>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
     id: string;

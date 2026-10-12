@@ -323,6 +323,38 @@ export async function enviarDocumento(datos) {
         payload: { rutaAbsoluta: datos.rutaAbsoluta, filename: datos.filename, caption: datos.caption ?? null },
     });
 }
+/**
+ * Adjunto subido por el asesor desde la ficha (imagen, video o documento).
+ *
+ * A diferencia de la proforma, el archivo ya vive en `privados/` y se referencia por
+ * ruta relativa; `media` queda lleno desde el inicio para que el chat lo muestre igual
+ * que uno entrante (misma ruta `/leads/whatsapp/media/:id`).
+ */
+export async function enviarAdjunto(datos) {
+    const conv = await cargarConversacion(datos.conversationId);
+    if (!ventanaAbierta(conv)) {
+        throw Object.assign(new Error('La ventana de 24 horas se cerró: pide al cliente que te escriba o usa una plantilla.'), { statusCode: 409 });
+    }
+    const mensaje = await prisma.waMessage.create({
+        data: {
+            conversationId: conv.id,
+            direction: 'saliente',
+            type: datos.tipo,
+            body: datos.caption ?? (datos.tipo === 'document' ? datos.filename : null),
+            userId: datos.userId,
+            status: 'pendiente',
+            media: { mime: datos.mime, path: datos.rutaRelativa, filename: datos.filename, bytes: datos.bytes },
+            raw: {
+                rutaAbsoluta: rutaPrivada(datos.rutaRelativa),
+                filename: datos.filename,
+                mime: datos.mime,
+                caption: datos.caption ?? null,
+            },
+        },
+    });
+    await enqueue('wa.send', { messageId: mensaje.id });
+    return mensaje;
+}
 async function subirMedia(phoneNumberId, token, rutaAbsoluta, filename, mime) {
     const fs = await import('node:fs');
     const form = new FormData();
@@ -389,14 +421,20 @@ export async function despacharMensaje(messageId) {
         if (mensaje.type === 'template') {
             cuerpo = cuerpoPlantilla(mensaje.conversation.waId, mensaje.raw);
         }
-        else if (mensaje.type === 'document') {
+        else if (mensaje.type === 'document' || mensaje.type === 'image' || mensaje.type === 'video') {
+            // Proformas (solo rutaAbsoluta, PDF) y adjuntos del asesor (con mime) pasan por aquí.
             const raw = (mensaje.raw ?? {});
-            const mediaId = await subirMedia(numero.phoneNumberId, descifrar(numero.accessTokenEnc), raw.rutaAbsoluta ?? '', raw.filename ?? 'documento.pdf', 'application/pdf');
+            const mime = raw.mime ?? 'application/pdf';
+            const filename = raw.filename ?? 'documento.pdf';
+            const mediaId = await subirMedia(numero.phoneNumberId, descifrar(numero.accessTokenEnc), raw.rutaAbsoluta ?? '', filename, mime);
+            const contenido = { id: mediaId, ...(raw.caption ? { caption: raw.caption } : {}) };
+            if (mensaje.type === 'document')
+                contenido.filename = filename;
             cuerpo = {
                 messaging_product: 'whatsapp',
                 ...destinatario(mensaje.conversation.waId),
-                type: 'document',
-                document: { id: mediaId, filename: raw.filename ?? 'documento.pdf', ...(raw.caption ? { caption: raw.caption } : {}) },
+                type: mensaje.type,
+                [mensaje.type]: contenido,
             };
         }
         else {
