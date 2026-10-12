@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, matchPath, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Navigate, Route, Routes, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './lib/api.js';
 import Icono from './components/Icono.js';
@@ -50,6 +50,65 @@ const TITULOS: [string, string][] = [
   ['/cuenta', 'Mi cuenta'],
 ];
 
+interface NoLeidos {
+  total: number;
+  conversaciones: { leadId: string | null; nombre: string; unread: number; lastInboundAt: string | null }[];
+}
+
+/**
+ * Mensajes de WhatsApp sin leer, para toda la app.
+ *
+ * Sondea cada 8 s (igual que la lista de leads) y con eso alimenta tres cosas: el globo
+ * junto a «Leads», el «(3)» delante del título de la pestaña, y una notificación del
+ * navegador cuando el total SUBE. El permiso de notificaciones se pide en el primer clic
+ * dentro del CRM, no al cargar: los navegadores bloquean el pedido sin gesto del usuario.
+ */
+function useNoLeidos(activo: boolean) {
+  const navigate = useNavigate();
+  const { data } = useQuery({
+    queryKey: ['wa-no-leidos'],
+    queryFn: () => api.get<NoLeidos>('/leads/whatsapp/no-leidos'),
+    enabled: activo,
+    refetchInterval: 8_000,
+  });
+  const total = data?.total ?? 0;
+  const anterior = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!activo || typeof Notification === 'undefined') return;
+    const pedir = () => {
+      if (Notification.permission === 'default') void Notification.requestPermission();
+    };
+    window.addEventListener('click', pedir, { once: true });
+    return () => window.removeEventListener('click', pedir);
+  }, [activo]);
+
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, '');
+    document.title = total > 0 ? `(${total}) ${base}` : base;
+  }, [total]);
+
+  useEffect(() => {
+    if (!data) return;
+    // La primera lectura solo fija la línea base: no se avisa de lo que ya estaba.
+    if (anterior.current !== null && total > anterior.current && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const c = data.conversaciones[0];
+      const n = new Notification(c ? `WhatsApp de ${c.nombre}` : 'Mensaje nuevo de WhatsApp', {
+        body: total === 1 ? '1 mensaje sin leer' : `${total} mensajes sin leer`,
+        tag: 'wa-no-leidos',
+      });
+      n.onclick = () => {
+        window.focus();
+        navigate(c?.leadId ? `/leads/${c.leadId}` : '/leads');
+        n.close();
+      };
+    }
+    anterior.current = total;
+  }, [data, total, navigate]);
+
+  return total;
+}
+
 function iniciales(nombre: string) {
   return nombre
     .split(/\s+/)
@@ -75,6 +134,8 @@ export default function App() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/projects'),
     enabled: !!data,
   });
+
+  const noLeidos = useNoLeidos(!!data);
 
   // En móvil el lateral es un cajón: navegar debe cerrarlo, o tapa el contenido
   // que la persona acaba de pedir.
@@ -124,6 +185,7 @@ export default function App() {
           </NavLink>
           <NavLink to="/leads" className={enlace}>
             <Icono nombre="leads" />Leads
+            {noLeidos > 0 && <span className="globo" title={`${noLeidos} mensajes de WhatsApp sin leer`}>{noLeidos > 99 ? '99+' : noLeidos}</span>}
           </NavLink>
           <NavLink to="/tablero" className={enlace}>
             <Icono nombre="tablero" />Tablero

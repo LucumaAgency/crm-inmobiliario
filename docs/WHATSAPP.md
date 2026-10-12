@@ -123,6 +123,25 @@ Dos consecuencias del chip dedicado:
 - **Lo que sigue fuera del CRM** son los chats de los asesores en sus WhatsApp personales. El
   CRM solo ve lo que pasa por el número comercial.
 
+## Avisos de mensajes nuevos (2026-10-12)
+
+Un cliente que escribe sobre un lead que ya existe no creaba ningún aviso: el mensaje
+esperaba a que alguien abriera el CRM. Ahora hay tres señales:
+
+- **Correo al asesor asignado**, una vez por racha: solo cuando la conversación no tenía
+  nada sin leer antes de ese mensaje. Los siguientes se acumulan en el contador hasta que
+  el asesor abre el chat, que lo pone en cero y rearma el aviso. Si al despachar la cola el
+  chat ya se abrió, no se manda. Sin asesor asignado no hay a quién avisar (queda en el log).
+  El lead nuevo sigue con su propio correo; no se duplican.
+- **Globo verde junto a «Leads»** y «(n)» delante del título de la pestaña, con el total de
+  mensajes sin leer de los leads que el usuario ve (los suyos, o todos con `leads.ver_todos`).
+  Se sondea `GET /leads/whatsapp/no-leidos` cada 8 s.
+- **Notificación del navegador** cuando el total sube, con clic que abre la ficha. El permiso
+  se pide en el primer clic dentro del CRM; si se niega, quedan las otras dos señales.
+
+Lo que el asesor ve arriba en la lista y el tablero es lo de actividad reciente (ya era así):
+un mensaje entrante sube el lead y lo marca con punto verde y «n sin leer».
+
 ## Qué se paga y qué no (al 2026-10-05)
 
 Desde julio de 2025 Meta cobra **por mensaje entregado**, según la **categoría de la
