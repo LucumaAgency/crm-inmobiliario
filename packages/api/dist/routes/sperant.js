@@ -64,6 +64,7 @@ export default async function sperantRoutes(app) {
         asesores: z.record(z.string().nullable()),
         importarUnidades: z.boolean().default(true),
         importarProformas: z.boolean().default(true),
+        unidadesAprobadas: z.array(z.string()).optional(),
     });
     /**
      * Simulación: responde en la misma petición con el informe (solo lecturas, unos segundos).
@@ -75,7 +76,7 @@ export default async function sperantRoutes(app) {
             return reply.code(400).send({ error: 'Datos inválidos' });
         const org = req.user.organizationId;
         const { simulacion, ...mapa } = parsed.data;
-        const m = mapa;
+        const m = { ...mapa, userId: req.user.id };
         if (!hayDatos(org))
             return reply.code(409).send({ error: 'Primero hay que exportar' });
         if (tareaEnCurso(org))

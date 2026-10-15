@@ -39,6 +39,24 @@ export interface MapaImporte {
     asesores: Record<string, string | null>;
     importarUnidades: boolean;
     importarProformas: boolean;
+    /**
+     * Códigos de unidades cuyos cambios se aprueban. Una unidad que ya existe en el CRM y
+     * difiere de Sperant SOLO se actualiza si su código está aquí: la simulación devuelve la
+     * comparativa (`unidades.diferencias`) y la persona aprueba una por una. Las unidades
+     * nuevas se crean siempre; las iguales no se tocan.
+     */
+    unidadesAprobadas?: string[];
+    /** Quién aprueba (para la auditoría de precios). */
+    userId?: string | null;
+}
+export interface DiferenciaUnidad {
+    code: string;
+    /** Campos que difieren: campo → { crm, sperant }. */
+    cambios: Record<string, {
+        crm: string | number | null;
+        sperant: string | number | null;
+    }>;
+    aprobada: boolean;
 }
 export interface InformeImporte {
     simulacion: boolean;
@@ -59,7 +77,10 @@ export interface InformeImporte {
     unidades: {
         creadas: number;
         actualizadas: number;
+        sinCambios: number;
+        pendientes: number;
         tipologiasCreadas: number;
+        diferencias: DiferenciaUnidad[];
     };
     proformas: {
         notas: number;

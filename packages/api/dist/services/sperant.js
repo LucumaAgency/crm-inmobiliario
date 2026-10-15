@@ -450,7 +450,7 @@ export async function importar(organizationId, mapa, simulacion) {
         simulacion,
         leads: { total: 0, nuevos: 0, fusionados: 0, yaImportados: 0, omitidos: 0, sinEtapa: 0, sinAsesor: 0, errores: 0 },
         contactos: { nuevos: 0, existentes: 0 },
-        unidades: { creadas: 0, actualizadas: 0, tipologiasCreadas: 0 },
+        unidades: { creadas: 0, actualizadas: 0, sinCambios: 0, pendientes: 0, tipologiasCreadas: 0, diferencias: [] },
         proformas: { notas: 0 },
         etapasCreadas: [],
         erroresDetalle: [],
@@ -536,8 +536,10 @@ export async function importar(organizationId, mapa, simulacion) {
                 porNombre.set(nombre.toLowerCase(), `(nueva) ${nombre}`);
             }
         }
-        const existentes = await prisma.unit.findMany({ where: { projectId: project.id }, select: { id: true, code: true } });
-        const porCodigo = new Map(existentes.map((u) => [u.code, u.id]));
+        const existentes = await prisma.unit.findMany({ where: { projectId: project.id } });
+        const porCodigo = new Map(existentes.map((u) => [u.code, u]));
+        const aprobadas = new Set(mapa.unidadesAprobadas ?? []);
+        const ETIQUETA = { price: 'precio', currency: 'moneda', status: 'estado', kind: 'tipo', areaM2: 'área m²', typology: 'tipología' };
         for (const u of d.units) {
             const code = String(u.name ?? u.code ?? '').trim();
             if (!code)
@@ -554,11 +556,48 @@ export async function importar(organizationId, mapa, simulacion) {
                 currency: String(u.currency ?? 'PEN'),
                 extra: { sperant_unit_id: u.id, sperant_code: u.code },
             };
-            const idExistente = porCodigo.get(code);
-            if (idExistente) {
+            const existente = porCodigo.get(code);
+            if (existente) {
+                // Comparar campo a campo. Solo lo que difiere se muestra y solo lo aprobado se escribe.
+                const cambios = {};
+                const comparar = (campo, crm, sp) => {
+                    const a = crm === null || crm === undefined ? null : typeof crm === 'object' ? Number(crm) : crm;
+                    const b = sp === null || sp === undefined ? null : sp;
+                    if (String(a ?? '') !== String(b ?? ''))
+                        cambios[ETIQUETA[campo]] = { crm: a, sperant: b };
+                };
+                comparar('price', existente.price, datosUnidad.price);
+                comparar('currency', existente.currency, datosUnidad.currency);
+                comparar('status', existente.status, datosUnidad.status);
+                comparar('kind', existente.kind, datosUnidad.kind);
+                comparar('areaM2', existente.areaM2, datosUnidad.areaM2);
+                comparar('typology', existente.typology, datosUnidad.typology);
+                if (Object.keys(cambios).length === 0) {
+                    informe.unidades.sinCambios++;
+                    continue;
+                }
+                const aprobada = aprobadas.has(code);
+                informe.unidades.diferencias.push({ code, cambios, aprobada });
+                if (!aprobada) {
+                    informe.unidades.pendientes++;
+                    continue;
+                }
                 informe.unidades.actualizadas++;
-                if (!simulacion)
-                    await prisma.unit.update({ where: { id: idExistente }, data: datosUnidad });
+                if (!simulacion) {
+                    await prisma.unit.update({ where: { id: existente.id }, data: datosUnidad });
+                    if (cambios.precio) {
+                        await prisma.auditLog.create({
+                            data: {
+                                organizationId,
+                                userId: mapa.userId ?? null,
+                                action: 'unit.price',
+                                entity: 'unit',
+                                entityId: existente.id,
+                                meta: { code, projectId: project.id, de: cambios.precio.crm, a: cambios.precio.sperant, origen: 'sperant' },
+                            },
+                        });
+                    }
+                }
             }
             else {
                 informe.unidades.creadas++;
