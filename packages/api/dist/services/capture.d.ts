@@ -26,6 +26,48 @@ export interface CaptureResult {
  * importación, alta manual) termina aquí.
  */
 export declare function captureLead(input: SubmissionInput, schema: FormSchema | null, ctx: CaptureContext): Promise<CaptureResult>;
+export type DatosContacto = {
+    fname: string;
+    lname?: string;
+    email: string | null;
+    phone: string | null;
+    document: string | null;
+};
+/** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
+export declare function buscarContacto(organizationId: string, d: DatosContacto): Promise<{
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    organizationId: string;
+    fname: string;
+    lname: string | null;
+    email: string | null;
+    phone: string | null;
+    document: string | null;
+    documentType: string | null;
+} | null>;
+/**
+ * Identidad del contacto.
+ *
+ * El `findFirst` seguido de `create` es una condición de carrera: dos envíos simultáneos
+ * de la misma persona (doble clic con conexión lenta) buscan a la vez, ninguno encuentra
+ * nada y ambos crean. Los índices únicos de `Contact` hacen que MariaDB rechace el segundo
+ * con P2002; aquí se traduce esa colisión en "otro proceso ya lo creó" y se reintenta la
+ * búsqueda, que es el resultado correcto. La idempotencia no cubre este caso: son dos
+ * envíos distintos, con claves distintas.
+ */
+export declare function upsertContacto(organizationId: string, d: DatosContacto): Promise<{
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    organizationId: string;
+    fname: string;
+    lname: string | null;
+    email: string | null;
+    phone: string | null;
+    document: string | null;
+    documentType: string | null;
+}>;
 /**
  * Enlace a la ficha del lead.
  *

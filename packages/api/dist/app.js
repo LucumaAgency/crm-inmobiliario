@@ -22,6 +22,7 @@ import metaRoutes from './routes/meta.js';
 import metaOAuthRoutes from './routes/meta-oauth.js';
 import cronRoutes from './routes/cron.js';
 import logRoutes from './routes/logs.js';
+import sperantRoutes from './routes/sperant.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function buildApp() {
     // Passenger se queda con stdout y lo entierra en un log del servidor difícil de
@@ -127,6 +128,7 @@ export async function buildApp() {
     { prefix: '/api/v1/cron', logLevel: 'silent' });
     await app.register(authRoutes, { prefix: '/api/v1/auth' });
     await app.register(leadRoutes, { prefix: '/api/v1/leads' });
+    await app.register(sperantRoutes, { prefix: '/api/v1/sperant' });
     await app.register(reportesRoutes, { prefix: '/api/v1/reportes' });
     await app.register(adminRoutes, { prefix: '/api/v1' });
     /**

@@ -252,7 +252,7 @@ function detectarSpam(input, schema) {
     return null;
 }
 /** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
-async function buscarContacto(organizationId, d) {
+export async function buscarContacto(organizationId, d) {
     const claves = [];
     if (d.document)
         claves.push({ document: d.document });
@@ -274,7 +274,7 @@ async function buscarContacto(organizationId, d) {
  * búsqueda, que es el resultado correcto. La idempotencia no cubre este caso: son dos
  * envíos distintos, con claves distintas.
  */
-async function upsertContacto(organizationId, d) {
+export async function upsertContacto(organizationId, d) {
     const existente = await buscarContacto(organizationId, d);
     if (existente) {
         // Completa lo que falte, sin pisar lo que ya había.

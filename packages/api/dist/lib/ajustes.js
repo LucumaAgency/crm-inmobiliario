@@ -22,6 +22,7 @@ const POR_DEFECTO = {
     nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
     proformaValidezDias: 3,
     proformaNota: PROFORMA_NOTA_DEFECTO,
+    sperant: { tokenCifrado: null, sperantProjectId: null },
 };
 export async function leerAjustes(organizationId) {
     const org = await prisma.organization.findUnique({
