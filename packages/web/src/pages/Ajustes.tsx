@@ -10,6 +10,7 @@ import EtapasEditor from './EtapasEditor.js';
 import AjustesVoz from './AjustesVoz.js';
 import AjustesEmbudo from './AjustesEmbudo.js';
 import Roles from './Roles.js';
+import MigracionSperant from './MigracionSperant.js';
 import { usePuede } from '../lib/permisos.js';
 import type { Permiso } from '@lucuma-crm/shared';
 
@@ -36,6 +37,7 @@ const SECCIONES: { id: string; texto: string; permiso: Permiso }[] = [
   { id: 'meta', texto: 'Meta Lead Ads', permiso: 'canales.configurar' },
   { id: 'whatsapp', texto: 'WhatsApp', permiso: 'canales.configurar' },
   { id: 'voz', texto: 'Notas de voz', permiso: 'embudo.configurar' },
+  { id: 'sperant', texto: 'Migración Sperant', permiso: 'canales.configurar' },
   { id: 'registro', texto: 'Registro', permiso: 'registro.ver' },
   { id: 'exportar', texto: 'Exportar', permiso: 'leads.exportar' },
 ];
@@ -326,6 +328,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
       {seccion === 'voz' && <AjustesVoz />}
 
       {seccion === 'roles' && <Roles />}
+
+      {seccion === 'sperant' && <MigracionSperant />}
 
       {seccion === 'registro' && <Registro />}
 

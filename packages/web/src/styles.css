@@ -734,3 +734,20 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 .wa-audio { display: block; width: 240px; max-width: 100%; height: 36px; }
 .wa-video { display: block; max-width: 260px; max-height: 260px; border-radius: 8px; }
 .burbuja.entra:has(.wa-sticker) { background: transparent; border: none; padding: 0; }
+
+/* ---- Ajustes → Migración Sperant */
+.fila-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px; }
+.fila-form > div { display: flex; flex-direction: column; gap: 4px; }
+.fila-form input { margin: 0; }
+.tabla-compacta { border-collapse: collapse; width: 100%; font-size: 13px; }
+.tabla-compacta td { padding: 3px 6px; border-bottom: 1px solid var(--borde); }
+.tabla-compacta td:last-child { text-align: right; white-space: nowrap; }
+.rejilla-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 24px; }
+.rejilla-mapa { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 24px; }
+.fila-mapa { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 13.5px; }
+.fila-mapa select { max-width: 55%; margin: 0; }
+.resultado-importe { margin-top: 14px; max-width: 560px; }
+@media (max-width: 600px) {
+  .fila-mapa { flex-direction: column; align-items: stretch; }
+  .fila-mapa select { max-width: none; }
+}

@@ -31,6 +31,12 @@ export interface AjustesOrg {
   /** Días de validez de una proforma y la nota legal al pie. Texto de Bastión como base. */
   proformaValidezDias: number;
   proformaNota: string;
+  /**
+   * Conexión con Sperant para migrar (Ajustes → Migración Sperant). El token va cifrado
+   * con lib/secretos.ts; `sperantProjectId` es el id del proyecto EN SPERANT cuyos
+   * tipologías y unidades se traen (Bastión: 2 = Domus).
+   */
+  sperant: { tokenCifrado: string | null; sperantProjectId: number | null };
 }
 
 export const PROFORMA_NOTA_DEFECTO =
@@ -53,6 +59,7 @@ const POR_DEFECTO: AjustesOrg = {
   nivelesInteres: ['Frío', 'Tibio', 'Caliente'],
   proformaValidezDias: 3,
   proformaNota: PROFORMA_NOTA_DEFECTO,
+  sperant: { tokenCifrado: null, sperantProjectId: null },
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {

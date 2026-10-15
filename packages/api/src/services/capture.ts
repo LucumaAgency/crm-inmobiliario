@@ -302,7 +302,7 @@ function detectarSpam(input: SubmissionInput, schema: FormSchema | null): string
   return null;
 }
 
-type DatosContacto = {
+export type DatosContacto = {
   fname: string;
   lname?: string;
   email: string | null;
@@ -311,7 +311,7 @@ type DatosContacto = {
 };
 
 /** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
-async function buscarContacto(organizationId: string, d: DatosContacto) {
+export async function buscarContacto(organizationId: string, d: DatosContacto) {
   const claves: Prisma.ContactWhereInput[] = [];
   if (d.document) claves.push({ document: d.document });
   if (d.email) claves.push({ email: d.email });
@@ -330,7 +330,7 @@ async function buscarContacto(organizationId: string, d: DatosContacto) {
  * búsqueda, que es el resultado correcto. La idempotencia no cubre este caso: son dos
  * envíos distintos, con claves distintas.
  */
-async function upsertContacto(organizationId: string, d: DatosContacto) {
+export async function upsertContacto(organizationId: string, d: DatosContacto) {
   const existente = await buscarContacto(organizationId, d);
 
   if (existente) {
