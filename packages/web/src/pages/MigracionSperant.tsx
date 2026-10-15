@@ -40,11 +40,17 @@ interface EstadoResp {
   proyectosCrm: { id: string; name: string }[];
 }
 
+interface Diferencia {
+  code: string;
+  cambios: Record<string, { crm: string | number | null; sperant: string | number | null }>;
+  aprobada: boolean;
+}
+
 interface Informe {
   simulacion: boolean;
   leads: { total: number; nuevos: number; fusionados: number; yaImportados: number; omitidos: number; sinEtapa: number; sinAsesor: number; errores: number };
   contactos: { nuevos: number; existentes: number };
-  unidades: { creadas: number; actualizadas: number; tipologiasCreadas: number };
+  unidades: { creadas: number; actualizadas: number; sinCambios: number; pendientes: number; tipologiasCreadas: number; diferencias: Diferencia[] };
   proformas: { notas: number };
   etapasCreadas: string[];
   erroresDetalle: { clientId: number; motivo: string }[];
@@ -99,6 +105,8 @@ export default function MigracionSperant() {
   const [importarUnidades, setImportarUnidades] = useState(true);
   const [importarProformas, setImportarProformas] = useState(true);
   const [informe, setInforme] = useState<Informe | null>(null);
+  /** Códigos de unidad cuyos cambios la persona aprobó tras ver la comparativa. */
+  const [aprobadas, setAprobadas] = useState<Set<string>>(new Set());
 
   // La sugerencia del servidor rellena el mapa una vez; después manda lo que toque la persona.
   useEffect(() => {
@@ -122,15 +130,17 @@ export default function MigracionSperant() {
     mutationFn: () => api.post('/sperant/exportar'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sperant-estado'] }),
   });
-  const cuerpo = (simulacion: boolean) => ({ simulacion, crmProjectId, etapas, asesores, importarUnidades, importarProformas });
+  const cuerpo = (simulacion: boolean) => ({ simulacion, crmProjectId, etapas, asesores, importarUnidades, importarProformas, unidadesAprobadas: [...aprobadas] });
   const simular = useMutation({
     mutationFn: () => api.post<Informe>('/sperant/importar', cuerpo(true)),
-    onSuccess: setInforme,
+    // Cada simulación nueva vuelve a pedir aprobación: la comparativa puede haber cambiado.
+    onSuccess: (i) => { setInforme(i); setAprobadas(new Set()); },
   });
   const importarReal = useMutation({
     mutationFn: () => api.post('/sperant/importar', cuerpo(false)),
-    onSuccess: () => { setInforme(null); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
+    onSuccess: () => { setInforme(null); setAprobadas(new Set()); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
   });
+  const pendientes = informe?.unidades.diferencias.filter((x) => !aprobadas.has(x.code)).length ?? 0;
   const borrar = useMutation({
     mutationFn: () => api.del('/sperant/datos'),
     onSuccess: () => { setInforme(null); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
@@ -299,7 +309,11 @@ export default function MigracionSperant() {
               className="btn"
               disabled={!listoParaImportar || !informe || importarReal.isPending}
               title={!informe ? 'Primero simula' : ''}
-              onClick={() => { if (confirm(`Se van a crear ${informe?.leads.nuevos} leads y fusionar ${informe?.leads.fusionados}. ¿Continuar?`)) importarReal.mutate(); }}
+              onClick={() => {
+                const partes = [`crear ${informe?.leads.nuevos} leads`, `fusionar ${informe?.leads.fusionados}`, `crear ${informe?.unidades.creadas} unidades`, `actualizar ${aprobadas.size} unidades aprobadas`];
+                const aviso = pendientes ? `\n\n${pendientes} unidad(es) con cambios NO aprobadas se dejan como están en el CRM.` : '';
+                if (confirm(`Se va a: ${partes.join(', ')}.${aviso}\n\n¿Continuar?`)) importarReal.mutate();
+              }}
             >
               Importar de verdad
             </button>
@@ -311,6 +325,9 @@ export default function MigracionSperant() {
             <p className="meta" style={{ marginTop: 8 }}>Importando… {d.estado.hechos ?? 0}{d.estado.total ? ` / ${d.estado.total}` : ''}</p>
           )}
 
+          {informe && informe.unidades.diferencias.length > 0 && (
+            <Comparativa diferencias={informe.unidades.diferencias} aprobadas={aprobadas} onCambio={setAprobadas} />
+          )}
           {(informe ?? d.estado.importe) && <ResultadoImporte informe={(informe ?? d.estado.importe)!} />}
         </div>
       )}
@@ -332,7 +349,11 @@ function ResultadoImporte({ informe: i }: { informe: Informe }) {
           <tr><td>Sin etapa en el mapa (quedan sin etapa)</td><td>{i.leads.sinEtapa}</td></tr>
           <tr><td>Sin asesor</td><td>{i.leads.sinAsesor}</td></tr>
           <tr><td>Contactos nuevos / ya existentes</td><td>{i.contactos.nuevos} / {i.contactos.existentes}</td></tr>
-          <tr><td>Unidades creadas / actualizadas · tipologías nuevas</td><td>{i.unidades.creadas} / {i.unidades.actualizadas} · {i.unidades.tipologiasCreadas}</td></tr>
+          <tr><td>Unidades nuevas</td><td>{i.unidades.creadas}</td></tr>
+          <tr><td>Unidades sin cambios</td><td>{i.unidades.sinCambios}</td></tr>
+          <tr><td>Unidades con cambios {i.simulacion ? 'aprobados' : 'aplicados'}</td><td>{i.unidades.actualizadas}</td></tr>
+          <tr><td>Unidades con cambios {i.simulacion ? 'pendientes de aprobar' : 'no aprobados (se dejaron como estaban)'}</td><td>{i.unidades.pendientes}</td></tr>
+          <tr><td>Tipologías nuevas</td><td>{i.unidades.tipologiasCreadas}</td></tr>
           <tr><td>Notas de proformas</td><td>{i.proformas.notas}</td></tr>
           <tr><td>Etapas que se crean</td><td>{i.etapasCreadas.join(', ') || 'ninguna'}</td></tr>
           <tr><td>Errores</td><td>{i.leads.errores}</td></tr>
@@ -344,6 +365,53 @@ function ResultadoImporte({ informe: i }: { informe: Informe }) {
           <ul className="meta">{i.erroresDetalle.map((e) => <li key={e.clientId}>#{e.clientId}: {e.motivo}</li>)}</ul>
         </details>
       )}
+    </div>
+  );
+}
+
+const VALOR = (v: string | number | null) => (v === null || v === '' ? '—' : typeof v === 'number' ? v.toLocaleString('es-PE') : String(v).replace('_', ' '));
+
+/**
+ * Comparativa de unidades: lo que dice el CRM frente a lo que dice Sperant, solo donde
+ * difieren. Nada se aprueba por defecto: la importación real solo escribe lo marcado.
+ */
+function Comparativa({ diferencias, aprobadas, onCambio }: { diferencias: Diferencia[]; aprobadas: Set<string>; onCambio: (s: Set<string>) => void }) {
+  const todas = diferencias.every((x) => aprobadas.has(x.code));
+  const alternar = (code: string) => {
+    const n = new Set(aprobadas);
+    if (n.has(code)) n.delete(code); else n.add(code);
+    onCambio(n);
+  };
+  return (
+    <div className="comparativa">
+      <div className="comparativa-cabecera">
+        <strong style={{ fontSize: 13 }}>Unidades que difieren entre el CRM y Sperant ({diferencias.length})</strong>
+        <button type="button" className="enlace-btn" onClick={() => onCambio(todas ? new Set() : new Set(diferencias.map((x) => x.code)))}>
+          {todas ? 'Quitar todas' : 'Aprobar todas'}
+        </button>
+      </div>
+      <p className="meta">Marca las unidades cuyo valor de Sperant quieres traer. Las no marcadas se quedan como están en el CRM. Los cambios de precio quedan en el registro de auditoría.</p>
+      <table className="tabla-comparativa">
+        <thead>
+          <tr><th></th><th>Unidad</th><th>Campo</th><th>CRM (ahora)</th><th>Sperant</th></tr>
+        </thead>
+        <tbody>
+          {diferencias.map((u) => {
+            const campos = Object.entries(u.cambios);
+            return campos.map(([campo, v], i) => (
+              <tr key={`${u.code}-${campo}`} className={aprobadas.has(u.code) ? 'aprobada' : ''}>
+                {i === 0 && (
+                  <td rowSpan={campos.length}><input type="checkbox" checked={aprobadas.has(u.code)} onChange={() => alternar(u.code)} aria-label={`Aprobar ${u.code}`} /></td>
+                )}
+                {i === 0 && <td rowSpan={campos.length}><strong>{u.code}</strong></td>}
+                <td>{campo}</td>
+                <td>{VALOR(v.crm)}</td>
+                <td className="sperant">{VALOR(v.sperant)}</td>
+              </tr>
+            ));
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -83,6 +83,22 @@ export interface MapaImporte {
   asesores: Record<string, string | null>;
   importarUnidades: boolean;
   importarProformas: boolean;
+  /**
+   * Códigos de unidades cuyos cambios se aprueban. Una unidad que ya existe en el CRM y
+   * difiere de Sperant SOLO se actualiza si su código está aquí: la simulación devuelve la
+   * comparativa (`unidades.diferencias`) y la persona aprueba una por una. Las unidades
+   * nuevas se crean siempre; las iguales no se tocan.
+   */
+  unidadesAprobadas?: string[];
+  /** Quién aprueba (para la auditoría de precios). */
+  userId?: string | null;
+}
+
+export interface DiferenciaUnidad {
+  code: string;
+  /** Campos que difieren: campo → { crm, sperant }. */
+  cambios: Record<string, { crm: string | number | null; sperant: string | number | null }>;
+  aprobada: boolean;
 }
 
 export interface InformeImporte {
@@ -98,7 +114,7 @@ export interface InformeImporte {
     errores: number;
   };
   contactos: { nuevos: number; existentes: number };
-  unidades: { creadas: number; actualizadas: number; tipologiasCreadas: number };
+  unidades: { creadas: number; actualizadas: number; sinCambios: number; pendientes: number; tipologiasCreadas: number; diferencias: DiferenciaUnidad[] };
   proformas: { notas: number };
   etapasCreadas: string[];
   erroresDetalle: { clientId: number; motivo: string }[];
@@ -558,7 +574,7 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
     simulacion,
     leads: { total: 0, nuevos: 0, fusionados: 0, yaImportados: 0, omitidos: 0, sinEtapa: 0, sinAsesor: 0, errores: 0 },
     contactos: { nuevos: 0, existentes: 0 },
-    unidades: { creadas: 0, actualizadas: 0, tipologiasCreadas: 0 },
+    unidades: { creadas: 0, actualizadas: 0, sinCambios: 0, pendientes: 0, tipologiasCreadas: 0, diferencias: [] },
     proformas: { notas: 0 },
     etapasCreadas: [],
     erroresDetalle: [],
@@ -636,8 +652,10 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
         porNombre.set(nombre.toLowerCase(), `(nueva) ${nombre}`);
       }
     }
-    const existentes = await prisma.unit.findMany({ where: { projectId: project.id }, select: { id: true, code: true } });
-    const porCodigo = new Map(existentes.map((u) => [u.code, u.id]));
+    const existentes = await prisma.unit.findMany({ where: { projectId: project.id } });
+    const porCodigo = new Map(existentes.map((u) => [u.code, u]));
+    const aprobadas = new Set(mapa.unidadesAprobadas ?? []);
+    const ETIQUETA: Record<string, string> = { price: 'precio', currency: 'moneda', status: 'estado', kind: 'tipo', areaM2: 'área m²', typology: 'tipología' };
     for (const u of d.units) {
       const code = String(u.name ?? u.code ?? '').trim();
       if (!code) continue;
@@ -653,10 +671,41 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
         currency: String(u.currency ?? 'PEN'),
         extra: { sperant_unit_id: u.id, sperant_code: u.code } as never,
       };
-      const idExistente = porCodigo.get(code);
-      if (idExistente) {
+      const existente = porCodigo.get(code);
+      if (existente) {
+        // Comparar campo a campo. Solo lo que difiere se muestra y solo lo aprobado se escribe.
+        const cambios: DiferenciaUnidad['cambios'] = {};
+        const comparar = (campo: keyof typeof ETIQUETA, crm: unknown, sp: unknown) => {
+          const a = crm === null || crm === undefined ? null : typeof crm === 'object' ? Number(crm) : (crm as string | number);
+          const b = sp === null || sp === undefined ? null : (sp as string | number);
+          if (String(a ?? '') !== String(b ?? '')) cambios[ETIQUETA[campo]] = { crm: a, sperant: b };
+        };
+        comparar('price', existente.price, datosUnidad.price);
+        comparar('currency', existente.currency, datosUnidad.currency);
+        comparar('status', existente.status, datosUnidad.status);
+        comparar('kind', existente.kind, datosUnidad.kind);
+        comparar('areaM2', existente.areaM2, datosUnidad.areaM2);
+        comparar('typology', existente.typology, datosUnidad.typology);
+        if (Object.keys(cambios).length === 0) { informe.unidades.sinCambios++; continue; }
+        const aprobada = aprobadas.has(code);
+        informe.unidades.diferencias.push({ code, cambios, aprobada });
+        if (!aprobada) { informe.unidades.pendientes++; continue; }
         informe.unidades.actualizadas++;
-        if (!simulacion) await prisma.unit.update({ where: { id: idExistente }, data: datosUnidad });
+        if (!simulacion) {
+          await prisma.unit.update({ where: { id: existente.id }, data: datosUnidad });
+          if (cambios.precio) {
+            await prisma.auditLog.create({
+              data: {
+                organizationId,
+                userId: mapa.userId ?? null,
+                action: 'unit.price',
+                entity: 'unit',
+                entityId: existente.id,
+                meta: { code, projectId: project.id, de: cambios.precio.crm, a: cambios.precio.sperant, origen: 'sperant' } as never,
+              },
+            });
+          }
+        }
       } else {
         informe.unidades.creadas++;
         if (!simulacion) await prisma.unit.create({ data: { ...datosUnidad, code, projectId: project.id } });
