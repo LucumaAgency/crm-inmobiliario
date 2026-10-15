@@ -112,6 +112,7 @@ await intentar('input_channels', '/v3/input_channels');
 await intentar('captation_ways', '/v3/captation_ways');
 await intentar('interest_types', '/v3/interest_types');
 await intentar('document_types', '/v3/document_types');
+await intentar('users', '/v3/users');
 
 // 2) Proyectos e inventario
 const proyectos = await intentar('projects', '/v3/projects');
