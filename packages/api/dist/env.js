@@ -102,5 +102,18 @@ export const env = {
         claudeActivo: !!process.env.ANTHROPIC_API_KEY?.trim(),
         modeloResumen: process.env.CLAUDE_MODEL?.trim() || 'claude-opus-5',
     },
+    /**
+     * Respaldos diarios (services/respaldos.ts). Sin las tres de Google, el respaldo se
+     * genera igual en el servidor pero no sale a Drive, y Ajustes → Respaldos lo avisa.
+     * Cómo sacar el token: `scripts/drive-token.mjs` y docs/26-RESPALDOS.md.
+     */
+    drive: {
+        clientId: process.env.GDRIVE_CLIENT_ID?.trim() || '',
+        clientSecret: process.env.GDRIVE_CLIENT_SECRET?.trim() || '',
+        refreshToken: process.env.GDRIVE_REFRESH_TOKEN?.trim() || '',
+        carpeta: process.env.GDRIVE_CARPETA?.trim() || 'Respaldos CRM Lucuma',
+    },
+    /** RESPALDOS=0 apaga el respaldo automático (p. ej. en una copia de desarrollo). */
+    respaldosActivos: (process.env.RESPALDOS ?? '1') !== '0',
     isProd: (process.env.NODE_ENV ?? 'development') === 'production',
 };

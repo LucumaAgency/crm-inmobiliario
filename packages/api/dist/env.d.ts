@@ -55,5 +55,18 @@ export declare const env: {
         claudeActivo: boolean;
         modeloResumen: string;
     };
+    /**
+     * Respaldos diarios (services/respaldos.ts). Sin las tres de Google, el respaldo se
+     * genera igual en el servidor pero no sale a Drive, y Ajustes → Respaldos lo avisa.
+     * Cómo sacar el token: `scripts/drive-token.mjs` y docs/26-RESPALDOS.md.
+     */
+    drive: {
+        clientId: string;
+        clientSecret: string;
+        refreshToken: string;
+        carpeta: string;
+    };
+    /** RESPALDOS=0 apaga el respaldo automático (p. ej. en una copia de desarrollo). */
+    respaldosActivos: boolean;
     isProd: boolean;
 };

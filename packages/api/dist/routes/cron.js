@@ -21,6 +21,7 @@ import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { logError, logLine } from '../lib/log.js';
 import { procesarCola } from '../services/cola.js';
+import { respaldosAutomaticos } from '../services/respaldos.js';
 /**
  * Tope de tiempo de una llamada.
  *
@@ -66,6 +67,12 @@ export default async function cronRoutes(app) {
          */
         if (total > 0)
             logLine(`cron: ${total} trabajo(s) en ${Date.now() - inicio} ms`);
+        /**
+         * Respaldo diario. No se espera: generar y subir un ZIP puede tardar más que el corte
+         * de 30 s del servicio de cron, y el latido daría error sin haber fallado nada. Casi
+         * siempre vuelve al instante porque a nadie le toca (ver services/respaldos.ts).
+         */
+        void respaldosAutomaticos();
         return { ok: true, jobs: total, ms: Date.now() - inicio, pendiente: vueltas >= MAX_VUELTAS };
     };
     /**
