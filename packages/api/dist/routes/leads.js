@@ -446,7 +446,19 @@ export default async function leadRoutes(app) {
         if (!lead)
             return reply.code(404).send({ error: 'Lead no encontrado' });
         await audit(user.organizationId, user.id, 'lead.view', { entity: 'lead', entityId: lead.id, ip: req.ip });
-        return lead;
+        // Pareja o cónyuge registrado en Sperant (`couple_id` es otro cliente de Sperant): si
+        // también se importó, se enlaza su lead.
+        const pareja = lead.attribution?.sperant?.cliente?.couple_id;
+        let sperantPareja = null;
+        if (pareja) {
+            const otro = await prisma.lead.findFirst({
+                where: { ...scopeForUser(user), attribution: { path: '$.sperant.client_id', equals: Number(pareja) } },
+                select: { id: true, contact: { select: { fname: true, lname: true } } },
+            });
+            if (otro)
+                sperantPareja = { id: otro.id, nombre: `${otro.contact.fname} ${otro.contact.lname ?? ''}`.trim() };
+        }
+        return { ...lead, sperantPareja };
     });
     // ------------------------------------------------------------- whatsapp
     /**

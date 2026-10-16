@@ -210,6 +210,28 @@ export declare function sugerirMapa(organizationId: string): Promise<{
  * completan dueño y etapa si estaban vacíos.
  */
 export declare function importar(organizationId: string, mapa: MapaImporte, simulacion: boolean): Promise<InformeImporte>;
+export interface InformeCompletar {
+    simulacion: boolean;
+    leadsRevisados: number;
+    leadsCompletados: number;
+    fusionesCompletadas: number;
+    documentosFalsosLimpiados: number;
+    proformasCompletadas: number;
+    sinLeadEnCrm: number;
+}
+/**
+ * Completa los leads YA importados con la ficha completa de Sperant.
+ *
+ * La primera versión del importador guardaba solo lo que el CRM tiene como campo (nombre,
+ * teléfono, etapa…) y se perdía el resto: género, estado civil, ubicación, pareja, teléfono
+ * principal, campos extra, interacciones manuales y digitales, cotitulares de las proformas.
+ * Esto lo agrega dentro de `attribution.sperant` sin tocar nada de lo que el equipo ya editó
+ * en el CRM (etapa, asesor, datos de contacto). Además quita los documentos `auto-…` que
+ * Sperant pone cuando no hay DNI, solo si el contacto sigue teniendo exactamente ese valor.
+ *
+ * Idempotente: correrlo dos veces no cambia nada la segunda.
+ */
+export declare function completarDatos(organizationId: string, simulacion: boolean): Promise<InformeCompletar>;
 /** Arranca la importación real en segundo plano. */
 export declare function iniciarImportacion(organizationId: string, mapa: MapaImporte): Promise<void>;
 export {};
