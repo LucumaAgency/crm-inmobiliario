@@ -237,9 +237,41 @@ export async function probarPagina(pageId) {
         catch {
             pageName = pagina.pageName;
         }
-        const formularios = (await llamarGraph(`${pageId}/leadgen_forms`, { fields: 'id,name,status', limit: '100' }, token));
+        /**
+         * Listar los formularios exige `pages_manage_ads`, que Meta RECHAZÓ en el App Review del
+         * 2026-09-30 («no necesario para la funcionalidad principal»). Recibir y leer los leads
+         * no lo necesita (leads_retrieval, pages_read_engagement, pages_manage_metadata y
+         * pages_show_list sí se aprobaron). Así que su fallo no tumba la prueba: lo que vale es
+         * que el token lea la página. Los formularios se toman entonces de los leads que ya
+         * llegaron (cada aviso trae su `form_id`), para poder mandarlos a un proyecto.
+         */
+        let forms = [];
+        let formsDesdeLeads = false;
+        try {
+            const formularios = (await llamarGraph(`${pageId}/leadgen_forms`, { fields: 'id,name,status', limit: '100' }, token));
+            forms = formularios.data ?? [];
+        }
+        catch {
+            formsDesdeLeads = true;
+            const vistos = await prisma.metaLead.groupBy({
+                by: ['metaFormId'],
+                where: { pageId, metaFormId: { not: null } },
+                _count: { _all: true },
+                _max: { createdAt: true },
+            });
+            forms = vistos.map((v) => ({
+                id: v.metaFormId,
+                name: `Formulario ${v.metaFormId}`,
+                leads: v._count._all,
+                ultimo: v._max.createdAt?.toISOString(),
+            }));
+            // Sin leads todavía y sin permiso para listar, al menos hay que confirmar que el token
+            // abre la página: si esto falla, la conexión sí está rota.
+            if (!pageName)
+                await llamarGraph(`${pageId}`, { fields: 'id' }, token);
+        }
         await prisma.metaPage.update({ where: { id: pagina.id }, data: { lastError: null } });
-        return { ok: true, pageName, forms: formularios.data ?? [] };
+        return { ok: true, pageName, forms, formsDesdeLeads };
     }
     catch (err) {
         const mensaje = redactarSecretos(err instanceof Error ? err.message : String(err));

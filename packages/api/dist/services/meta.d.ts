@@ -58,7 +58,11 @@ export declare function probarPagina(pageId: string): Promise<{
         id: string;
         name: string;
         status?: string;
+        leads?: number;
+        ultimo?: string;
     }>;
+    /** Meta no dejó listar los formularios: se muestran los que ya mandaron leads. */
+    formsDesdeLeads?: boolean;
 }>;
 /**
  * Suscribe la aplicación a la página para recibir `leadgen`.
