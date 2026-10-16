@@ -292,6 +292,7 @@ export interface InformeCompletar {
         conEtapa: number;
         perdidos: number;
         sinEtapaEnCrm: string[];
+        fechasCorregidas: number;
     };
 }
 export interface InfoInventario {
@@ -312,6 +313,8 @@ export interface InfoInventario {
     tipologiasDeOtroProyecto: string[];
     /** Tipologías ajenas que no se pueden quitar todavía (tienen unidades o interesados). */
     tipologiasAjenasEnUso: string[];
+    /** Unidades a las que se les enlazó su tipología (la tenían en Sperant y no en el CRM). */
+    tipologiasEnlazadas: string[];
 }
 /**
  * Completa los leads YA importados con la ficha completa de Sperant.
