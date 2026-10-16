@@ -929,6 +929,21 @@ export interface InformeCompletar {
   documentosFalsosLimpiados: number;
   proformasCompletadas: number;
   sinLeadEnCrm: number;
+  /** Diagnóstico: lo que explica números raros. */
+  diagnostico: {
+    clientesEnExport: number;
+    /** Clientes sin ficha de detalle en el export (la exportación se cortó para ellos). */
+    sinDetalleEnExport: number;
+    documentosAutoEnExport: number;
+    /** El contacto del CRM no tiene documento: ya se quitó, o el contacto existía antes de importar. */
+    documentoAutoContactoSinDocumento: number;
+    /** El contacto del CRM tiene otro documento (existía antes con DNI real, o se editó). */
+    documentoAutoContactoConOtro: number;
+    proformasEnExport: number;
+    notasProformaExistentes: number;
+    /** Proformas del export que no tenían nota en el lead (importación sin proformas). */
+    notasProformaACrear: number;
+  };
 }
 
 /**
@@ -946,8 +961,16 @@ export interface InformeCompletar {
 export async function completarDatos(organizationId: string, simulacion: boolean): Promise<InformeCompletar> {
   const d = leerDatos(organizationId);
   if (!d) throw new Error('No hay datos exportados');
-  const informe: InformeCompletar = { simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0 };
-  const porId = new Map(unir(d).map((l) => [l.id, l]));
+  const informe: InformeCompletar = {
+    simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0,
+    diagnostico: { clientesEnExport: 0, sinDetalleEnExport: 0, documentosAutoEnExport: 0, documentoAutoContactoSinDocumento: 0, documentoAutoContactoConOtro: 0, proformasEnExport: d.budgets.length, notasProformaExistentes: 0, notasProformaACrear: 0 },
+  };
+  const todos = unir(d);
+  const porId = new Map(todos.map((l) => [l.id, l]));
+  informe.diagnostico.clientesEnExport = todos.length;
+  informe.diagnostico.sinDetalleEnExport = todos.filter((l) => Object.keys(l.crudo.cliente).length === 0).length;
+  informe.diagnostico.documentosAutoEnExport = todos.filter((l) => l.document && !docReal(l.document)).length;
+  const leadPorCliente = new Map<number, string>();
 
   const leads = await prisma.lead.findMany({
     where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
@@ -965,6 +988,8 @@ export async function completarDatos(organizationId: string, simulacion: boolean
     const l = porId.get(cid);
     if (!l) continue;
     vistos.add(cid);
+    leadPorCliente.set(cid, lead.id);
+    for (const f of attr.sperant_fusiones ?? []) if (!leadPorCliente.has(Number(f))) leadPorCliente.set(Number(f), lead.id);
     let nueva = attr;
     if (!attr.sperant?.cliente) {
       nueva = { ...nueva, sperant: { ...attr.sperant, ...l.crudo } };
@@ -986,6 +1011,9 @@ export async function completarDatos(organizationId: string, simulacion: boolean
     if (falso && lead.contact.document === falso) {
       informe.documentosFalsosLimpiados++;
       if (!simulacion) await prisma.contact.update({ where: { id: lead.contact.id }, data: { document: null } });
+    } else if (falso) {
+      if (lead.contact.document) informe.diagnostico.documentoAutoContactoConOtro++;
+      else informe.diagnostico.documentoAutoContactoSinDocumento++;
     }
   }
   informe.sinLeadEnCrm = [...porId.keys()].filter((k) => !vistos.has(k)).length;
@@ -994,8 +1022,21 @@ export async function completarDatos(organizationId: string, simulacion: boolean
   const presupuestos = new Map(d.budgets.map((b) => [String(b.id), b]));
   const notas = await prisma.activity.findMany({
     where: { lead: { organizationId }, type: 'nota', meta: { path: '$.sperant_budget_id', not: Prisma.AnyNull } },
-    select: { id: true, meta: true },
+    select: { id: true, leadId: true, meta: true },
   });
+  informe.diagnostico.notasProformaExistentes = notas.length;
+  const conNota = new Set(notas.map((n) => `${n.leadId}:${String((n.meta as Record<string, unknown>)?.sperant_budget_id)}`));
+  // Proformas sin nota (la importación se corrió sin proformas): se crean ahora, en el lead
+  // de cada titular, con la fecha original.
+  for (const b of d.budgets) {
+    for (const t of (b.titulars as Plano[] | undefined) ?? []) {
+      const leadId = leadPorCliente.get(Number(t.id));
+      if (!leadId || conNota.has(`${leadId}:${String(b.id)}`)) continue;
+      conNota.add(`${leadId}:${String(b.id)}`);
+      informe.diagnostico.notasProformaACrear++;
+      if (!simulacion) await notasProformas(leadId, [b]);
+    }
+  }
   for (const n of notas) {
     const meta = (n.meta ?? {}) as Record<string, unknown>;
     if (meta.sperant_budget) continue;

@@ -425,6 +425,16 @@ interface InformeCompletar {
   documentosFalsosLimpiados: number;
   proformasCompletadas: number;
   sinLeadEnCrm: number;
+  diagnostico: {
+    clientesEnExport: number;
+    sinDetalleEnExport: number;
+    documentosAutoEnExport: number;
+    documentoAutoContactoSinDocumento: number;
+    documentoAutoContactoConOtro: number;
+    proformasEnExport: number;
+    notasProformaExistentes: number;
+    notasProformaACrear: number;
+  };
 }
 
 /**
@@ -472,8 +482,28 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             <tr><td>Documentos «auto-…» {informe.simulacion ? 'a quitar' : 'quitados'}</td><td>{informe.documentosFalsosLimpiados}</td></tr>
             <tr><td>Notas de proforma {informe.simulacion ? 'a completar' : 'completadas'}</td><td>{informe.proformasCompletadas}</td></tr>
             <tr><td>Clientes del export sin lead en el CRM (omitidos o borrados)</td><td>{informe.sinLeadEnCrm}</td></tr>
+            <tr><td>Notas de proforma que faltaban y se {informe.simulacion ? 'crearían' : 'crearon'}</td><td>{informe.diagnostico.notasProformaACrear}</td></tr>
           </tbody>
         </table>
+      )}
+      {informe && (
+        <details style={{ marginTop: 8 }} open={informe.diagnostico.sinDetalleEnExport > 0}>
+          <summary className="meta">Diagnóstico del export</summary>
+          <table className="tabla-compacta" style={{ marginTop: 6 }}>
+            <tbody>
+              <tr><td>Clientes en el export</td><td>{informe.diagnostico.clientesEnExport}</td></tr>
+              <tr className={informe.diagnostico.sinDetalleEnExport > 0 ? 'error' : ''}>
+                <td>Clientes sin ficha de detalle (la exportación no la trajo; hay que exportar de nuevo)</td>
+                <td>{informe.diagnostico.sinDetalleEnExport}</td>
+              </tr>
+              <tr><td>Documentos «auto-…» en el export</td><td>{informe.diagnostico.documentosAutoEnExport}</td></tr>
+              <tr><td>… cuyo contacto ya no tiene documento (ya quitado, o el contacto existía en el CRM antes de importar)</td><td>{informe.diagnostico.documentoAutoContactoSinDocumento}</td></tr>
+              <tr><td>… cuyo contacto tiene otro documento (existía con DNI real o se editó; no se toca)</td><td>{informe.diagnostico.documentoAutoContactoConOtro}</td></tr>
+              <tr><td>Proformas en el export</td><td>{informe.diagnostico.proformasEnExport}</td></tr>
+              <tr><td>Notas de proforma que ya había en el CRM</td><td>{informe.diagnostico.notasProformaExistentes}</td></tr>
+            </tbody>
+          </table>
+        </details>
       )}
     </div>
   );
