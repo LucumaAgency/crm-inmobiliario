@@ -6,7 +6,7 @@
  * (Ajustes → Roles). El servidor decide con `permissions`, nunca con el nombre del rol: así un
  * «Jefe de ventas» creado por Bastión manda lo mismo que un gerente si tiene las mismas casillas.
  *
- * Granularidad a propósito gruesa: doce permisos que un gerente entiende leyendo, no cuarenta.
+ * Granularidad a propósito gruesa: pocos permisos que un gerente entiende leyendo, no cuarenta.
  */
 export const PERMISOS = [
   {
@@ -74,6 +74,12 @@ export const PERMISOS = [
     grupo: 'Configuración',
     nombre: 'Configurar canales',
     detalle: 'Sitios web y formularios, Meta Lead Ads, números de WhatsApp.',
+  },
+  {
+    id: 'respaldos.descargar',
+    grupo: 'Configuración',
+    nombre: 'Descargar respaldos',
+    detalle: 'Ver el estado de los respaldos y descargar una copia completa de la información (leads, conversaciones, proformas, archivos). Queda en auditoría.',
   },
   {
     id: 'registro.ver',

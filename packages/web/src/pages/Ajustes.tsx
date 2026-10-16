@@ -12,6 +12,7 @@ import AjustesEmbudo from './AjustesEmbudo.js';
 import Roles from './Roles.js';
 import MigracionSperant from './MigracionSperant.js';
 import Diagnostico from './Diagnostico.js';
+import Respaldos from './Respaldos.js';
 import { usePuede } from '../lib/permisos.js';
 import { PASSWORD_MIN, type Permiso } from '@lucuma-crm/shared';
 
@@ -40,6 +41,7 @@ const SECCIONES: { id: string; texto: string; permiso: Permiso }[] = [
   { id: 'voz', texto: 'Notas de voz', permiso: 'embudo.configurar' },
   { id: 'sperant', texto: 'Migración Sperant', permiso: 'canales.configurar' },
   { id: 'diagnostico', texto: 'Diagnóstico', permiso: 'usuarios.gestionar' },
+  { id: 'respaldos', texto: 'Respaldos', permiso: 'respaldos.descargar' },
   { id: 'registro', texto: 'Registro', permiso: 'registro.ver' },
   { id: 'exportar', texto: 'Exportar', permiso: 'leads.exportar' },
 ];
@@ -379,6 +381,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
       {seccion === 'sperant' && <MigracionSperant />}
 
       {seccion === 'diagnostico' && <Diagnostico />}
+
+      {seccion === 'respaldos' && <Respaldos />}
 
       {seccion === 'registro' && <Registro />}
 

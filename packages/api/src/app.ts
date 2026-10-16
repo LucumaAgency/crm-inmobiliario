@@ -24,6 +24,7 @@ import cronRoutes from './routes/cron.js';
 import logRoutes from './routes/logs.js';
 import sperantRoutes from './routes/sperant.js';
 import diagnosticoRoutes from './routes/diagnostico.js';
+import respaldosRoutes from './routes/respaldos.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,6 +160,7 @@ export async function buildApp() {
     },
     { prefix: '/api/v1/diagnostico' }
   );
+  await app.register(respaldosRoutes, { prefix: '/api/v1/respaldos' });
   await app.register(reportesRoutes, { prefix: '/api/v1/reportes' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
   /**

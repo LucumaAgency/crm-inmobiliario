@@ -23,6 +23,8 @@ import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso } from '../lib/auth.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
 import { compararConCrm, leerEstado } from '../services/sperant.js';
+import { driveConfigurado } from '../lib/drive.js';
+import { leerEstadoRespaldo } from '../services/respaldos.js';
 
 const VIGENCIA_MS = 24 * 60 * 60 * 1000;
 
@@ -224,6 +226,8 @@ export default async function diagnosticoRoutes(app: FastifyInstance) {
       proformasCrm: proformas,
       notasDeProformaSperant: notasProforma,
       conversacionesWhatsApp: conversaciones,
+      // Estado del respaldo diario: fechas, nombre del ZIP y si llegó a Drive. Sin datos de clientes.
+      respaldos: { driveConfigurado: driveConfigurado(), ...(await leerEstadoRespaldo(org.id)) },
       whatsapp: {
         numeros: numeros.map((n) => ({ ...n, proyecto: n.projectId ? nombreProyecto.get(n.projectId) ?? null : null })),
         mensajesPorTipo: tiposMensaje.map((t) => ({ direccion: t.direction, tipo: t.type, n: t._count._all })),
