@@ -12,11 +12,20 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../db.js';
 import { PROFORMA_NOTA_DEFECTO, leerAjustes } from '../lib/ajustes.js';
 import { privadosDir, rutaPrivada } from '../lib/privados.js';
 import { uploadsDir } from '../lib/media.js';
+
+/**
+ * Alice (Google Fonts, licencia OFL) para el nombre del proyecto y su dirección en la
+ * cabecera: la tipografía de la marca de Domus. Vive en `packages/api/assets/fonts`, que
+ * queda a la misma distancia desde `src/services` y desde `dist/services`. Si falta el
+ * archivo, la cabecera sale en Helvetica como antes en vez de romper la proforma.
+ */
+const FUENTE_TITULO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Alice-Regular.ttf');
 
 export interface ItemProforma {
   unitId: string;
@@ -316,7 +325,14 @@ async function generarPdf(d: DatosPdf) {
     doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text((d.project.legalName || d.orgName).toUpperCase(), x0, y, { width: ancho, align: 'right' });
     doc.font('Helvetica').fontSize(11).fillColor('#555555').text(`Propuesta · ${d.project.name}`, { width: ancho, align: 'right' });
   } else {
-    doc.font('Helvetica-Bold').fontSize(22).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
+    // Nombre del proyecto y, debajo, distrito y dirección: todo en la tipografía del proyecto.
+    const alice = fs.existsSync(FUENTE_TITULO);
+    if (alice) doc.registerFont('Titulo', FUENTE_TITULO);
+    doc.font(alice ? 'Titulo' : 'Helvetica-Bold').fontSize(24).fillColor('#222222').text(d.project.name.toUpperCase(), x0, y, { width: ancho, align: 'right' });
+    doc.font(alice ? 'Titulo' : 'Helvetica').fontSize(11).fillColor('#444444');
+    for (const linea of [d.project.district, d.project.address]) {
+      if (linea?.trim()) doc.text(linea.trim(), { width: ancho, align: 'right' });
+    }
   }
   y = Math.max(doc.y, y + 64) + 10;
   doc.moveTo(x0, y).lineTo(x0 + ancho, y).lineWidth(2).strokeColor('#333333').stroke();
@@ -431,6 +447,14 @@ async function generarPdf(d: DatosPdf) {
   const altoNota = doc.heightOfString(notaTexto, { width: ancho - 16 }) + 14;
   doc.rect(x0, y, ancho, altoNota).lineWidth(0.8).strokeColor('#222222').stroke();
   doc.text(notaTexto, x0 + 8, y + 7, { width: ancho - 16, align: 'justify' });
+
+  // Pie de página. Se quita el margen inferior un momento: escribir dentro de él hace que
+  // pdfkit abra una página nueva.
+  const margenInferior = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  doc.font('Helvetica').fontSize(8).fillColor('#888888')
+    .text(`${nombreDoc} generada por Lucuma CRM`, x0, doc.page.height - 32, { width: ancho, align: 'center', lineBreak: false });
+  doc.page.margins.bottom = margenInferior;
 
   doc.end();
   await terminado;
