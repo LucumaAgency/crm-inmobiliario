@@ -223,7 +223,13 @@ async function exportar(organizationId, tok, sperantProjectId) {
     }
     d.projects = await todas(tok, '/v3/projects');
     d.users = await todas(tok, '/v3/users');
+    // Con más de un proyecto no se adivina: en Bastión el primero de la lista es Bordeaux (de
+    // LuRoss) y su inventario terminó dentro de Domus (2026-10-16).
+    if (!sperantProjectId && d.projects.length > 1) {
+        throw new Error(`La cuenta de Sperant tiene ${d.projects.length} proyectos (${d.projects.map((x) => `${x.id} ${x.name}`).join(', ')}): escribe el id del proyecto a migrar en el paso 1 y guarda.`);
+    }
     const pid = sperantProjectId ?? (d.projects[0] ? Number(d.projects[0].id) : null);
+    d.inventarioDe = pid ? { id: pid, nombre: String(d.projects.find((x) => Number(x.id) === pid)?.name ?? pid) } : null;
     if (pid) {
         d.types = await todas(tok, `/v3/projects/${pid}/types`);
         d.units = await todas(tok, `/v3/projects/${pid}/units`);
@@ -231,6 +237,11 @@ async function exportar(organizationId, tok, sperantProjectId) {
         // piso, áreas, vista, dormitorios y baños. Barato, se rehace siempre.
         d.proyectoDetalle = plano((await get(tok, `/v3/projects/${pid}`)).data);
         d.proyectoImagenes = await todas(tok, `/v3/projects/${pid}/images`);
+        d.tiposOtrosProyectos = [];
+        for (const otro of d.projects.filter((x) => Number(x.id) !== pid)) {
+            for (const t of await todas(tok, `/v3/projects/${otro.id}/types`))
+                d.tiposOtrosProyectos.push(String(t.name ?? '').trim());
+        }
         d.unidadesDetalle = {};
         for (const u of d.units)
             d.unidadesDetalle[String(u.id)] = plano((await get(tok, `/v3/units/${u.id}`)).data);
@@ -367,6 +378,7 @@ export function resumen(organizationId) {
             sinNumeroWhatsApp: leads.filter((l) => !!l.wspUsername).length,
         },
         inventario: {
+            proyecto: d.inventarioDe?.nombre ?? null,
             tipologias: d.types.map((t) => String(t.name ?? t.id)),
             unidades: d.units.length,
             porEstado: cuenta(d.units.map((u) => u.commercial_status)),
@@ -606,7 +618,8 @@ export async function importar(organizationId, mapa, simulacion) {
                 }
                 informe.unidades.actualizadas++;
                 if (!simulacion) {
-                    await prisma.unit.update({ where: { id: existente.id }, data: datosUnidad });
+                    // `extra` se combina: puede traer el detalle de Sperant que puso «Completar datos».
+                    await prisma.unit.update({ where: { id: existente.id }, data: { ...datosUnidad, extra: { ...(existente.extra ?? {}), ...datosUnidad.extra } } });
                     if (cambios.precio) {
                         await prisma.auditLog.create({
                             data: {
@@ -624,7 +637,7 @@ export async function importar(organizationId, mapa, simulacion) {
             else {
                 informe.unidades.creadas++;
                 if (!simulacion)
-                    await prisma.unit.create({ data: { ...datosUnidad, code, projectId: project.id } });
+                    await prisma.unit.create({ data: { ...datosUnidad, extra: datosUnidad.extra, code, projectId: project.id } });
             }
         }
     }
@@ -847,7 +860,8 @@ export async function completarDatos(organizationId, simulacion) {
         throw new Error('No hay datos exportados');
     const informe = {
         simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0,
-        inventario: { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false },
+        inventario: { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false, inventarioDe: d.inventarioDe?.nombre ?? null, unidadesDeOtroProyecto: [], tipologiasDeOtroProyecto: [], tipologiasAjenasEnUso: [] },
+        reparados: { leads: 0, conEtapa: 0, perdidos: 0, sinEtapaEnCrm: [] },
         diagnostico: { clientesEnExport: 0, sinDetalleEnExport: 0, documentosAutoEnExport: 0, documentoAutoContactoSinDocumento: 0, documentoAutoContactoConOtro: 0, proformasEnExport: d.budgets.length, notasProformaExistentes: 0, notasProformaACrear: 0 },
     };
     const todos = unir(d);
@@ -858,8 +872,14 @@ export async function completarDatos(organizationId, simulacion) {
     const leadPorCliente = new Map();
     const leads = await prisma.lead.findMany({
         where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
-        select: { id: true, attribution: true, contact: { select: { id: true, document: true } } },
+        select: {
+            id: true, attribution: true, stageId: true, interestLevel: true, source: true, firstContactAt: true, lostReason: true, createdAt: true,
+            contact: { select: { id: true, document: true } },
+        },
     });
+    const etapas = await prisma.stage.findMany({ where: { organizationId } });
+    const sinTildes = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const etapaPorNombre = (seg) => etapas.find((e) => sinTildes(e.name) === sinTildes(seg)) ?? null;
     const vistos = new Set();
     for (const lead of leads) {
         informe.leadsRevisados++;
@@ -877,6 +897,59 @@ export async function completarDatos(organizationId, simulacion) {
         if (!attr.sperant?.cliente) {
             nueva = { ...nueva, sperant: { ...attr.sperant, ...l.crudo } };
             informe.leadsCompletados++;
+        }
+        /**
+         * Reparación: en la primera exportación de Bastión, 571 clientes llegaron sin su parte de
+         * proyecto (etapa, asesor, canal) y entraron sin etapa, abiertos y con fuente «import».
+         * Si el export ya la trae, se completa la marca de Sperant y, solo donde sigue vacío,
+         * etapa (por nombre), estado, motivo, interés, fuente y primer contacto.
+         */
+        const datosLead = {};
+        if (!attr.sperant?.etapa && !attr.sperant?.asesor && (l.segment || l.seller)) {
+            informe.reparados.leads++;
+            nueva = {
+                ...nueva,
+                sperant: {
+                    ...(nueva.sperant ?? {}),
+                    canal: l.channel, medio: l.sourceName, interes: l.interest, etapa: l.segment, asesor: l.seller, proyecto: l.projectName,
+                    ultima_interaccion: l.lastInteractionAt?.toISOString() ?? null, asignado_el: l.sellerAssignedAt?.toISOString() ?? null,
+                    proyectos: l.crudo.proyectos,
+                },
+            };
+            if (!lead.stageId && l.segment) {
+                const e = etapaPorNombre(l.segment);
+                if (e) {
+                    informe.reparados.conEtapa++;
+                    datosLead.stageId = e.id;
+                    datosLead.status = e.isLost ? 'perdido' : e.isWon ? 'ganado' : 'activo';
+                    if (e.isLost) {
+                        informe.reparados.perdidos++;
+                        if (!lead.lostReason)
+                            datosLead.lostReason = l.reasonResign ?? 'Desestimado en Sperant';
+                    }
+                }
+                else if (!informe.reparados.sinEtapaEnCrm.includes(l.segment))
+                    informe.reparados.sinEtapaEnCrm.push(l.segment);
+            }
+            if (lead.interestLevel == null && l.interest && INTERES[l.interest] != null)
+                datosLead.interestLevel = INTERES[l.interest];
+            if (lead.source === 'import' && FUENTE[(l.channel ?? '').toLowerCase()])
+                datosLead.source = FUENTE[(l.channel ?? '').toLowerCase()];
+            if (!lead.firstContactAt && l.segment && l.segment.toLowerCase() !== 'nuevo')
+                datosLead.firstContactAt = l.lastInteractionAt ?? lead.createdAt;
+        }
+        else if (attr.sperant?.cliente && !attr.sperant.proyectos?.length && l.crudo.proyectos.length) {
+            nueva = { ...nueva, sperant: { ...(nueva.sperant ?? {}), proyectos: l.crudo.proyectos } };
+        }
+        if (!simulacion && Object.keys(datosLead).length) {
+            await prisma.lead.update({ where: { id: lead.id }, data: datosLead });
+            await prisma.activity.create({
+                data: {
+                    leadId: lead.id,
+                    type: 'sistema',
+                    body: `Datos de Sperant reparados: etapa ${l.segment ?? '—'} · asesor ${l.seller ?? '—'} · ${l.channel ?? '?'} / ${l.sourceName ?? '?'}${l.reasonResign ? ` · motivo: ${l.reasonResign}` : ''}`,
+                },
+            });
         }
         const faltan = (attr.sperant_fusiones ?? []).filter((f) => porId.has(Number(f)) && !attr.sperant_fusiones_datos?.[f]);
         if (faltan.length) {
@@ -998,7 +1071,11 @@ async function completarInventario(organizationId, projectId, d, simulacion, inf
             continue;
         }
         const extraActual = (crm.extra ?? {});
-        if (extraActual.sperant?.detalle)
+        const previo = extraActual.sperant;
+        // Si el detalle guardado es de OTRA unidad de Sperant (el inventario de Bordeaux que se
+        // coló en Domus), se rehace y se pisan piso/dormitorios/baños, que también eran ajenos.
+        const ajeno = previo?.unit_id != null && String(previo.unit_id) !== String(u.id);
+        if (previo?.detalle && !ajeno)
             continue;
         const ex = (det.extra_fields ?? {});
         const obra = (det.construction ?? {});
@@ -1023,9 +1100,9 @@ async function completarInventario(organizationId, projectId, d, simulacion, inf
             await prisma.unit.update({
                 where: { id: crm.id },
                 data: {
-                    floor: crm.floor ?? entero(det.floor),
-                    bedrooms: crm.bedrooms ?? entero(ex.dormitorios),
-                    bathrooms: crm.bathrooms ?? entero(ex.banos),
+                    floor: ajeno ? entero(det.floor) : crm.floor ?? entero(det.floor),
+                    bedrooms: ajeno ? entero(ex.dormitorios) : crm.bedrooms ?? entero(ex.dormitorios),
+                    bathrooms: ajeno ? entero(ex.banos) : crm.bathrooms ?? entero(ex.banos),
                     extra: { ...extraActual, sperant_unit_id: u.id, sperant_code: u.code, sperant },
                 },
             });
@@ -1054,6 +1131,39 @@ async function completarInventario(organizationId, projectId, d, simulacion, inf
         }
         if (Object.keys(datos).length)
             await prisma.typology.update({ where: { id: t.id }, data: datos });
+    }
+    // Inventario de otro proyecto de Sperant (Bordeaux metido en Domus): se quitan las unidades
+    // que vinieron de Sperant y cuyo código no existe en este proyecto, y después las
+    // tipologías que quedan sin unidades y no son de este proyecto. Los códigos que sí existen
+    // en ambos (201, 302…) se corrigen con la comparativa de la importación, no aquí.
+    const idsSp = new Set(d.units.map((u) => String(u.id)));
+    const codigosSp = new Set(d.units.map((u) => String(u.name ?? u.code ?? '').trim()));
+    const ajenas = (await prisma.unit.findMany({ where: { projectId } })).filter((u) => {
+        const idSp = u.extra?.sperant_unit_id;
+        return idSp != null && !idsSp.has(String(idSp)) && !codigosSp.has(u.code);
+    });
+    inf.unidadesDeOtroProyecto = ajenas.map((u) => u.code).sort();
+    if (!simulacion && ajenas.length)
+        await prisma.unit.deleteMany({ where: { id: { in: ajenas.map((u) => u.id) } } });
+    const quitadas = new Set(ajenas.map((u) => u.id));
+    const nombresSp = new Set(d.types.map((t) => String(t.name ?? '').trim().toLowerCase()));
+    const deOtros = new Set((d.tiposOtrosProyectos ?? []).map((n) => n.toLowerCase()));
+    const tipos = await prisma.typology.findMany({
+        where: { projectId },
+        include: { units: { select: { id: true } }, _count: { select: { intereses: true } } },
+    });
+    for (const t of tipos) {
+        // Solo las que existen en otro proyecto de Sperant: nunca una creada a mano en el CRM.
+        if (nombresSp.has(t.name.trim().toLowerCase()) || !deOtros.has(t.name.trim().toLowerCase()))
+            continue;
+        const usadas = t.units.filter((u) => !quitadas.has(u.id)).length;
+        if (usadas || t._count.intereses) {
+            inf.tipologiasAjenasEnUso.push(t.name);
+            continue;
+        }
+        inf.tipologiasDeOtroProyecto.push(t.name);
+        if (!simulacion)
+            await prisma.typology.delete({ where: { id: t.id } });
     }
     // Proyecto: dirección si falta.
     const ub = ((d.proyectoDetalle ?? {}).ubication ?? {});

@@ -21,6 +21,13 @@ export interface DatosExport {
     proyectoImagenes?: Plano[];
     /** /v3/units/{id} por id: piso, áreas techada/libre, vista, dormitorios, fechas. */
     unidadesDetalle?: Record<string, Plano>;
+    /** Proyecto de Sperant del que salieron tipologías y unidades. */
+    inventarioDe?: {
+        id: number;
+        nombre: string;
+    } | null;
+    /** Nombres de tipologías de los OTROS proyectos de la cuenta (para limpiar las que se colaron). */
+    tiposOtrosProyectos?: string[];
 }
 export type Fase = 'sin_token' | 'listo' | 'exportando' | 'exportado' | 'importando' | 'importado' | 'error';
 export interface Estado {
@@ -163,6 +170,7 @@ export declare function resumen(organizationId: string): {
         sinNumeroWhatsApp: number;
     };
     inventario: {
+        proyecto: string | null;
         tipologias: string[];
         unidades: number;
         porEstado: {
@@ -249,6 +257,21 @@ export interface InformeCompletar {
         imagenesCopiadas: number;
         imagenesConError: number;
         direccionCompletada: boolean;
+        /** Proyecto de Sperant del que viene el inventario del export. */
+        inventarioDe: string | null;
+        /** Unidades que vinieron de otro proyecto de Sperant y no existen en este: se quitan. */
+        unidadesDeOtroProyecto: string[];
+        /** Tipologías sin unidades que no están en este proyecto de Sperant: se quitan. */
+        tipologiasDeOtroProyecto: string[];
+        /** Tipologías ajenas que no se pueden quitar todavía (tienen unidades o interesados). */
+        tipologiasAjenasEnUso: string[];
+    };
+    /** Leads importados sin etapa ni asesor (la exportación no trajo su proyecto) y que ahora se reparan. */
+    reparados: {
+        leads: number;
+        conEtapa: number;
+        perdidos: number;
+        sinEtapaEnCrm: string[];
     };
 }
 /**
