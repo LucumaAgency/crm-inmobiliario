@@ -218,6 +218,21 @@ export interface InformeCompletar {
     documentosFalsosLimpiados: number;
     proformasCompletadas: number;
     sinLeadEnCrm: number;
+    /** Diagnóstico: lo que explica números raros. */
+    diagnostico: {
+        clientesEnExport: number;
+        /** Clientes sin ficha de detalle en el export (la exportación se cortó para ellos). */
+        sinDetalleEnExport: number;
+        documentosAutoEnExport: number;
+        /** El contacto del CRM no tiene documento: ya se quitó, o el contacto existía antes de importar. */
+        documentoAutoContactoSinDocumento: number;
+        /** El contacto del CRM tiene otro documento (existía antes con DNI real, o se editó). */
+        documentoAutoContactoConOtro: number;
+        proformasEnExport: number;
+        notasProformaExistentes: number;
+        /** Proformas del export que no tenían nota en el lead (importación sin proformas). */
+        notasProformaACrear: number;
+    };
 }
 /**
  * Completa los leads YA importados con la ficha completa de Sperant.
