@@ -29,6 +29,11 @@ export declare const PERMISOS: readonly [{
     readonly nombre: "Exportar leads a CSV";
     readonly detalle: "Descarga masiva de datos personales: queda en auditoría.";
 }, {
+    readonly id: "leads.borrar";
+    readonly grupo: "Leads";
+    readonly nombre: "Borrar leads";
+    readonly detalle: "Eliminar leads para siempre (pruebas, duplicados, pedidos de baja). No se puede deshacer; queda en auditoría.";
+}, {
     readonly id: "reportes.ver";
     readonly grupo: "Reportes";
     readonly nombre: "Ver reportes";

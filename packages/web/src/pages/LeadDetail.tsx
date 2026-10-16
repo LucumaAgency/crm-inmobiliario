@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
@@ -9,6 +9,7 @@ import Proformas from '../components/Proformas.js';
 import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
+import BorrarLeads from '../components/BorrarLeads.js';
 import type { ApiError } from '../lib/api.js';
 import { usePuede } from '../lib/permisos.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
@@ -52,6 +53,8 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const [segFecha, setSegFecha] = useState('');
   const [segNota, setSegNota] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
+  const [borrando, setBorrando] = useState(false);
+  const navegar = useNavigate();
   // Edición del interés: null = solo lectura; con valor = formulario abierto.
   const [edicion, setEdicion] = useState<{ projectId: string; typologyIds: string[]; unitIds: string[] } | null>(null);
 
@@ -170,7 +173,21 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           {wa && <a className="btn btn-wa" href={wa} target="_blank" rel="noreferrer">WhatsApp</a>}
           {lead.contact.phone && <a className="btn btn-sec" href={`tel:${lead.contact.phone}`}>Llamar</a>}
           {lead.contact.email && <a className="btn btn-sec" href={`mailto:${lead.contact.email}`}>Correo</a>}
+          {puede('leads.borrar') && (
+            <button type="button" className="btn btn-sec" style={{ marginLeft: 'auto', color: 'var(--rojo)' }} onClick={() => setBorrando(true)}>
+              Borrar lead
+            </button>
+          )}
         </div>
+        {borrando && (
+          <BorrarLeads
+            ids={[lead.id]}
+            nombre={nombre}
+            deSperant={(lead.attribution as { sperant?: unknown } | null)?.sperant ? 1 : 0}
+            onCerrar={() => setBorrando(false)}
+            onBorrado={() => navegar('/leads', { replace: true })}
+          />
+        )}
 
         <div className="rejilla-2">
           <div>

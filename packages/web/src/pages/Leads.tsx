@@ -5,6 +5,10 @@ import NuevoLead from './NuevoLead.js';
 import Icono from '../components/Icono.js';
 import Kpi from '../components/Kpi.js';
 import TablaLeads, { type LeadFila as Lead } from '../components/TablaLeads.js';
+import BorrarLeads from '../components/BorrarLeads.js';
+import { usePuede } from '../lib/permisos.js';
+
+const POR_PAGINA = 50;
 
 interface Stats { total: number; ultimos30: number; sinContactar: number }
 
@@ -13,6 +17,14 @@ export default function Leads() {
   const [stageId, setStageId] = useState('');
   const [orden, setOrden] = useState<'actividad' | 'creacion'>('actividad');
   const [creando, setCreando] = useState(false);
+  const [origen, setOrigen] = useState<'' | 'sperant' | 'crm'>('');
+  const [pagina, setPagina] = useState(1);
+  const puede = usePuede();
+  const puedeBorrar = puede('leads.borrar');
+  // Se guarda el lead entero y no solo el id: la selección sobrevive al cambiar de página.
+  const [seleccion, setSeleccion] = useState<Map<string, Lead>>(new Map());
+  const [borrando, setBorrando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const stats = useQuery({ queryKey: ['stats'], queryFn: () => api.get<Stats>('/stats') });
   const stages = useQuery({
@@ -20,13 +32,16 @@ export default function Leads() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/stages'),
   });
   const leads = useQuery({
-    queryKey: ['leads', q, stageId, orden],
+    queryKey: ['leads', q, stageId, orden, origen, pagina],
     queryFn: () =>
       api.get<{ total: number; leads: Lead[] }>(
         `/leads?${new URLSearchParams({
           ...(q ? { q } : {}),
           ...(stageId ? { stageId } : {}),
+          ...(origen ? { origen } : {}),
           orden,
+          page: String(pagina),
+          perPage: String(POR_PAGINA),
         })}`
       ),
     /**
@@ -40,6 +55,27 @@ export default function Leads() {
     placeholderData: (previo) => previo,
   });
 
+  const paginas = Math.max(1, Math.ceil((leads.data?.total ?? 0) / POR_PAGINA));
+  // Cambiar un filtro vuelve a la primera página.
+  function filtrar<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setPagina(1);
+    };
+  }
+  function marcar(ids: string[], marcado: boolean) {
+    setSeleccion((previo) => {
+      const nueva = new Map(previo);
+      for (const id of ids) {
+        const l = leads.data?.leads.find((x) => x.id === id);
+        if (marcado && l) nueva.set(id, l);
+        else nueva.delete(id);
+      }
+      return nueva;
+    });
+  }
+  const deSperant = [...seleccion.values()].filter((l) => l.attribution?.sperant).length;
+
   return (
     <>
       <div className="kpis">
@@ -52,10 +88,10 @@ export default function Leads() {
       <div className="herramientas">
         <div className="buscador">
           <Icono nombre="buscar" tam={15} />
-          <input placeholder="Buscar nombre, teléfono, DNI…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Buscar nombre, teléfono, DNI…" value={q} onChange={(e) => filtrar(setQ)(e.target.value)} />
         </div>
         <label className="control" style={{ margin: 0 }}>
-          <select value={stageId} onChange={(e) => setStageId(e.target.value)} aria-label="Etapa">
+          <select value={stageId} onChange={(e) => filtrar(setStageId)(e.target.value)} aria-label="Etapa">
             <option value="">Todas las etapas</option>
             {stages.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -72,6 +108,18 @@ export default function Leads() {
           </select>
           <Icono nombre="abajo" tam={14} />
         </label>
+        <label className="control" style={{ margin: 0 }}>
+          <select
+            value={origen}
+            onChange={(e) => filtrar(setOrigen)(e.target.value as typeof origen)}
+            aria-label="Origen"
+          >
+            <option value="">Todos los orígenes</option>
+            <option value="crm">Creados en el CRM</option>
+            <option value="sperant">Importados de Sperant</option>
+          </select>
+          <Icono nombre="abajo" tam={14} />
+        </label>
         <span className="empuja" />
         <button type="button" className="btn" onClick={() => setCreando(true)}>
           <Icono nombre="mas" tam={15} />Nuevo lead
@@ -80,13 +128,69 @@ export default function Leads() {
 
       {creando && <NuevoLead onCerrar={() => setCreando(false)} />}
 
+      {aviso && (
+        <div className="card" style={{ marginBottom: 10 }}>
+          {aviso}{' '}
+          <button type="button" className="btn btn-sec" onClick={() => setAviso(null)}>Cerrar</button>
+        </div>
+      )}
+
+      {puedeBorrar && seleccion.size > 0 && (
+        <div className="herramientas">
+          <strong>{seleccion.size === 1 ? '1 lead seleccionado' : `${seleccion.size} leads seleccionados`}</strong>
+          <button type="button" className="btn btn-sec" onClick={() => setSeleccion(new Map())}>Quitar selección</button>
+          <span className="empuja" />
+          <button
+            type="button"
+            className="btn btn-peligro"
+            disabled={seleccion.size > 200}
+            title={seleccion.size > 200 ? 'Máximo 200 por vez' : undefined}
+            onClick={() => setBorrando(true)}
+          >
+            Borrar seleccionados
+          </button>
+        </div>
+      )}
+
+      {borrando && (
+        <BorrarLeads
+          ids={[...seleccion.keys()]}
+          deSperant={deSperant}
+          nombre={seleccion.size === 1 ? [...seleccion.values()].map((l) => `${l.contact.fname} ${l.contact.lname ?? ''}`.trim())[0] : undefined}
+          onCerrar={() => setBorrando(false)}
+          onBorrado={(r) => {
+            setBorrando(false);
+            setSeleccion(new Map());
+            setAviso(
+              `${r.borrados === 1 ? 'Se borró 1 lead' : `Se borraron ${r.borrados} leads`}` +
+                (r.contactosBorrados ? ` y ${r.contactosBorrados === 1 ? '1 contacto' : `${r.contactosBorrados} contactos`} sin otros leads.` : '.'),
+            );
+          }}
+        />
+      )}
+
       {leads.isLoading && <div className="vacio">Cargando leads…</div>}
       {leads.data?.leads.length === 0 && (
         <div className="vacio">No hay leads con estos filtros.</div>
       )}
       {leads.data && leads.data.leads.length > 0 && (
         <div className="tabla-marco panel-lista">
-          <TablaLeads leads={leads.data.leads} />
+          <TablaLeads
+            leads={leads.data.leads}
+            seleccion={puedeBorrar ? new Set(seleccion.keys()) : undefined}
+            onSeleccion={puedeBorrar ? marcar : undefined}
+          />
+        </div>
+      )}
+      {paginas > 1 && (
+        <div className="herramientas" style={{ justifyContent: 'center', marginTop: 10 }}>
+          <button type="button" className="btn btn-sec" disabled={pagina <= 1} onClick={() => setPagina(pagina - 1)}>
+            Anterior
+          </button>
+          <span className="meta">Página {pagina} de {paginas}</span>
+          <button type="button" className="btn btn-sec" disabled={pagina >= paginas} onClick={() => setPagina(pagina + 1)}>
+            Siguiente
+          </button>
         </div>
       )}
     </>

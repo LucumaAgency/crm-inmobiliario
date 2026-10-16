@@ -204,6 +204,8 @@ h1, h2, h3 { letter-spacing: -0.01em; }
 .btn-wa { background: #25d366; border-color: #25d366; color: #fff; }
 .btn-wa:hover { background: #1ebe5b; border-color: #1ebe5b; }
 .btn-bloque { width: 100%; }
+.btn-peligro { background: var(--rojo); border-color: var(--rojo); color: #fff; }
+.btn-peligro:hover { background: #b92e2e; border-color: #b92e2e; }
 .acciones { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 
 /* Controles de filtro tipo píldora, como «Últimos 30 días». */

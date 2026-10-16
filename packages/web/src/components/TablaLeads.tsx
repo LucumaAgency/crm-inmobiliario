@@ -17,6 +17,7 @@ export interface LeadFila {
   owner: { name: string } | null;
   /** Conversación de WhatsApp del contacto, si tiene. */
   whatsapp: { unread: number; lastInboundAt: string | null } | null;
+  attribution?: { sperant?: unknown } | null;
 }
 
 /** El SLA de primer contacto: pasados 15 minutos sin tocarlo, el lead se enfría. */
@@ -53,9 +54,22 @@ function Etapa({ stage }: { stage: LeadFila['stage'] }) {
 }
 
 /** Escritorio: tabla. Móvil: tarjetas, que se leen con el pulgar. */
-export default function TablaLeads({ leads, compacta = false }: { leads: LeadFila[]; compacta?: boolean }) {
+export default function TablaLeads({
+  leads,
+  compacta = false,
+  seleccion,
+  onSeleccion,
+}: {
+  leads: LeadFila[];
+  compacta?: boolean;
+  /** Con esto aparece una casilla por fila (solo escritorio), para borrar en lote. */
+  seleccion?: Set<string>;
+  onSeleccion?: (ids: string[], marcado: boolean) => void;
+}) {
   const navegar = useNavigate();
   const L = useEtiquetas();
+  const conCasillas = !!seleccion && !!onSeleccion;
+  const todos = conCasillas && leads.length > 0 && leads.every((l) => seleccion!.has(l.id));
 
   return (
     <>
@@ -63,6 +77,16 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
         <table className="tabla">
           <thead>
             <tr>
+              {conCasillas && (
+                <th style={{ width: 28 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Seleccionar todos los de esta página"
+                    checked={todos}
+                    onChange={(e) => onSeleccion!(leads.map((l) => l.id), e.target.checked)}
+                  />
+                </th>
+              )}
               <th>Nombre</th>
               <th>{L.proyecto}</th>
               {!compacta && <th>Fuente</th>}
@@ -76,6 +100,16 @@ export default function TablaLeads({ leads, compacta = false }: { leads: LeadFil
           <tbody>
             {leads.map((l) => (
               <tr key={l.id} className="enlace" onClick={() => navegar(`/leads/${l.id}`)}>
+                {conCasillas && (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Seleccionar ${l.contact.fname}`}
+                      checked={seleccion!.has(l.id)}
+                      onChange={(e) => onSeleccion!([l.id], e.target.checked)}
+                    />
+                  </td>
+                )}
                 <td>
                   <Link to={`/leads/${l.id}`} className="celda-nombre" style={{ color: 'inherit' }}>
                     <span className="ficha-icono">{iniciales(l)}</span>

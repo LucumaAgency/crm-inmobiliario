@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { activityInput, etiquetas, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
@@ -52,10 +53,18 @@ export default async function leadRoutes(app: FastifyInstance) {
     const q = leadListQuery.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'Filtros inválidos' });
     const user = req.user!;
-    const { page, perPage, q: texto, orden, ...filtros } = q.data;
+    const { page, perPage, q: texto, orden, origen, ...filtros } = q.data;
 
     const where: Record<string, unknown> = { ...scopeForUser(user) };
     for (const [k, v] of Object.entries(filtros)) if (v) where[k] = v;
+    // La migración marca cada lead con `attribution.sperant` (services/sperant.ts).
+    if (origen === 'sperant') where.attribution = { path: '$.sperant', not: Prisma.AnyNull };
+    if (origen === 'crm') {
+      where.OR = [
+        { attribution: { equals: Prisma.AnyNull } },
+        { attribution: { path: '$.sperant', equals: Prisma.AnyNull } },
+      ];
+    }
     if (!filtros.status) where.status = { not: 'spam' };
     if (texto) {
       where.contact = {
@@ -144,6 +153,98 @@ export default async function leadRoutes(app: FastifyInstance) {
         whatsapp: porContacto.get(l.contactId) ?? null,
       })),
     };
+  });
+
+  /**
+   * Borrar leads para siempre (pruebas, duplicados, pedidos de baja por Ley 29733).
+   *
+   * Se lleva lo que cuelga del lead (actividades, seguimientos, proformas, notas de voz,
+   * intereses) y sus archivos en `privados/`. Si el contacto se queda sin ningún otro lead,
+   * se borra también, con su conversación de WhatsApp y los adjuntos: un contacto sin lead
+   * no se ve en ninguna pantalla y sería un dato personal guardado sin propósito. Si tiene
+   * otro lead, el contacto y su chat se quedan con ese.
+   *
+   * Envíos de formulario y leads de Meta quedan desligados (no borrados): son el registro de
+   * lo que entró por cada canal y evitan que un reintento del webhook lo vuelva a crear.
+   *
+   * Un lead traído de Sperant que se borra vuelve a entrar si se corre otra vez la
+   * importación: la marca de «ya importado» vive en el propio lead.
+   *
+   * La auditoría guarda qué se borró sin datos personales (fuente, etapa, fechas, id de
+   * Sperant), para que el registro no conserve justo lo que se quiso eliminar.
+   */
+  app.post('/borrar', { preHandler: requirePermiso('leads.borrar') }, async (req, reply) => {
+    const parsed = z.object({ ids: z.array(z.string().min(1)).min(1).max(200) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Indica entre 1 y 200 leads' });
+    const user = req.user!;
+    const leads = await prisma.lead.findMany({
+      where: { id: { in: parsed.data.ids }, ...scopeForUser(user) },
+      select: {
+        id: true, contactId: true, source: true, status: true, createdAt: true, attribution: true,
+        project: { select: { name: true } }, stage: { select: { name: true } },
+        proformas: { select: { pdfPath: true } }, notasVoz: { select: { audioPath: true } },
+      },
+    });
+    if (!leads.length) return reply.code(404).send({ error: 'Leads no encontrados' });
+
+    const ids = leads.map((l) => l.id);
+    const contactos = [...new Set(leads.map((l) => l.contactId))];
+    const archivos: string[] = [];
+    for (const l of leads) {
+      for (const pf of l.proformas) if (pf.pdfPath) archivos.push(pf.pdfPath);
+      for (const n of l.notasVoz) if (n.audioPath) archivos.push(n.audioPath);
+    }
+
+    const contactosBorrados = await prisma.$transaction(async (tx) => {
+      await tx.lead.deleteMany({ where: { id: { in: ids }, organizationId: user.organizationId } });
+      const conOtros = await tx.lead.findMany({
+        where: { contactId: { in: contactos } },
+        select: { contactId: true },
+        distinct: ['contactId'],
+      });
+      const huerfanos = contactos.filter((c) => !conOtros.some((o) => o.contactId === c));
+      if (huerfanos.length) {
+        const mensajes = await tx.waMessage.findMany({
+          where: { conversation: { contactId: { in: huerfanos }, organizationId: user.organizationId } },
+          select: { media: true },
+        });
+        for (const m of mensajes) {
+          const ruta = (m.media as { path?: string } | null)?.path;
+          if (ruta) archivos.push(ruta);
+        }
+        await tx.contact.deleteMany({ where: { id: { in: huerfanos }, organizationId: user.organizationId } });
+      }
+      return huerfanos.length;
+    });
+
+    // Después de confirmar en la base: un archivo de menos se nota menos que una ficha rota.
+    let archivosBorrados = 0;
+    for (const rel of archivos) {
+      try {
+        fs.unlinkSync(rutaPrivada(rel));
+        archivosBorrados++;
+      } catch { /* ya no estaba o la ruta no es válida */ }
+    }
+
+    await audit(user.organizationId, user.id, 'lead.delete', {
+      entity: 'lead',
+      ip: req.ip,
+      meta: {
+        cantidad: leads.length,
+        contactosBorrados,
+        archivosBorrados,
+        leads: leads.map((l) => ({
+          id: l.id,
+          fuente: l.source,
+          estado: l.status,
+          etapa: l.stage?.name ?? null,
+          proyecto: l.project?.name ?? null,
+          creado: l.createdAt,
+          sperant: (l.attribution as { sperant?: { client_id?: number } } | null)?.sperant?.client_id ?? null,
+        })),
+      },
+    });
+    return { borrados: leads.length, contactosBorrados, archivosBorrados };
   });
 
   /**

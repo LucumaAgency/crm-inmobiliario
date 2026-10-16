@@ -34,6 +34,12 @@ export const PERMISOS = [
         detalle: 'Descarga masiva de datos personales: queda en auditoría.',
     },
     {
+        id: 'leads.borrar',
+        grupo: 'Leads',
+        nombre: 'Borrar leads',
+        detalle: 'Eliminar leads para siempre (pruebas, duplicados, pedidos de baja). No se puede deshacer; queda en auditoría.',
+    },
+    {
         id: 'reportes.ver',
         grupo: 'Reportes',
         nombre: 'Ver reportes',

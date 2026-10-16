@@ -53,6 +53,8 @@ export const leadListQuery = z.object({
   perPage: z.coerce.number().int().min(1).max(100).default(25),
   /** `actividad` (por defecto) o `creacion`, el orden de antes. */
   orden: z.enum(['actividad', 'creacion']).default('actividad'),
+  /** `sperant`: traídos por la migración; `crm`: creados aquí (capturas, manuales, pruebas). */
+  origen: z.enum(['sperant', 'crm']).optional(),
 });
 
 export const activityInput = z.object({

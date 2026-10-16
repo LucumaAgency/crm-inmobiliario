@@ -149,6 +149,8 @@ export declare const leadListQuery: z.ZodObject<{
     perPage: z.ZodDefault<z.ZodNumber>;
     /** `actividad` (por defecto) o `creacion`, el orden de antes. */
     orden: z.ZodDefault<z.ZodEnum<["actividad", "creacion"]>>;
+    /** `sperant`: traídos por la migración; `crm`: creados aquí (capturas, manuales, pruebas). */
+    origen: z.ZodOptional<z.ZodEnum<["sperant", "crm"]>>;
 }, "strip", z.ZodTypeAny, {
     page: number;
     perPage: number;
@@ -158,6 +160,7 @@ export declare const leadListQuery: z.ZodObject<{
     stageId?: string | undefined;
     ownerId?: string | undefined;
     projectId?: string | undefined;
+    origen?: "sperant" | "crm" | undefined;
 }, {
     status?: "activo" | "ganado" | "perdido" | "spam" | undefined;
     q?: string | undefined;
@@ -167,6 +170,7 @@ export declare const leadListQuery: z.ZodObject<{
     page?: number | undefined;
     perPage?: number | undefined;
     orden?: "actividad" | "creacion" | undefined;
+    origen?: "sperant" | "crm" | undefined;
 }>;
 export declare const activityInput: z.ZodObject<{
     type: z.ZodEnum<["nota", "llamada", "whatsapp", "email", "visita"]>;
