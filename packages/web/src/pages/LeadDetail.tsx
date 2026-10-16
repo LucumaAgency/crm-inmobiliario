@@ -10,6 +10,8 @@ import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import BorrarLeads from '../components/BorrarLeads.js';
+import EditarDatosLead from '../components/EditarDatosLead.js';
+import { FUENTES } from '../lib/reportes.js';
 import type { ApiError } from '../lib/api.js';
 import { usePuede } from '../lib/permisos.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
@@ -24,7 +26,7 @@ interface Detalle {
   interestLevel: number | null;
   lostReason: string | null;
   attribution: Record<string, unknown> | null;
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null };
+  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null };
   project: { id: string; name: string } | null;
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
   stage: { id: string; name: string } | null;
@@ -54,6 +56,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const [segNota, setSegNota] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
+  const [editando, setEditando] = useState(false);
   const navegar = useNavigate();
   // Edición del interés: null = solo lectura; con valor = formulario abierto.
   const [edicion, setEdicion] = useState<{ projectId: string; typologyIds: string[]; unitIds: string[] } | null>(null);
@@ -166,19 +169,25 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         </div>
         <div className="meta" style={{ marginTop: 6 }}>
           {lead.contact.phone ?? 'sin teléfono'} · {lead.contact.email ?? 'sin correo'}
-          {lead.contact.document ? ` · DNI ${lead.contact.document}` : ''}
+          {lead.contact.document ? ` · ${lead.contact.documentType === 'PAS' ? 'Pasaporte' : lead.contact.documentType || 'DNI'} ${lead.contact.document}` : ''}
         </div>
 
         <div className="acciones">
           {wa && <a className="btn btn-wa" href={wa} target="_blank" rel="noreferrer">WhatsApp</a>}
           {lead.contact.phone && <a className="btn btn-sec" href={`tel:${lead.contact.phone}`}>Llamar</a>}
           {lead.contact.email && <a className="btn btn-sec" href={`mailto:${lead.contact.email}`}>Correo</a>}
+          {!soloLectura && (
+            <button type="button" className="btn btn-sec" onClick={() => setEditando(true)}>
+              Editar datos
+            </button>
+          )}
           {puede('leads.borrar') && (
             <button type="button" className="btn btn-sec" style={{ marginLeft: 'auto', color: 'var(--rojo)' }} onClick={() => setBorrando(true)}>
               Borrar lead
             </button>
           )}
         </div>
+        {editando && <EditarDatosLead lead={lead} onCerrar={() => setEditando(false)} />}
         {borrando && (
           <BorrarLeads
             ids={[lead.id]}
@@ -217,7 +226,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         )}
 
         <div className="meta" style={{ marginTop: 12 }}>
-          Entró {fecha(lead.createdAt)} · fuente {lead.source} · asesor {lead.owner?.name ?? 'sin asignar'}
+          Entró {fecha(lead.createdAt)} · fuente {FUENTES[lead.source] ?? lead.source} · asesor {lead.owner?.name ?? 'sin asignar'}
         </div>
       </div>
 

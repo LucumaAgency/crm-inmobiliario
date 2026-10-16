@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
-import { activityInput, etiquetas, leadListQuery, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
+import { activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -883,6 +883,132 @@ export default async function leadRoutes(app: FastifyInstance) {
       await prisma.lead.update({ where: { id: seg.leadId }, data: { lastActivityAt: ahora } });
     }
     return actualizado;
+  });
+
+  /**
+   * Corregir los datos de la persona y del lead: nombre, teléfono, correo, documento,
+   * fuente y mensaje.
+   *
+   * Los datos personales viven en el CONTACTO, no en el lead: si la persona tiene otro lead
+   * (otro proyecto, un lead viejo), la corrección se ve en los dos, que es lo correcto porque
+   * es la misma persona. Teléfono, correo y documento son únicos por organización (claves de
+   * deduplicación): si el nuevo ya es de otro contacto, se rechaza con su nombre en vez de
+   * fusionar a ciegas.
+   *
+   * Cada cambio queda como actividad con el antes y el después, para que nadie pierda el
+   * teléfono con el que el cliente escribió primero.
+   */
+  app.put<{ Params: { id: string } }>('/:id/datos', { preHandler: escritura }, async (req, reply) => {
+    const user = req.user!;
+    const texto = (max: number) => z.string().max(max).nullable().optional();
+    const parsed = z
+      .object({
+        fname: z.string().trim().min(1).max(100).optional(),
+        lname: texto(100),
+        phone: texto(30),
+        email: texto(200),
+        document: texto(20),
+        documentType: z.enum(['DNI', 'CE', 'RUC', 'PAS']).optional(),
+        source: z.enum(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import']).optional(),
+        message: texto(5000),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const d = parsed.data;
+
+    const lead = await prisma.lead.findFirst({
+      where: { id: req.params.id, ...scopeForUser(user) },
+      include: { contact: true },
+    });
+    if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
+    const c = lead.contact;
+
+    // Vacío = borrar el dato. Con algo escrito tiene que ser válido: guardar un teléfono
+    // que no se puede normalizar rompería la deduplicación y el enlace a WhatsApp.
+    const datosContacto: Record<string, string | null> = {};
+    if (d.fname !== undefined) datosContacto.fname = d.fname;
+    if (d.lname !== undefined) datosContacto.lname = d.lname?.trim() || null;
+    if (d.documentType !== undefined) datosContacto.documentType = d.documentType;
+    const claves = [
+      ['phone', 'teléfono', normalizePhonePE],
+      ['email', 'correo', normalizeEmail],
+      ['document', 'documento', normalizeDocument],
+    ] as const;
+    for (const [campo, nombre, normalizar] of claves) {
+      const crudo = d[campo];
+      if (crudo === undefined) continue;
+      if (!crudo?.trim()) { datosContacto[campo] = null; continue; }
+      const valor = normalizar(crudo);
+      if (!valor) return reply.code(400).send({ error: `El ${nombre} no es válido` });
+      if (valor !== c[campo]) {
+        const otro = await prisma.contact.findFirst({
+          where: { organizationId: user.organizationId, [campo]: valor, id: { not: c.id } },
+          select: { fname: true, lname: true },
+        });
+        if (otro) {
+          return reply.code(409).send({
+            error: `Ese ${nombre} ya es de otro contacto (${`${otro.fname} ${otro.lname ?? ''}`.trim()}). Si es la misma persona, hay que fusionarlos.`,
+          });
+        }
+      }
+      datosContacto[campo] = valor;
+    }
+
+    const ETIQUETA: Record<string, string> = {
+      fname: 'nombre', lname: 'apellido', phone: 'teléfono', email: 'correo', document: 'documento',
+      documentType: 'tipo de documento', source: 'fuente', message: 'mensaje',
+    };
+    const cambios: { campo: string; antes: unknown; despues: unknown }[] = [];
+    for (const [k, v] of Object.entries(datosContacto)) {
+      const antes = (c as unknown as Record<string, unknown>)[k] ?? null;
+      if (antes !== v) cambios.push({ campo: k, antes, despues: v });
+    }
+    const datosLead: { source?: string; message?: string | null } = {};
+    if (d.source !== undefined && d.source !== lead.source) {
+      datosLead.source = d.source;
+      cambios.push({ campo: 'source', antes: lead.source, despues: d.source });
+    }
+    if (d.message !== undefined && (d.message?.trim() || null) !== lead.message) {
+      datosLead.message = d.message?.trim() || null;
+      cambios.push({ campo: 'message', antes: lead.message, despues: datosLead.message });
+    }
+    if (!cambios.length) return { ok: true, cambios: 0 };
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const delContacto = cambios.filter((x) => x.campo in datosContacto);
+        if (delContacto.length) {
+          await tx.contact.update({
+            where: { id: c.id },
+            data: Object.fromEntries(delContacto.map((x) => [x.campo, x.despues])),
+          });
+        }
+        if (Object.keys(datosLead).length) await tx.lead.update({ where: { id: lead.id }, data: datosLead });
+        await tx.activity.create({
+          data: {
+            leadId: lead.id,
+            userId: user.id,
+            type: 'sistema',
+            body: `Datos corregidos: ${cambios
+              .map((x) => (x.campo === 'message' ? 'mensaje' : `${ETIQUETA[x.campo]} ${x.antes ?? '—'} → ${x.despues ?? '—'}`))
+              .join(' · ')}`,
+            meta: { cambios } as never,
+          },
+        });
+      });
+    } catch (e) {
+      // Carrera con otra captura que tomó el mismo teléfono/correo entre la comprobación y el guardado.
+      if ((e as { code?: string }).code === 'P2002') {
+        return reply.code(409).send({ error: 'Ese teléfono, correo o documento ya es de otro contacto' });
+      }
+      throw e;
+    }
+    await audit(user.organizationId, user.id, 'lead.datos', {
+      entity: 'lead',
+      entityId: lead.id,
+      meta: { campos: cambios.map((x) => x.campo) },
+    });
+    return { ok: true, cambios: cambios.length };
   });
 
   /**
