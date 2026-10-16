@@ -72,6 +72,43 @@ interface MensajeEntrante {
         name?: string;
         address?: string;
     };
+    /** Tarjeta de contacto compartida. */
+    contacts?: {
+        name?: {
+            formatted_name?: string;
+        };
+        phones?: {
+            phone?: string;
+            wa_id?: string;
+        }[];
+    }[];
+    /** Reacción con un emoji a un mensaje anterior. */
+    reaction?: {
+        message_id?: string;
+        emoji?: string;
+    };
+    /** Pedido desde el catálogo de WhatsApp. */
+    order?: {
+        product_items?: {
+            product_retailer_id?: string;
+            quantity?: number;
+        }[];
+        text?: string;
+    };
+    /** Aviso del sistema (p. ej. el cliente cambió de número). */
+    system?: {
+        body?: string;
+        type?: string;
+    };
+    /** Meta manda `type: unsupported` con el motivo aquí (ver una vez, encuestas, eventos...). */
+    errors?: {
+        code?: number;
+        title?: string;
+        message?: string;
+        error_data?: {
+            details?: string;
+        };
+    }[];
     /** Solo en los chats abiertos desde un anuncio Click-to-WhatsApp. */
     referral?: {
         source_url?: string;
@@ -249,6 +286,12 @@ export declare function plantillasDe(phoneNumberId: string): Promise<{
     templates: unknown[];
     error?: undefined;
 }>;
+/** Texto y tipo de un mensaje entrante. Lo que no es texto se anota, no se descarga. */
+export declare function interpretar(m: MensajeEntrante): {
+    texto: string | undefined;
+    tipo: string;
+    media: Record<string, unknown> | null;
+};
 /**
  * Destinatario de un envío según la llave de la conversación.
  *

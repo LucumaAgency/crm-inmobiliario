@@ -12,7 +12,7 @@ import { proformaEmail, sendMail } from '../lib/mail.js';
 import { enviarAdjunto, enviarDocumento } from '../services/whatsapp.js';
 import fs from 'node:fs';
 import { z } from 'zod';
-import { enviarPlantilla, enviarTexto, ventanaAbierta, } from '../services/whatsapp.js';
+import { enviarPlantilla, enviarTexto, interpretar, ventanaAbierta, } from '../services/whatsapp.js';
 /** Tipos que son contacto real con el cliente. Una nota interna no cumple un seguimiento. */
 const CONTACTO = new Set(['llamada', 'whatsapp', 'email', 'visita']);
 /** Fin del día de hoy en Lima (UTC-5, sin horario de verano). */
@@ -516,8 +516,16 @@ export default async function leadRoutes(app) {
         if (conversacion.unread > 0) {
             await prisma.waConversation.update({ where: { id: conversacion.id }, data: { unread: 0 } });
         }
+        // Mensajes guardados antes de que el CRM supiera leer reacciones, contactos o los
+        // «no soportados» de Meta: se reinterpretan desde el aviso original al mostrarlos.
+        const mensajes = conversacion.messages.map((m) => {
+            if (m.body || m.type !== 'unsupported' || !m.raw || m.direction !== 'entrante')
+                return m;
+            const r = interpretar(m.raw);
+            return { ...m, body: r.texto ?? null, type: r.tipo };
+        });
         return {
-            conversacion: { ...conversacion, unread: 0 },
+            conversacion: { ...conversacion, messages: mensajes, unread: 0 },
             ventanaAbierta: ventanaAbierta(conversacion),
         };
     });
