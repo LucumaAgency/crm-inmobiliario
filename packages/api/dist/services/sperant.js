@@ -36,6 +36,23 @@ const PAUSA_MS = 200;
 const CADA = 20;
 /** Si el latido tiene más de esto, la tarea se da por muerta y se puede reanudar. */
 const LATIDO_MUERTO_MS = 3 * 60 * 1000;
+/**
+ * Inventarios del export. Los exports de antes (un solo proyecto, en `types`/`units`) se
+ * leen como uno solo si se sabe de qué proyecto son; si no, no se usan: adivinar fue lo que
+ * metió Bordeaux en Domus.
+ */
+function inventariosDe(d) {
+    if (d.inventarios)
+        return Object.values(d.inventarios);
+    const pid = d.inventarioDe?.id ?? (d.projects.length === 1 ? Number(d.projects[0].id) : null);
+    if (!pid || !d.units.length)
+        return [];
+    const p = d.projects.find((x) => Number(x.id) === pid);
+    return [{
+            id: pid, nombre: String(p?.name ?? pid), codigo: p?.code ? String(p.code) : null, detalle: d.proyectoDetalle ?? null,
+            imagenes: d.proyectoImagenes ?? [], types: d.types, units: d.units, unidadesDetalle: d.unidadesDetalle ?? {},
+        }];
+}
 // ------------------------------------------------------------------ archivos
 function dir(organizationId) {
     const d = path.join(privadosDir, organizationId, 'sperant');
@@ -223,29 +240,37 @@ async function exportar(organizationId, tok, sperantProjectId) {
     }
     d.projects = await todas(tok, '/v3/projects');
     d.users = await todas(tok, '/v3/users');
-    // Con más de un proyecto no se adivina: en Bastión el primero de la lista es Bordeaux (de
-    // LuRoss) y su inventario terminó dentro de Domus (2026-10-16).
-    if (!sperantProjectId && d.projects.length > 1) {
-        throw new Error(`La cuenta de Sperant tiene ${d.projects.length} proyectos (${d.projects.map((x) => `${x.id} ${x.name}`).join(', ')}): escribe el id del proyecto a migrar en el paso 1 y guarda.`);
+    // Inventario de TODOS los proyectos de la cuenta. Qué se importa y adónde lo decide la
+    // persona en el paso 3; aquí no se elige nada (elegir solo metió Bordeaux en Domus).
+    // El listado de unidades trae pocas columnas; el detalle de cada una trae piso, áreas,
+    // vista, dormitorios y baños. Barato (decenas de unidades), se rehace siempre.
+    void sperantProjectId;
+    d.inventarios = {};
+    for (const pr of d.projects) {
+        const pid = Number(pr.id);
+        const units = await todas(tok, `/v3/projects/${pid}/units`);
+        const unidadesDetalle = {};
+        for (const u of units)
+            unidadesDetalle[String(u.id)] = plano((await get(tok, `/v3/units/${u.id}`)).data);
+        d.inventarios[String(pid)] = {
+            id: pid,
+            nombre: String(pr.name ?? pid),
+            codigo: pr.code ? String(pr.code) : null,
+            detalle: plano((await get(tok, `/v3/projects/${pid}`)).data),
+            imagenes: await todas(tok, `/v3/projects/${pid}/images`),
+            types: await todas(tok, `/v3/projects/${pid}/types`),
+            units,
+            unidadesDetalle,
+        };
     }
-    const pid = sperantProjectId ?? (d.projects[0] ? Number(d.projects[0].id) : null);
-    d.inventarioDe = pid ? { id: pid, nombre: String(d.projects.find((x) => Number(x.id) === pid)?.name ?? pid) } : null;
-    if (pid) {
-        d.types = await todas(tok, `/v3/projects/${pid}/types`);
-        d.units = await todas(tok, `/v3/projects/${pid}/units`);
-        // El listado de unidades trae pocas columnas; el detalle de cada una (23 en Domus) trae
-        // piso, áreas, vista, dormitorios y baños. Barato, se rehace siempre.
-        d.proyectoDetalle = plano((await get(tok, `/v3/projects/${pid}`)).data);
-        d.proyectoImagenes = await todas(tok, `/v3/projects/${pid}/images`);
-        d.tiposOtrosProyectos = [];
-        for (const otro of d.projects.filter((x) => Number(x.id) !== pid)) {
-            for (const t of await todas(tok, `/v3/projects/${otro.id}/types`))
-                d.tiposOtrosProyectos.push(String(t.name ?? '').trim());
-        }
-        d.unidadesDetalle = {};
-        for (const u of d.units)
-            d.unidadesDetalle[String(u.id)] = plano((await get(tok, `/v3/units/${u.id}`)).data);
-    }
+    // Los campos de un solo proyecto quedan vacíos: todo vive en `inventarios`.
+    d.types = [];
+    d.units = [];
+    d.unidadesDetalle = undefined;
+    d.proyectoDetalle = undefined;
+    d.proyectoImagenes = undefined;
+    d.inventarioDe = undefined;
+    d.tiposOtrosProyectos = undefined;
     guardarDatos(organizationId, d);
     // 2) Listado de clientes: siempre completo, para detectar los nuevos desde la última vez.
     d.clientes = await todas(tok, '/v3/clients', (n) => latir(0, n));
@@ -314,47 +339,78 @@ function fecha(ts) {
  * documento: guardarlo ensucia la ficha y la deduplicación por DNI.
  */
 const docReal = (v) => (v && !/^auto-/i.test(v) ? v : null);
+/**
+ * Un registro por cliente Y proyecto: en el CRM un lead es una persona interesada en un
+ * proyecto, así que el cliente de Sperant que consultó dos proyectos son dos leads con el
+ * mismo contacto. El cliente sin ningún proyecto en el export (la petición falló) sale una
+ * vez con `projectId` null y no se importa hasta exportar de nuevo.
+ */
 function unir(d) {
     const out = [];
     for (const c of d.clientes) {
         const id = String(c.id);
         const det = d.detalle[id] ?? {};
-        const rel = (d.proyectos[id] ?? [])[0] ?? {};
-        const s = (v) => (v === null || v === undefined ? null : String(v).trim() || null);
-        out.push({
-            id: Number(c.id),
-            fname: s(det.fname ?? c.fname) ?? 'Sin nombre',
-            lname: s(det.lname ?? c.lname) === '.' ? null : s(det.lname ?? c.lname),
-            email: s(det.email ?? c.email),
-            phone: s(det.phone ?? c.phone ?? det.main_telephone),
-            document: s(det.document),
-            documentType: s(det.document_type),
-            wspUsername: s(det.wsp_username ?? c.wsp_username),
-            createdAt: fecha(det.created_at),
-            lastInteractionAt: fecha(rel.last_interaction_at ?? det.last_interaction_date ?? c.last_interaction_date),
-            sellerAssignedAt: fecha(rel.seller_assigned_at),
-            observation: s(det.observation),
-            reasonResign: s(det.reason_resign_name),
-            emailConsent: typeof det.email_consent === 'boolean' ? det.email_consent : null,
-            publicityConsent: typeof det.publicity_consent === 'boolean' ? det.publicity_consent : null,
-            uuid: s(det.uuid ?? c.uuid),
-            projectId: rel.id !== undefined ? Number(rel.id) : null,
-            projectName: s(rel.name),
-            segment: s(rel.segment_name),
-            seller: s(rel.seller_username),
-            channel: s(rel.input_channel_name),
-            sourceName: s(rel.source_name),
-            interest: s(rel.interest_type_name ?? det.interest_type),
-            crudo: { cliente: det, proyectos: d.proyectos[id] ?? [] },
-        });
+        const rels = (d.proyectos[id] ?? []).length ? d.proyectos[id] : [{}];
+        for (const rel of rels) {
+            const s = (v) => (v === null || v === undefined ? null : String(v).trim() || null);
+            out.push({
+                id: Number(c.id),
+                fname: s(det.fname ?? c.fname) ?? 'Sin nombre',
+                lname: s(det.lname ?? c.lname) === '.' ? null : s(det.lname ?? c.lname),
+                email: s(det.email ?? c.email),
+                phone: s(det.phone ?? c.phone ?? det.main_telephone),
+                document: s(det.document),
+                documentType: s(det.document_type),
+                wspUsername: s(det.wsp_username ?? c.wsp_username),
+                createdAt: fecha(det.created_at),
+                lastInteractionAt: fecha(rel.last_interaction_at ?? det.last_interaction_date ?? c.last_interaction_date),
+                sellerAssignedAt: fecha(rel.seller_assigned_at),
+                observation: s(det.observation),
+                reasonResign: s(det.reason_resign_name),
+                emailConsent: typeof det.email_consent === 'boolean' ? det.email_consent : null,
+                publicityConsent: typeof det.publicity_consent === 'boolean' ? det.publicity_consent : null,
+                uuid: s(det.uuid ?? c.uuid),
+                projectId: rel.id !== undefined ? Number(rel.id) : null,
+                projectName: s(rel.name),
+                segment: s(rel.segment_name),
+                seller: s(rel.seller_username),
+                channel: s(rel.input_channel_name),
+                sourceName: s(rel.source_name),
+                interest: s(rel.interest_type_name ?? det.interest_type),
+                crudo: { cliente: det, proyectos: d.proyectos[id] ?? [] },
+            });
+        }
     }
     return out;
 }
+/** Clave de idempotencia: cliente de Sperant + proyecto de Sperant. */
+const claveLead = (clientId, projectId) => `${clientId}:${projectId ?? '*'}`;
 export function resumen(organizationId) {
     const d = leerDatos(organizationId);
     if (!d)
         return null;
-    const leads = unir(d);
+    const registros = unir(d);
+    // Las cifras de leads van por cliente (el primer proyecto de cada uno) para no contar dos
+    // veces a quien consultó dos proyectos; el detalle por proyecto va en `proyectos`.
+    const vistos = new Set();
+    const leads = registros.filter((l) => (vistos.has(l.id) ? false : (vistos.add(l.id), true)));
+    const invs = inventariosDe(d);
+    const proyectos = d.projects.map((p) => {
+        const pid = Number(p.id);
+        const inv = invs.find((x) => x.id === pid);
+        return {
+            id: pid,
+            nombre: String(p.name ?? pid),
+            codigo: p.code ? String(p.code) : null,
+            leads: registros.filter((l) => l.projectId === pid).length,
+            unidades: inv?.units.length ?? null,
+            tipologias: inv ? inv.types.map((t) => String(t.name ?? t.id)) : null,
+            porEstado: inv ? cuenta(inv.units.map((u) => u.commercial_status)) : [],
+            proformas: d.budgets.filter((b) => Number(b.project_id) === pid).length,
+            direccion: inv?.detalle ? String((inv.detalle.ubication ?? {}).address ?? '') || null : null,
+        };
+    });
+    const sinProyecto = registros.filter((l) => l.projectId === null).length;
     const porMes = cuenta(leads.map((l) => (l.createdAt ? l.createdAt.toISOString().slice(0, 7) : null))).sort((a, b) => a.valor.localeCompare(b.valor));
     const fechas = leads.map((l) => l.createdAt).filter((x) => !!x).sort((a, b) => a.getTime() - b.getTime());
     return {
@@ -377,13 +433,10 @@ export function resumen(organizationId) {
             conObservacion: leads.filter((l) => !!l.observation).length,
             sinNumeroWhatsApp: leads.filter((l) => !!l.wspUsername).length,
         },
-        inventario: {
-            proyecto: d.inventarioDe?.nombre ?? null,
-            tipologias: d.types.map((t) => String(t.name ?? t.id)),
-            unidades: d.units.length,
-            porEstado: cuenta(d.units.map((u) => u.commercial_status)),
-            porTipo: cuenta(d.units.map((u) => u.property_type)),
-        },
+        proyectos,
+        sinProyecto,
+        /** El export es de antes de traer todos los proyectos: exportar de nuevo. */
+        exportViejo: !d.inventarios,
         proformas: {
             total: d.budgets.length,
             activas: d.budgets.filter((b) => b.active === true).length,
@@ -418,7 +471,15 @@ export async function sugerirMapa(organizationId) {
         const porNombre = usuarios.find((u) => norm(u.name).includes(norm(a.valor)) || norm(a.valor).includes(norm(u.name.split(' ')[0] ?? '')));
         mapaAsesores[a.valor] = porCorreo?.id ?? porNombre?.id ?? null;
     }
-    return { etapas: mapaEtapas, asesores: mapaAsesores, etapasCrm: etapas.map((e) => ({ id: e.id, name: e.name, isLost: e.isLost, isWon: e.isWon })), usuariosCrm: usuarios };
+    // Proyecto de Sperant → del CRM con el mismo nombre; si no hay y tiene leads, crear; si no
+    // tiene leads (Bordeaux en Bastión: solo inventario de otro cliente), no importar.
+    const crm = await prisma.project.findMany({ where: { organizationId }, select: { id: true, name: true } });
+    const mapaProyectos = {};
+    for (const p of r.proyectos) {
+        const igual = crm.find((c) => norm(c.name) === norm(p.nombre));
+        mapaProyectos[String(p.id)] = igual ? igual.id : p.leads > 0 ? 'crear' : null;
+    }
+    return { proyectos: mapaProyectos, etapas: mapaEtapas, asesores: mapaAsesores, etapasCrm: etapas.map((e) => ({ id: e.id, name: e.name, isLost: e.isLost, isWon: e.isWon })), usuariosCrm: usuarios };
 }
 // ------------------------------------------------------------------ importar
 const FUENTE = {
@@ -470,12 +531,10 @@ export async function importar(organizationId, mapa, simulacion) {
     const d = leerDatos(organizationId);
     if (!d)
         throw new Error('No hay datos exportados');
-    const project = await prisma.project.findFirst({ where: { id: mapa.crmProjectId, organizationId } });
-    if (!project)
-        throw new Error('El proyecto del CRM no existe');
     const informe = {
         simulacion,
-        leads: { total: 0, nuevos: 0, fusionados: 0, yaImportados: 0, omitidos: 0, sinEtapa: 0, sinAsesor: 0, errores: 0 },
+        leads: { total: 0, nuevos: 0, fusionados: 0, yaImportados: 0, omitidos: 0, sinEtapa: 0, sinAsesor: 0, deProyectoNoImportado: 0, sinProyecto: 0, errores: 0 },
+        proyectos: [],
         contactos: { nuevos: 0, existentes: 0 },
         unidades: { creadas: 0, actualizadas: 0, sinCambios: 0, pendientes: 0, tipologiasCreadas: 0, diferencias: [] },
         proformas: { notas: 0 },
@@ -486,6 +545,52 @@ export async function importar(organizationId, mapa, simulacion) {
         if (!simulacion)
             guardarEstado(organizationId, { ...leerEstado(organizationId), latido: new Date().toISOString(), hechos, total });
     };
+    // --- proyectos: Sperant → CRM. Cada proyecto del CRM recibe a lo sumo uno de Sperant:
+    // juntar dos inventarios en un proyecto es justo lo que no puede volver a pasar.
+    const destinos = Object.values(mapa.proyectos).filter((v) => !!v && v !== 'crear');
+    if (new Set(destinos).size !== destinos.length)
+        throw new Error('Dos proyectos de Sperant apuntan al mismo proyecto del CRM');
+    if (!Object.values(mapa.proyectos).some(Boolean))
+        throw new Error('Elige al menos un proyecto de Sperant para importar');
+    const proyectoCrm = new Map();
+    for (const [pidTxt, destino] of Object.entries(mapa.proyectos)) {
+        const pid = Number(pidTxt);
+        const pr = d.projects.find((x) => Number(x.id) === pid);
+        if (!pr)
+            throw new Error(`El proyecto ${pidTxt} no está en el export`);
+        const fila = { sperant: String(pr.name ?? pid), crm: null, creado: false, leads: 0, unidades: 0 };
+        informe.proyectos.push(fila);
+        if (!destino)
+            continue;
+        if (destino === 'crear') {
+            const nombre = String(pr.name ?? `Proyecto ${pid}`);
+            const ya = await prisma.project.findFirst({ where: { organizationId, name: nombre } });
+            if (ya)
+                throw new Error(`Ya existe un proyecto «${nombre}» en el CRM: elígelo en vez de crear otro`);
+            fila.crm = nombre;
+            fila.creado = true;
+            if (simulacion) {
+                proyectoCrm.set(pid, { id: `(nuevo) ${nombre}`, name: nombre });
+                continue;
+            }
+            const inv = inventariosDe(d).find((x) => x.id === pid);
+            const base = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'proyecto';
+            let slug = base;
+            for (let i = 2; await prisma.project.findFirst({ where: { organizationId, slug } }); i++)
+                slug = `${base}-${i}`;
+            const nuevo = await prisma.project.create({
+                data: { organizationId, name: nombre, slug, code: pr.code ? String(pr.code) : null, address: inv?.detalle ? String((inv.detalle.ubication ?? {}).address ?? '') || null : null },
+            });
+            proyectoCrm.set(pid, { id: nuevo.id, name: nuevo.name });
+            continue;
+        }
+        const existe = await prisma.project.findFirst({ where: { id: destino, organizationId } });
+        if (!existe)
+            throw new Error(`El proyecto del CRM elegido para ${fila.sperant} no existe`);
+        fila.crm = existe.name;
+        proyectoCrm.set(pid, { id: existe.id, name: existe.name });
+    }
+    const filaDe = (pid) => informe.proyectos.find((f) => f.sperant === String(d.projects.find((x) => Number(x.id) === pid)?.name ?? pid));
     // --- etapas: resolver `crear` / `crear_perdida` (de verdad solo si no es simulación)
     const etapas = await prisma.stage.findMany({ where: { organizationId }, orderBy: { position: 'asc' } });
     const etapaPorSegmento = new Map();
@@ -525,146 +630,163 @@ export async function importar(organizationId, mapa, simulacion) {
     }
     const usuarios = await prisma.user.findMany({ where: { organizationId }, select: { id: true } });
     const usuarioOk = new Set(usuarios.map((u) => u.id));
-    // --- inventario
-    if (mapa.importarUnidades) {
-        const tipologias = await prisma.typology.findMany({ where: { projectId: project.id } });
-        const porNombre = new Map(tipologias.map((t) => [t.name.trim().toLowerCase(), t.id]));
-        const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
-        for (const t of d.types) {
-            const nombre = String(t.name ?? '').trim();
-            if (!nombre)
+    // --- inventario, proyecto por proyecto
+    if (mapa.importarUnidades)
+        for (const inv of inventariosDe(d)) {
+            const project = proyectoCrm.get(inv.id);
+            if (!project)
                 continue;
-            const datosTip = {
-                bedrooms: num(t.num_bedroom),
-                bathrooms: num(t.num_bathroom),
-                areaM2: num(t.area),
-                priceFrom: num(t.price_min),
-                imageUrl: typeof t.image === 'string' && t.image ? t.image : null,
-                description: typeof t.description === 'string' && t.description.trim() ? t.description.trim() : null,
-            };
-            const idExistente = porNombre.get(nombre.toLowerCase());
-            if (idExistente) {
-                // Completa lo que falte sin pisar lo que el cliente ya editó en el CRM.
-                if (!simulacion) {
-                    const actual = tipologias.find((x) => x.id === idExistente);
-                    await prisma.typology.update({
-                        where: { id: idExistente },
-                        data: {
-                            bedrooms: actual.bedrooms ?? datosTip.bedrooms,
-                            bathrooms: actual.bathrooms ?? datosTip.bathrooms,
-                            areaM2: actual.areaM2 ?? datosTip.areaM2,
-                            priceFrom: actual.priceFrom ?? datosTip.priceFrom,
-                            imageUrl: actual.imageUrl ?? datosTip.imageUrl,
-                            description: actual.description ?? datosTip.description,
-                        },
-                    });
-                }
+            if (project.id.startsWith('(nuevo)')) {
+                // Simulación de un proyecto que todavía no existe: todo sería nuevo.
+                informe.unidades.creadas += inv.units.length;
+                informe.unidades.tipologiasCreadas += inv.types.length;
+                filaDe(inv.id).unidades = inv.units.length;
                 continue;
             }
-            informe.unidades.tipologiasCreadas++;
-            if (!simulacion) {
-                const nueva = await prisma.typology.create({ data: { projectId: project.id, name: nombre, code: nombre, ...datosTip } });
-                porNombre.set(nombre.toLowerCase(), nueva.id);
-            }
-            else {
-                porNombre.set(nombre.toLowerCase(), `(nueva) ${nombre}`);
-            }
-        }
-        const existentes = await prisma.unit.findMany({ where: { projectId: project.id } });
-        const porCodigo = new Map(existentes.map((u) => [u.code, u]));
-        const aprobadas = new Set(mapa.unidadesAprobadas ?? []);
-        const ETIQUETA = { price: 'precio', currency: 'moneda', status: 'estado', kind: 'tipo', areaM2: 'área m²', typology: 'tipología' };
-        for (const u of d.units) {
-            const code = String(u.name ?? u.code ?? '').trim();
-            if (!code)
-                continue;
-            const tipNombre = u.type ? String(u.type).trim() : null;
-            const typologyId = tipNombre ? porNombre.get(tipNombre.toLowerCase()) ?? null : null;
-            const datosUnidad = {
-                typology: tipNombre,
-                typologyId: typologyId && !typologyId.startsWith('(nueva)') ? typologyId : null,
-                kind: tipoUnidad(u.property_type),
-                status: estadoUnidad(u.commercial_status),
-                areaM2: u.total_area != null ? Number(u.total_area) : null,
-                price: u.price != null ? Number(u.price) : null,
-                currency: String(u.currency ?? 'PEN'),
-                extra: { sperant_unit_id: u.id, sperant_code: u.code },
-            };
-            const existente = porCodigo.get(code);
-            if (existente) {
-                // Comparar campo a campo. Solo lo que difiere se muestra y solo lo aprobado se escribe.
-                const cambios = {};
-                const comparar = (campo, crm, sp) => {
-                    const a = crm === null || crm === undefined ? null : typeof crm === 'object' ? Number(crm) : crm;
-                    const b = sp === null || sp === undefined ? null : sp;
-                    if (String(a ?? '') !== String(b ?? ''))
-                        cambios[ETIQUETA[campo]] = { crm: a, sperant: b };
+            filaDe(inv.id).unidades = inv.units.length;
+            const tipologias = await prisma.typology.findMany({ where: { projectId: project.id } });
+            const porNombre = new Map(tipologias.map((t) => [t.name.trim().toLowerCase(), t.id]));
+            const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+            for (const t of inv.types) {
+                const nombre = String(t.name ?? '').trim();
+                if (!nombre)
+                    continue;
+                const datosTip = {
+                    bedrooms: num(t.num_bedroom),
+                    bathrooms: num(t.num_bathroom),
+                    areaM2: num(t.area),
+                    priceFrom: num(t.price_min),
+                    imageUrl: typeof t.image === 'string' && t.image ? t.image : null,
+                    description: typeof t.description === 'string' && t.description.trim() ? t.description.trim() : null,
                 };
-                comparar('price', existente.price, datosUnidad.price);
-                comparar('currency', existente.currency, datosUnidad.currency);
-                comparar('status', existente.status, datosUnidad.status);
-                comparar('kind', existente.kind, datosUnidad.kind);
-                comparar('areaM2', existente.areaM2, datosUnidad.areaM2);
-                comparar('typology', existente.typology, datosUnidad.typology);
-                if (Object.keys(cambios).length === 0) {
-                    informe.unidades.sinCambios++;
-                    continue;
-                }
-                const aprobada = aprobadas.has(code);
-                informe.unidades.diferencias.push({ code, cambios, aprobada });
-                if (!aprobada) {
-                    informe.unidades.pendientes++;
-                    continue;
-                }
-                informe.unidades.actualizadas++;
-                if (!simulacion) {
-                    // `extra` se combina: puede traer el detalle de Sperant que puso «Completar datos».
-                    await prisma.unit.update({ where: { id: existente.id }, data: { ...datosUnidad, extra: { ...(existente.extra ?? {}), ...datosUnidad.extra } } });
-                    if (cambios.precio) {
-                        await prisma.auditLog.create({
+                const idExistente = porNombre.get(nombre.toLowerCase());
+                if (idExistente) {
+                    // Completa lo que falte sin pisar lo que el cliente ya editó en el CRM.
+                    if (!simulacion) {
+                        const actual = tipologias.find((x) => x.id === idExistente);
+                        await prisma.typology.update({
+                            where: { id: idExistente },
                             data: {
-                                organizationId,
-                                userId: mapa.userId ?? null,
-                                action: 'unit.price',
-                                entity: 'unit',
-                                entityId: existente.id,
-                                meta: { code, projectId: project.id, de: cambios.precio.crm, a: cambios.precio.sperant, origen: 'sperant' },
+                                bedrooms: actual.bedrooms ?? datosTip.bedrooms,
+                                bathrooms: actual.bathrooms ?? datosTip.bathrooms,
+                                areaM2: actual.areaM2 ?? datosTip.areaM2,
+                                priceFrom: actual.priceFrom ?? datosTip.priceFrom,
+                                imageUrl: actual.imageUrl ?? datosTip.imageUrl,
+                                description: actual.description ?? datosTip.description,
                             },
                         });
                     }
+                    continue;
+                }
+                informe.unidades.tipologiasCreadas++;
+                if (!simulacion) {
+                    const nueva = await prisma.typology.create({ data: { projectId: project.id, name: nombre, code: nombre, ...datosTip } });
+                    porNombre.set(nombre.toLowerCase(), nueva.id);
+                }
+                else {
+                    porNombre.set(nombre.toLowerCase(), `(nueva) ${nombre}`);
                 }
             }
-            else {
-                informe.unidades.creadas++;
-                if (!simulacion)
-                    await prisma.unit.create({ data: { ...datosUnidad, extra: datosUnidad.extra, code, projectId: project.id } });
+            const existentes = await prisma.unit.findMany({ where: { projectId: project.id } });
+            const porCodigo = new Map(existentes.map((u) => [u.code, u]));
+            const aprobadas = new Set(mapa.unidadesAprobadas ?? []);
+            const ETIQUETA = { price: 'precio', currency: 'moneda', status: 'estado', kind: 'tipo', areaM2: 'área m²', typology: 'tipología' };
+            for (const u of inv.units) {
+                const code = String(u.name ?? u.code ?? '').trim();
+                if (!code)
+                    continue;
+                const tipNombre = u.type ? String(u.type).trim() : null;
+                const typologyId = tipNombre ? porNombre.get(tipNombre.toLowerCase()) ?? null : null;
+                const datosUnidad = {
+                    typology: tipNombre,
+                    typologyId: typologyId && !typologyId.startsWith('(nueva)') ? typologyId : null,
+                    kind: tipoUnidad(u.property_type),
+                    status: estadoUnidad(u.commercial_status),
+                    areaM2: u.total_area != null ? Number(u.total_area) : null,
+                    price: u.price != null ? Number(u.price) : null,
+                    currency: String(u.currency ?? 'PEN'),
+                    extra: { sperant_unit_id: u.id, sperant_code: u.code },
+                };
+                const existente = porCodigo.get(code);
+                if (existente) {
+                    // Comparar campo a campo. Solo lo que difiere se muestra y solo lo aprobado se escribe.
+                    const cambios = {};
+                    const comparar = (campo, crm, sp) => {
+                        const a = crm === null || crm === undefined ? null : typeof crm === 'object' ? Number(crm) : crm;
+                        const b = sp === null || sp === undefined ? null : sp;
+                        if (String(a ?? '') !== String(b ?? ''))
+                            cambios[ETIQUETA[campo]] = { crm: a, sperant: b };
+                    };
+                    comparar('price', existente.price, datosUnidad.price);
+                    comparar('currency', existente.currency, datosUnidad.currency);
+                    comparar('status', existente.status, datosUnidad.status);
+                    comparar('kind', existente.kind, datosUnidad.kind);
+                    comparar('areaM2', existente.areaM2, datosUnidad.areaM2);
+                    comparar('typology', existente.typology, datosUnidad.typology);
+                    if (Object.keys(cambios).length === 0) {
+                        informe.unidades.sinCambios++;
+                        continue;
+                    }
+                    const clave = `${inv.id}:${code}`;
+                    const aprobada = aprobadas.has(clave);
+                    informe.unidades.diferencias.push({ clave, proyecto: inv.nombre, code, cambios, aprobada });
+                    if (!aprobada) {
+                        informe.unidades.pendientes++;
+                        continue;
+                    }
+                    informe.unidades.actualizadas++;
+                    if (!simulacion) {
+                        // `extra` se combina: puede traer el detalle de Sperant que puso «Completar datos».
+                        await prisma.unit.update({ where: { id: existente.id }, data: { ...datosUnidad, extra: { ...(existente.extra ?? {}), ...datosUnidad.extra } } });
+                        if (cambios.precio) {
+                            await prisma.auditLog.create({
+                                data: {
+                                    organizationId,
+                                    userId: mapa.userId ?? null,
+                                    action: 'unit.price',
+                                    entity: 'unit',
+                                    entityId: existente.id,
+                                    meta: { code, projectId: project.id, de: cambios.precio.crm, a: cambios.precio.sperant, origen: 'sperant' },
+                                },
+                            });
+                        }
+                    }
+                }
+                else {
+                    informe.unidades.creadas++;
+                    if (!simulacion)
+                        await prisma.unit.create({ data: { ...datosUnidad, extra: datosUnidad.extra, code, projectId: project.id } });
+                }
             }
         }
-    }
     // --- proformas por cliente (titular.id = client id)
     const proformasPorCliente = new Map();
     if (mapa.importarProformas) {
         for (const b of d.budgets) {
             for (const t of b.titulars ?? []) {
-                const cid = Number(t.id);
-                if (!proformasPorCliente.has(cid))
-                    proformasPorCliente.set(cid, []);
-                proformasPorCliente.get(cid).push(b);
+                const k = claveLead(Number(t.id), b.project_id != null ? Number(b.project_id) : null);
+                if (!proformasPorCliente.has(k))
+                    proformasPorCliente.set(k, []);
+                proformasPorCliente.get(k).push(b);
             }
         }
     }
     // --- leads ya importados (idempotencia)
+    // Clave cliente:proyecto. Los leads importados antes de los multiproyecto no guardaban el
+    // id del proyecto: se deduce por su nombre y, si tampoco está, cuentan para cualquiera.
     const previos = await prisma.lead.findMany({
-        where: { organizationId, projectId: project.id },
+        where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
         select: { id: true, attribution: true },
     });
+    const pidPorNombre = new Map(d.projects.map((x) => [String(x.name ?? '').toLowerCase(), Number(x.id)]));
     const yaImportado = new Set();
     for (const p of previos) {
         const a = p.attribution;
+        const pid = a?.sperant?.project_id ?? (a?.sperant?.proyecto ? pidPorNombre.get(a.sperant.proyecto.toLowerCase()) : undefined) ?? null;
         if (a?.sperant?.client_id)
-            yaImportado.add(Number(a.sperant.client_id));
+            yaImportado.add(claveLead(a.sperant.client_id, pid));
         for (const id of a?.sperant_fusiones ?? [])
-            yaImportado.add(Number(id));
+            yaImportado.add(claveLead(id, pid));
     }
     const leads = unir(d).sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
     informe.leads.total = leads.length;
@@ -674,7 +796,16 @@ export async function importar(organizationId, mapa, simulacion) {
         if (n % CADA === 0)
             latir(n, leads.length);
         try {
-            if (yaImportado.has(l.id)) {
+            if (l.projectId === null) {
+                informe.leads.sinProyecto++;
+                continue;
+            }
+            const project = proyectoCrm.get(l.projectId);
+            if (!project) {
+                informe.leads.deProyectoNoImportado++;
+                continue;
+            }
+            if (yaImportado.has(claveLead(l.id, l.projectId)) || yaImportado.has(claveLead(l.id, null))) {
                 informe.leads.yaImportados++;
                 continue;
             }
@@ -717,6 +848,7 @@ export async function importar(organizationId, mapa, simulacion) {
             const attribution = {
                 sperant: {
                     client_id: l.id,
+                    project_id: l.projectId,
                     uuid: l.uuid,
                     canal: l.channel,
                     medio: l.sourceName,
@@ -732,9 +864,9 @@ export async function importar(organizationId, mapa, simulacion) {
                 },
             };
             const creado = l.createdAt ?? new Date();
-            const proformas = proformasPorCliente.get(l.id) ?? [];
+            const proformas = proformasPorCliente.get(claveLead(l.id, l.projectId)) ?? [];
             // ¿Ya hay un lead activo de este contacto en el proyecto? → fusionar.
-            const leadActivo = existente
+            const leadActivo = existente && !project.id.startsWith('(nuevo)')
                 ? await prisma.lead.findFirst({ where: { organizationId, contactId: existente.id, projectId: project.id, status: 'activo' }, select: { id: true, ownerId: true, stageId: true } })
                 : null;
             if (leadActivo) {
@@ -766,6 +898,7 @@ export async function importar(organizationId, mapa, simulacion) {
                 continue;
             }
             informe.leads.nuevos++;
+            filaDe(l.projectId).leads++;
             informe.proformas.notas += proformas.length;
             if (simulacion)
                 continue;
@@ -812,6 +945,11 @@ export async function importar(organizationId, mapa, simulacion) {
         }
     }
     informe.fin = new Date().toISOString();
+    if (!simulacion) {
+        // «Completar datos» sabe así adónde fue cada inventario sin deducirlo.
+        const previo = leerEstado(organizationId).mapaProyectos ?? {};
+        guardarEstado(organizationId, { ...leerEstado(organizationId), mapaProyectos: { ...previo, ...Object.fromEntries([...proyectoCrm].map(([k, v]) => [String(k), v.id])) } });
+    }
     return informe;
 }
 /** Texto de la nota de una proforma de Sperant, con precios por unidad y cotitulares. */
@@ -860,20 +998,33 @@ export async function completarDatos(organizationId, simulacion) {
         throw new Error('No hay datos exportados');
     const informe = {
         simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0,
-        inventario: { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false, inventarioDe: d.inventarioDe?.nombre ?? null, unidadesDeOtroProyecto: [], tipologiasDeOtroProyecto: [], tipologiasAjenasEnUso: [] },
+        inventarioDesconocido: false,
+        inventarios: [],
         reparados: { leads: 0, conEtapa: 0, perdidos: 0, sinEtapaEnCrm: [] },
         diagnostico: { clientesEnExport: 0, sinDetalleEnExport: 0, documentosAutoEnExport: 0, documentoAutoContactoSinDocumento: 0, documentoAutoContactoConOtro: 0, proformasEnExport: d.budgets.length, notasProformaExistentes: 0, notasProformaACrear: 0 },
     };
-    const todos = unir(d);
-    const porId = new Map(todos.map((l) => [l.id, l]));
+    const registros = unir(d);
+    const porCliente = new Map();
+    for (const r of registros)
+        porCliente.set(r.id, [...(porCliente.get(r.id) ?? []), r]);
+    const todos = [...porCliente.values()].map((x) => x[0]);
+    const pidPorNombre = new Map(d.projects.map((x) => [String(x.name ?? '').toLowerCase(), Number(x.id)]));
+    /** El registro de Sperant que corresponde a un lead: por id de proyecto, por nombre, o el único. */
+    const elegir = (cid, sp) => {
+        const opciones = porCliente.get(cid) ?? [];
+        const pid = sp?.project_id ?? (sp?.proyecto ? pidPorNombre.get(sp.proyecto.toLowerCase()) : undefined);
+        return (pid != null ? opciones.find((o) => o.projectId === pid) : undefined) ?? opciones.find((o) => o.projectId !== null) ?? opciones[0];
+    };
     informe.diagnostico.clientesEnExport = todos.length;
     informe.diagnostico.sinDetalleEnExport = todos.filter((l) => Object.keys(l.crudo.cliente).length === 0).length;
     informe.diagnostico.documentosAutoEnExport = todos.filter((l) => l.document && !docReal(l.document)).length;
     const leadPorCliente = new Map();
+    const anotar = (k, leadId) => { if (!leadPorCliente.has(k))
+        leadPorCliente.set(k, leadId); };
     const leads = await prisma.lead.findMany({
         where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
         select: {
-            id: true, attribution: true, stageId: true, interestLevel: true, source: true, firstContactAt: true, lostReason: true, createdAt: true,
+            id: true, attribution: true, stageId: true, interestLevel: true, source: true, firstContactAt: true, lostReason: true, createdAt: true, projectId: true,
             contact: { select: { id: true, document: true } },
         },
     });
@@ -885,14 +1036,16 @@ export async function completarDatos(organizationId, simulacion) {
         informe.leadsRevisados++;
         const attr = (lead.attribution ?? {});
         const cid = Number(attr.sperant?.client_id);
-        const l = porId.get(cid);
+        const l = elegir(cid, attr.sperant);
         if (!l)
             continue;
         vistos.add(cid);
-        leadPorCliente.set(cid, lead.id);
-        for (const f of attr.sperant_fusiones ?? [])
-            if (!leadPorCliente.has(Number(f)))
-                leadPorCliente.set(Number(f), lead.id);
+        anotar(claveLead(cid, l.projectId), lead.id);
+        anotar(claveLead(cid, null), lead.id);
+        for (const f of attr.sperant_fusiones ?? []) {
+            anotar(claveLead(f, l.projectId), lead.id);
+            anotar(claveLead(f, null), lead.id);
+        }
         let nueva = attr;
         if (!attr.sperant?.cliente) {
             nueva = { ...nueva, sperant: { ...attr.sperant, ...l.crudo } };
@@ -911,7 +1064,7 @@ export async function completarDatos(organizationId, simulacion) {
                 ...nueva,
                 sperant: {
                     ...(nueva.sperant ?? {}),
-                    canal: l.channel, medio: l.sourceName, interes: l.interest, etapa: l.segment, asesor: l.seller, proyecto: l.projectName,
+                    project_id: l.projectId, canal: l.channel, medio: l.sourceName, interes: l.interest, etapa: l.segment, asesor: l.seller, proyecto: l.projectName,
                     ultima_interaccion: l.lastInteractionAt?.toISOString() ?? null, asignado_el: l.sellerAssignedAt?.toISOString() ?? null,
                     proyectos: l.crudo.proyectos,
                 },
@@ -951,11 +1104,11 @@ export async function completarDatos(organizationId, simulacion) {
                 },
             });
         }
-        const faltan = (attr.sperant_fusiones ?? []).filter((f) => porId.has(Number(f)) && !attr.sperant_fusiones_datos?.[f]);
+        const faltan = (attr.sperant_fusiones ?? []).filter((f) => porCliente.has(Number(f)) && !attr.sperant_fusiones_datos?.[f]);
         if (faltan.length) {
             nueva = {
                 ...nueva,
-                sperant_fusiones_datos: { ...(attr.sperant_fusiones_datos ?? {}), ...Object.fromEntries(faltan.map((f) => [f, porId.get(Number(f)).crudo])) },
+                sperant_fusiones_datos: { ...(attr.sperant_fusiones_datos ?? {}), ...Object.fromEntries(faltan.map((f) => [f, porCliente.get(Number(f))[0].crudo])) },
             };
             informe.fusionesCompletadas += faltan.length;
         }
@@ -977,7 +1130,7 @@ export async function completarDatos(organizationId, simulacion) {
                 informe.diagnostico.documentoAutoContactoSinDocumento++;
         }
     }
-    informe.sinLeadEnCrm = [...porId.keys()].filter((k) => !vistos.has(k)).length;
+    informe.sinLeadEnCrm = [...porCliente.keys()].filter((k) => !vistos.has(k)).length;
     // Proformas: las notas ya creadas reciben la proforma completa y los cotitulares.
     const presupuestos = new Map(d.budgets.map((b) => [String(b.id), b]));
     const notas = await prisma.activity.findMany({
@@ -990,7 +1143,7 @@ export async function completarDatos(organizationId, simulacion) {
     // de cada titular, con la fecha original.
     for (const b of d.budgets) {
         for (const t of b.titulars ?? []) {
-            const leadId = leadPorCliente.get(Number(t.id));
+            const leadId = leadPorCliente.get(claveLead(Number(t.id), b.project_id != null ? Number(b.project_id) : null)) ?? leadPorCliente.get(claveLead(Number(t.id), null));
             if (!leadId || conNota.has(`${leadId}:${String(b.id)}`))
                 continue;
             conNota.add(`${leadId}:${String(b.id)}`);
@@ -1011,16 +1164,39 @@ export async function completarDatos(organizationId, simulacion) {
             await prisma.activity.update({ where: { id: n.id }, data: { body: textoProforma(b), meta: { ...meta, sperant_budget: b } } });
         }
     }
-    // Inventario: el proyecto del CRM es el de los leads importados.
-    const grupos = await prisma.lead.groupBy({
-        by: ['projectId'],
-        where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull }, projectId: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { projectId: 'desc' } },
-    });
-    const projectId = grupos[0]?.projectId;
-    if (projectId)
-        await completarInventario(organizationId, projectId, d, simulacion, informe.inventario);
+    // Inventario, proyecto por proyecto. ¿Adónde fue cada uno? Lo que guardó la última
+    // importación; si es de antes, el proyecto del CRM de los leads importados de ese proyecto
+    // de Sperant. Nunca por las unidades: eso confundiría Bordeaux con Domus.
+    const invs = inventariosDe(d);
+    if (!invs.length && d.projects.length > 1)
+        informe.inventarioDesconocido = true;
+    const mapaGuardado = leerEstado(organizationId).mapaProyectos ?? {};
+    const usados = new Set();
+    for (const inv of invs) {
+        let projectId = mapaGuardado[String(inv.id)] ?? null;
+        // El proyecto pudo borrarse del CRM después de importar.
+        if (projectId && !(await prisma.project.findFirst({ where: { id: projectId, organizationId }, select: { id: true } })))
+            projectId = null;
+        if (!projectId) {
+            const cuenta = new Map();
+            for (const lead of leads) {
+                const sp = lead.attribution.sperant;
+                const l = sp?.client_id ? elegir(Number(sp.client_id), sp) : undefined;
+                const pid = sp?.project_id ?? l?.projectId ?? null;
+                const crm = lead.projectId;
+                if (pid === inv.id && crm)
+                    cuenta.set(crm, (cuenta.get(crm) ?? 0) + 1);
+            }
+            projectId = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        }
+        if (!projectId || usados.has(projectId))
+            continue;
+        usados.add(projectId);
+        const info = { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false, inventarioDe: inv.nombre, unidadesDeOtroProyecto: [], tipologiasDeOtroProyecto: [], tipologiasAjenasEnUso: [] };
+        informe.inventarios.push(info);
+        const otros = [...invs.filter((x) => x.id !== inv.id).flatMap((x) => x.types.map((t) => String(t.name ?? '').trim())), ...(d.tiposOtrosProyectos ?? [])];
+        await completarInventario(organizationId, projectId, inv, otros, simulacion, info);
+    }
     return informe;
 }
 /** ¿Es un archivo de Sperant? Cuando Bastión deje Sperant, esas URLs pueden dejar de existir. */
@@ -1048,15 +1224,16 @@ async function copiarImagen(organizationId, url) {
  * la comparativa con aprobación de la importación. Copia al CRM las imágenes que estaban en
  * los servidores de Sperant.
  */
-async function completarInventario(organizationId, projectId, d, simulacion, inf) {
+async function completarInventario(organizationId, projectId, inv, tiposOtros, simulacion, inf) {
     const proyecto = await prisma.project.findUnique({ where: { id: projectId } });
     if (!proyecto)
         return;
     inf.proyecto = proyecto.name;
-    if (!d.unidadesDetalle) {
+    if (inv.units.length && !Object.keys(inv.unidadesDetalle).length) {
         inf.faltaExportarDetalle = true;
         return;
     }
+    const d = { units: inv.units, types: inv.types, unidadesDetalle: inv.unidadesDetalle, proyectoDetalle: inv.detalle, tiposOtrosProyectos: tiposOtros };
     const unidades = await prisma.unit.findMany({ where: { projectId } });
     const porCodigo = new Map(unidades.map((u) => [u.code, u]));
     const codigoPorIdSp = new Map(d.units.map((u) => [String(u.id), String(u.name ?? u.code ?? '').trim()]));

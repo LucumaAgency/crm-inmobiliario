@@ -21,13 +21,25 @@ export interface DatosExport {
     proyectoImagenes?: Plano[];
     /** /v3/units/{id} por id: piso, áreas techada/libre, vista, dormitorios, fechas. */
     unidadesDetalle?: Record<string, Plano>;
-    /** Proyecto de Sperant del que salieron tipologías y unidades. */
+    /** Proyecto de Sperant del que salieron tipologías y unidades (exports de un solo proyecto). */
     inventarioDe?: {
         id: number;
         nombre: string;
     } | null;
     /** Nombres de tipologías de los OTROS proyectos de la cuenta (para limpiar las que se colaron). */
     tiposOtrosProyectos?: string[];
+    /** Desde 2026-10-16: inventario de TODOS los proyectos de la cuenta, por id de Sperant. */
+    inventarios?: Record<string, InventarioSp>;
+}
+export interface InventarioSp {
+    id: number;
+    nombre: string;
+    codigo: string | null;
+    detalle: Plano | null;
+    imagenes: Plano[];
+    types: Plano[];
+    units: Plano[];
+    unidadesDetalle: Record<string, Plano>;
 }
 export type Fase = 'sin_token' | 'listo' | 'exportando' | 'exportado' | 'importando' | 'importado' | 'error';
 export interface Estado {
@@ -42,10 +54,15 @@ export interface Estado {
     error?: string | null;
     /** Resultado de la última importación real. */
     importe?: InformeImporte;
+    /** Proyecto de Sperant → proyecto del CRM de la última importación real (lo usa «Completar»). */
+    mapaProyectos?: Record<string, string>;
 }
 export interface MapaImporte {
-    /** id del proyecto del CRM donde entran los leads y el inventario. */
-    crmProjectId: string;
+    /**
+     * Proyecto de Sperant (id) → proyecto del CRM (id), `crear` (uno nuevo con su nombre) o
+     * null (no se importa: ni sus leads ni su inventario).
+     */
+    proyectos: Record<string, string | null>;
     /** segment_name de Sperant → id de etapa del CRM, `crear`, `crear_perdida` o null (omitir el lead). */
     etapas: Record<string, string | null>;
     /** seller_username de Sperant → id de usuario del CRM, o null (sin dueño). */
@@ -63,6 +80,9 @@ export interface MapaImporte {
     userId?: string | null;
 }
 export interface DiferenciaUnidad {
+    /** `idProyectoSperant:código`: el mismo código (201) puede existir en dos proyectos. */
+    clave: string;
+    proyecto: string;
     code: string;
     /** Campos que difieren: campo → { crm, sperant }. */
     cambios: Record<string, {
@@ -81,8 +101,19 @@ export interface InformeImporte {
         omitidos: number;
         sinEtapa: number;
         sinAsesor: number;
+        /** Del proyecto marcado «no importar». */
+        deProyectoNoImportado: number;
+        /** Sin proyecto en el export (la petición falló): exportar de nuevo los trae. */
+        sinProyecto: number;
         errores: number;
     };
+    proyectos: {
+        sperant: string;
+        crm: string | null;
+        creado: boolean;
+        leads: number;
+        unidades: number;
+    }[];
     contactos: {
         nuevos: number;
         existentes: number;
@@ -169,19 +200,23 @@ export declare function resumen(organizationId: string): {
         conObservacion: number;
         sinNumeroWhatsApp: number;
     };
-    inventario: {
-        proyecto: string | null;
-        tipologias: string[];
-        unidades: number;
+    proyectos: {
+        id: number;
+        nombre: string;
+        codigo: string | null;
+        leads: number;
+        unidades: number | null;
+        tipologias: string[] | null;
         porEstado: {
             valor: string;
             n: number;
         }[];
-        porTipo: {
-            valor: string;
-            n: number;
-        }[];
-    };
+        proformas: number;
+        direccion: string | null;
+    }[];
+    sinProyecto: number;
+    /** El export es de antes de traer todos los proyectos: exportar de nuevo. */
+    exportViejo: boolean;
     proformas: {
         total: number;
         activas: number;
@@ -201,6 +236,7 @@ export declare function resumen(organizationId: string): {
  * lo corrige en pantalla; esto solo ahorra clics.
  */
 export declare function sugerirMapa(organizationId: string): Promise<{
+    proyectos: Record<string, string | null>;
     etapas: Record<string, string | null>;
     asesores: Record<string, string | null>;
     etapasCrm: {
@@ -247,25 +283,9 @@ export interface InformeCompletar {
         /** Proformas del export que no tenían nota en el lead (importación sin proformas). */
         notasProformaACrear: number;
     };
-    inventario: {
-        /** La exportación es anterior al detalle de unidades: hay que exportar de nuevo. */
-        faltaExportarDetalle: boolean;
-        proyecto: string | null;
-        unidadesCompletadas: number;
-        unidadesSinParejaEnCrm: string[];
-        tipologiasCompletadas: number;
-        imagenesCopiadas: number;
-        imagenesConError: number;
-        direccionCompletada: boolean;
-        /** Proyecto de Sperant del que viene el inventario del export. */
-        inventarioDe: string | null;
-        /** Unidades que vinieron de otro proyecto de Sperant y no existen en este: se quitan. */
-        unidadesDeOtroProyecto: string[];
-        /** Tipologías sin unidades que no están en este proyecto de Sperant: se quitan. */
-        tipologiasDeOtroProyecto: string[];
-        /** Tipologías ajenas que no se pueden quitar todavía (tienen unidades o interesados). */
-        tipologiasAjenasEnUso: string[];
-    };
+    /** El export no dice de qué proyecto es el inventario (export viejo): exportar de nuevo. */
+    inventarioDesconocido: boolean;
+    inventarios: InfoInventario[];
     /** Leads importados sin etapa ni asesor (la exportación no trajo su proyecto) y que ahora se reparan. */
     reparados: {
         leads: number;
@@ -273,6 +293,25 @@ export interface InformeCompletar {
         perdidos: number;
         sinEtapaEnCrm: string[];
     };
+}
+export interface InfoInventario {
+    /** La exportación es anterior al detalle de unidades: hay que exportar de nuevo. */
+    faltaExportarDetalle: boolean;
+    proyecto: string | null;
+    unidadesCompletadas: number;
+    unidadesSinParejaEnCrm: string[];
+    tipologiasCompletadas: number;
+    imagenesCopiadas: number;
+    imagenesConError: number;
+    direccionCompletada: boolean;
+    /** Proyecto de Sperant del que viene el inventario del export. */
+    inventarioDe: string | null;
+    /** Unidades que vinieron de otro proyecto de Sperant y no existen en este: se quitan. */
+    unidadesDeOtroProyecto: string[];
+    /** Tipologías sin unidades que no están en este proyecto de Sperant: se quitan. */
+    tipologiasDeOtroProyecto: string[];
+    /** Tipologías ajenas que no se pueden quitar todavía (tienen unidades o interesados). */
+    tipologiasAjenasEnUso: string[];
 }
 /**
  * Completa los leads YA importados con la ficha completa de Sperant.

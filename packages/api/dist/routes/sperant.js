@@ -59,7 +59,7 @@ export default async function sperantRoutes(app) {
     });
     const mapaInput = z.object({
         simulacion: z.boolean().default(true),
-        crmProjectId: z.string().min(1),
+        proyectos: z.record(z.string().nullable()),
         etapas: z.record(z.string().nullable()),
         asesores: z.record(z.string().nullable()),
         importarUnidades: z.boolean().default(true),
@@ -85,7 +85,7 @@ export default async function sperantRoutes(app) {
             if (simulacion)
                 return await importar(org, m, true);
             await iniciarImportacion(org, m);
-            await audit(org, req.user.id, 'sperant.importar', { meta: { crmProjectId: m.crmProjectId } });
+            await audit(org, req.user.id, 'sperant.importar', { meta: { proyectos: m.proyectos } });
             return reply.code(202).send({ ok: true });
         }
         catch (err) {
