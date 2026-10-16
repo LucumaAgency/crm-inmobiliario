@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { baseUrlDePeticion } from '../lib/tenant.js';
-import { audit, clearSession, issueSession, loadUser, requireAuth, } from '../lib/auth.js';
+import { audit, clearSession, issueSession, loadUser, olvidarPermisos, requireAuth, } from '../lib/auth.js';
 import { hashDeRelleno, hashPassword, verifyPassword } from '../lib/password.js';
 import { magicLinkEmail, sendMail } from '../lib/mail.js';
 const VIGENCIA_MIN = 20;
@@ -178,6 +178,9 @@ export default async function authRoutes(app) {
             data: { passwordHash: await hashPassword(parsed.data.nueva), passwordChangedAt: new Date() },
         });
         await audit(user.organizationId, user.id, 'user.password', { ip: req.ip });
+        // El cambio cierra las sesiones anteriores (ver `loadUser`); esta se renueva para no echarte.
+        olvidarPermisos(user.id);
+        issueSession(reply, { id: user.id, organizationId: user.organizationId, role: user.role, email: user.email, name: user.name });
         return { ok: true };
     });
     app.get('/me', async (req, reply) => {

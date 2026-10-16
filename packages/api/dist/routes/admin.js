@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PERMISOS_IDS, ROLES_BASE, esPermiso, formSchema } from '@lucuma-crm/shared';
+import { PERMISOS_IDS, ROLES_BASE, esPermiso, formSchema, passwordSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
@@ -7,6 +7,7 @@ import { generatePublicKey, generateSecretKey, hashKey } from '../lib/keys.js';
 import { captureLead } from '../services/capture.js';
 import { sumarIntereses, validarIntereses } from '../services/intereses.js';
 import { cifrar, pista } from '../lib/secretos.js';
+import { hashPassword } from '../lib/password.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
 import { env } from '../env.js';
 /** Gestión: proyectos, unidades, formularios, sitios, usuarios, etapas. */
@@ -709,11 +710,15 @@ export default async function adminRoutes(app) {
         return { secretKey };
     });
     // ------------------------------------------------------------ usuarios
-    app.get('/users', { preHandler: veEquipo }, async (req) => prisma.user.findMany({
-        where: { organizationId: req.user.organizationId },
-        select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true, phone: true, customRoleId: true, customRole: { select: { id: true, name: true } } },
-        orderBy: { name: 'asc' },
-    }));
+    app.get('/users', { preHandler: veEquipo }, async (req) => {
+        const lista = await prisma.user.findMany({
+            where: { organizationId: req.user.organizationId },
+            select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, maxDiscountPct: true, phone: true, customRoleId: true, customRole: { select: { id: true, name: true } }, passwordHash: true },
+            orderBy: { name: 'asc' },
+        });
+        // El hash nunca sale del servidor: solo si la persona tiene contraseña o entra por enlace.
+        return lista.map(({ passwordHash, ...u }) => ({ ...u, tienePassword: !!passwordHash }));
+    });
     app.post('/users', { preHandler: usuarios }, async (req, reply) => {
         const parsed = z
             .object({
@@ -721,26 +726,82 @@ export default async function adminRoutes(app) {
             email: z.string().email(),
             role: z.enum(['admin_lucuma', 'gerente', 'asesor', 'solo_lectura']).default('asesor'),
             customRoleId: z.string().nullable().optional(),
+            // Opcional: sin ella, la persona entra la primera vez con el enlace al correo.
+            password: z.string().optional(),
         })
             .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
-        if (parsed.data.customRoleId && !(await rolPropio(req.user.organizationId, parsed.data.customRoleId))) {
+        const { password, ...datos } = parsed.data;
+        if (password && !passwordSchema.safeParse(password).success) {
+            return reply.code(400).send({ error: 'La contraseña debe tener al menos 10 caracteres' });
+        }
+        if (datos.customRoleId && !(await rolPropio(req.user.organizationId, datos.customRoleId))) {
             return reply.code(400).send({ error: 'Rol inválido' });
         }
         // Solo un Admin Lucuma puede nombrar a otro: el rol existe para Lucuma, no para el cliente.
         if (parsed.data.role === 'admin_lucuma' && req.user.role !== 'admin_lucuma') {
             return reply.code(403).send({ error: 'Solo Lucuma puede crear administradores Lucuma' });
         }
-        return prisma.user.create({
+        const email = datos.email.toLowerCase();
+        if (await prisma.user.findFirst({ where: { organizationId: req.user.organizationId, email } })) {
+            return reply.code(409).send({ error: 'Ya hay un usuario con ese correo' });
+        }
+        const creado = await prisma.user.create({
             data: {
-                ...parsed.data,
-                customRoleId: parsed.data.customRoleId || null,
-                email: parsed.data.email.toLowerCase(),
+                ...datos,
+                customRoleId: datos.customRoleId || null,
+                email,
                 organizationId: req.user.organizationId,
+                ...(password ? { passwordHash: await hashPassword(password), passwordChangedAt: new Date() } : {}),
             },
             select: { id: true, name: true, email: true, role: true, active: true, customRoleId: true },
         });
+        await audit(req.user.organizationId, req.user.id, 'user.create', {
+            entity: 'user',
+            entityId: creado.id,
+            meta: { email, role: creado.role, conPassword: !!password },
+        });
+        return creado;
+    });
+    /**
+     * El administrador asigna o cambia la contraseña de otro usuario (alta, olvido, salida).
+     *
+     * - No pide la actual: es justamente para cuando la persona no la tiene o no debe tenerla.
+     * - No sirve para la propia: esa se cambia en Mi cuenta pidiendo la actual, para que una
+     *   sesión robada no baste para quedarse con la cuenta.
+     * - La contraseña de un Admin Lucuma solo la cambia otro Admin Lucuma; si no, un gerente
+     *   podría tomar la cuenta con más permisos que la suya.
+     * - Cierra las sesiones abiertas de esa persona (`passwordChangedAt` en `loadUser`): si se
+     *   cambia porque alguien se fue o se filtró, que el acceso viejo muera ya.
+     */
+    app.put('/users/:id/password', { preHandler: usuarios }, async (req, reply) => {
+        const parsed = z.object({ password: passwordSchema }).safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'La contraseña debe tener al menos 10 caracteres' });
+        if (req.params.id === req.user.id) {
+            return reply.code(400).send({ error: 'Tu propia contraseña se cambia en Mi cuenta' });
+        }
+        const objetivo = await prisma.user.findFirst({
+            where: { id: req.params.id, organizationId: req.user.organizationId },
+        });
+        if (!objetivo)
+            return reply.code(404).send({ error: 'Usuario no encontrado' });
+        if (objetivo.role === 'admin_lucuma' && req.user.role !== 'admin_lucuma') {
+            return reply.code(403).send({ error: 'Solo Lucuma puede cambiar la contraseña de un administrador Lucuma' });
+        }
+        await prisma.user.update({
+            where: { id: objetivo.id },
+            data: { passwordHash: await hashPassword(parsed.data.password), passwordChangedAt: new Date() },
+        });
+        olvidarPermisos(objetivo.id);
+        await audit(req.user.organizationId, req.user.id, 'user.password.admin', {
+            entity: 'user',
+            entityId: objetivo.id,
+            ip: req.ip,
+            meta: { email: objetivo.email },
+        });
+        return { ok: true };
     });
     /**
      * Activar/desactivar un usuario y cambiar su rol.
