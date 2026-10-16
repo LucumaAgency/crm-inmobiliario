@@ -68,7 +68,8 @@ interface Prueba {
   ok: boolean;
   error?: string;
   pageName?: string;
-  forms?: Array<{ id: string; name: string; status?: string }>;
+  forms?: Array<{ id: string; name: string; status?: string; leads?: number; ultimo?: string }>;
+  formsDesdeLeads?: boolean;
 }
 
 const CHIP: Record<Aviso['status'], string> = {
@@ -385,6 +386,13 @@ export default function MetaLeadAds() {
                       Cada formulario instantáneo puede ir a un proyecto distinto. Lo que se
                       deje sin elegir usa el proyecto por defecto de arriba.
                     </p>
+                    {prueba.resultado.formsDesdeLeads && (
+                      <p className="meta" style={{ marginTop: 6 }}>
+                        Meta no permite a esta app listar los formularios de la página, así que aparecen aquí a
+                        medida que llegan leads de cada uno. Los leads entran igual: mientras un formulario no
+                        tenga proyecto elegido, va al proyecto por defecto.
+                      </p>
+                    )}
                     <table className="tabla tabla-movil" style={{ marginTop: 8 }}>
                       <thead><tr><th>Formulario</th><th>Proyecto</th></tr></thead>
                       <tbody>
@@ -392,6 +400,11 @@ export default function MetaLeadAds() {
                           <tr key={f.id}>
                             <td>
                               {f.name}
+                              {f.leads != null && (
+                                <div className="meta">
+                                  {f.leads} lead{f.leads === 1 ? '' : 's'}{f.ultimo ? ` · último ${new Date(f.ultimo).toLocaleDateString('es-PE')}` : ''}
+                                </div>
+                              )}
                               {f.status && f.status !== 'ACTIVE' && (
                                 <span className="chip chip-gris" style={{ marginLeft: 6 }}>
                                   {f.status.toLowerCase()}
@@ -419,7 +432,11 @@ export default function MetaLeadAds() {
                       </tbody>
                     </table>
                     {prueba.resultado.forms?.length === 0 && (
-                      <p className="meta">Esta página todavía no tiene formularios instantáneos.</p>
+                      <p className="meta">
+                        {prueba.resultado.formsDesdeLeads
+                          ? 'Todavía no llegó ningún lead de esta página. Cuando llegue el primero, su formulario aparece aquí.'
+                          : 'Esta página todavía no tiene formularios instantáneos.'}
+                      </p>
                     )}
                   </>
                 ) : (
