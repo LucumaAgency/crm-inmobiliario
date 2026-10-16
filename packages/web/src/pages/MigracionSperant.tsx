@@ -27,7 +27,7 @@ interface EstadoResp {
       asesores: Conteo[]; canales: Conteo[]; medios: Conteo[]; interes: Conteo[]; motivos: Conteo[];
       sinTelefono: number; sinCorreo: number; sinDocumento: number; conObservacion: number; sinNumeroWhatsApp: number;
     };
-    inventario: { tipologias: string[]; unidades: number; porEstado: Conteo[]; porTipo: Conteo[] };
+    inventario: { proyecto: string | null; tipologias: string[]; unidades: number; porEstado: Conteo[]; porTipo: Conteo[] };
     proformas: { total: number; activas: number; financiamiento: Conteo[] };
     usuarios: { username: string; nombre: string; email: string }[];
   } | null;
@@ -230,7 +230,7 @@ export default function MigracionSperant() {
             <Tabla titulo="Canal" filas={r.leads.canales} />
             <Tabla titulo="Medio" filas={r.leads.medios} />
             <div>
-              <strong style={{ fontSize: 13 }}>Inventario y proformas</strong>
+              <strong style={{ fontSize: 13 }}>Inventario{r.inventario.proyecto ? ` de ${r.inventario.proyecto}` : ''} y proformas</strong>
               <p className="meta" style={{ marginTop: 4 }}>
                 {r.inventario.unidades} unidades · tipologías {r.inventario.tipologias.join(', ')}<br />
                 {r.inventario.porEstado.map((x) => `${x.valor} ${x.n}`).join(' · ')}<br />
@@ -445,7 +445,12 @@ interface InformeCompletar {
     imagenesCopiadas: number;
     imagenesConError: number;
     direccionCompletada: boolean;
+    inventarioDe: string | null;
+    unidadesDeOtroProyecto: string[];
+    tipologiasDeOtroProyecto: string[];
+    tipologiasAjenasEnUso: string[];
   };
+  reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[] };
 }
 
 /**
@@ -494,7 +499,29 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             <tr><td>Notas de proforma {informe.simulacion ? 'a completar' : 'completadas'}</td><td>{informe.proformasCompletadas}</td></tr>
             <tr><td>Clientes del export sin lead en el CRM (omitidos o borrados)</td><td>{informe.sinLeadEnCrm}</td></tr>
             <tr><td>Notas de proforma que faltaban y se {informe.simulacion ? 'crearían' : 'crearon'}</td><td>{informe.diagnostico.notasProformaACrear}</td></tr>
-            <tr><td colSpan={2}><strong>Inventario{informe.inventario.proyecto ? ` (${informe.inventario.proyecto})` : ''}</strong></td></tr>
+            <tr><td>Leads importados sin etapa ni asesor que se {informe.simulacion ? 'reparan' : 'repararon'} con el export actual</td><td>{informe.reparados.leads}</td></tr>
+            {informe.reparados.leads > 0 && (
+              <>
+                <tr><td>… de ellos, con etapa puesta (por nombre)</td><td>{informe.reparados.conEtapa}</td></tr>
+                <tr><td>… que pasan a perdidos (desestimados en Sperant)</td><td>{informe.reparados.perdidos}</td></tr>
+                {informe.reparados.sinEtapaEnCrm.length > 0 && (
+                  <tr className="error"><td>Etapas de Sperant sin etapa con ese nombre en el CRM (quedan sin etapa)</td><td>{informe.reparados.sinEtapaEnCrm.join(', ')}</td></tr>
+                )}
+              </>
+            )}
+            <tr><td colSpan={2}><strong>Inventario{informe.inventario.proyecto ? ` del CRM: ${informe.inventario.proyecto}` : ''}{informe.inventario.inventarioDe ? ` · de Sperant: ${informe.inventario.inventarioDe}` : ''}</strong></td></tr>
+            {informe.inventario.inventarioDe && informe.inventario.proyecto && informe.inventario.inventarioDe.toLowerCase() !== informe.inventario.proyecto.toLowerCase() && (
+              <tr className="error"><td colSpan={2}>El inventario exportado es de «{informe.inventario.inventarioDe}», no de «{informe.inventario.proyecto}». Revisa el id del proyecto de Sperant en el paso 1 y exporta de nuevo.</td></tr>
+            )}
+            {informe.inventario.unidadesDeOtroProyecto.length > 0 && (
+              <tr className="error"><td>Unidades de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{informe.inventario.unidadesDeOtroProyecto.join(', ')}</td></tr>
+            )}
+            {informe.inventario.tipologiasDeOtroProyecto.length > 0 && (
+              <tr className="error"><td>Tipologías de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{informe.inventario.tipologiasDeOtroProyecto.join(', ')}</td></tr>
+            )}
+            {informe.inventario.tipologiasAjenasEnUso.length > 0 && (
+              <tr><td>Tipologías de otro proyecto que todavía tienen unidades o interesados (primero importa y aprueba los cambios de unidades)</td><td>{informe.inventario.tipologiasAjenasEnUso.join(', ')}</td></tr>
+            )}
             {informe.inventario.faltaExportarDetalle ? (
               <tr className="error"><td colSpan={2}>El export es anterior al detalle de unidades: pulsa «Exportar de nuevo» arriba y vuelve a simular.</td></tr>
             ) : (
