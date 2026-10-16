@@ -952,3 +952,97 @@ export async function iniciarImportacion(organizationId, mapa) {
             .finally(() => enMarcha.delete(organizationId));
     });
 }
+/**
+ * Asesores de Sperant presentes en los leads importados, con cuántos leads tiene cada uno y
+ * quién los tiene hoy en el CRM. El nombre y correo sugeridos salen de los usuarios de Sperant
+ * del export (si el asesor aparece ahí).
+ */
+export async function asesoresSperant(organizationId) {
+    const d = leerDatos(organizationId);
+    const usuariosSp = new Map((d?.users ?? []).map((u) => [String(u.username ?? ''), u]));
+    const leads = await prisma.lead.findMany({
+        where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
+        select: { attribution: true, status: true, owner: { select: { id: true, name: true, email: true } } },
+    });
+    const porAsesor = new Map();
+    for (const l of leads) {
+        const usuario = String(l.attribution.sperant?.asesor ?? '') || '(sin asesor)';
+        const fila = porAsesor.get(usuario) ?? { leads: 0, abiertos: 0, duenos: new Map() };
+        fila.leads++;
+        if (l.status === 'activo')
+            fila.abiertos++;
+        const clave = l.owner?.id ?? '';
+        const dueno = fila.duenos.get(clave) ?? { nombre: l.owner ? `${l.owner.name} (${l.owner.email})` : 'sin asignar', leads: 0 };
+        dueno.leads++;
+        fila.duenos.set(clave, dueno);
+        porAsesor.set(usuario, fila);
+    }
+    return [...porAsesor.entries()]
+        .sort((a, b) => b[1].leads - a[1].leads)
+        .map(([username, f]) => {
+        const u = usuariosSp.get(username);
+        return {
+            username,
+            leads: f.leads,
+            abiertos: f.abiertos,
+            duenosActuales: [...f.duenos.values()],
+            sugerido: u ? { nombre: `${u.fname ?? ''} ${u.lname ?? ''}`.trim(), email: String(u.email ?? '') } : null,
+        };
+    });
+}
+/**
+ * Reasigna los leads importados según quién los llevaba en Sperant (`attribution.sperant.asesor`),
+ * creando los usuarios que hagan falta. Pisa al dueño actual a propósito: es para deshacer una
+ * asignación provisional. No toca leads que no vinieron de Sperant.
+ *
+ * Sin aviso por correo (serían cientos); cada lead recibe su asignación en el historial y una
+ * actividad «Asesor → X (según Sperant)».
+ */
+export async function reasignarPorAsesor(organizationId, porUserId, asignaciones) {
+    const resultado = [];
+    for (const a of asignaciones) {
+        let userId = a.userId ?? null;
+        let creado = false;
+        if (!userId && a.crear) {
+            const email = a.crear.email.trim().toLowerCase();
+            const existe = await prisma.user.findFirst({ where: { organizationId, email } });
+            if (existe) {
+                userId = existe.id;
+            }
+            else {
+                const nuevo = await prisma.user.create({ data: { organizationId, email, name: a.crear.name.trim(), role: a.crear.role, active: true } });
+                await prisma.auditLog.create({ data: { organizationId, userId: porUserId, action: 'user.create', entity: 'user', entityId: nuevo.id, meta: { email, role: a.crear.role, conPassword: false, origen: 'sperant' } } });
+                userId = nuevo.id;
+                creado = true;
+            }
+        }
+        if (!userId)
+            continue;
+        const usuario = await prisma.user.findFirst({ where: { id: userId, organizationId } });
+        if (!usuario)
+            throw new Error(`El usuario para ${a.username} no existe`);
+        if (!usuario.active)
+            throw new Error(`${usuario.email} está desactivado`);
+        const leads = await prisma.lead.findMany({
+            where: {
+                organizationId,
+                attribution: a.username === '(sin asesor)' ? { path: '$.sperant.asesor', equals: Prisma.AnyNull } : { path: '$.sperant.asesor', equals: a.username },
+            },
+            select: { id: true, ownerId: true },
+        });
+        const cambiar = leads.filter((l) => l.ownerId !== userId).map((l) => l.id);
+        const ahora = new Date();
+        for (let i = 0; i < cambiar.length; i += 200) {
+            const ids = cambiar.slice(i, i + 200);
+            await prisma.$transaction([
+                prisma.assignment.updateMany({ where: { leadId: { in: ids }, endedAt: null }, data: { endedAt: ahora } }),
+                prisma.assignment.createMany({ data: ids.map((leadId) => ({ leadId, userId: userId, reason: 'sperant' })) }),
+                prisma.lead.updateMany({ where: { id: { in: ids } }, data: { ownerId: userId } }),
+                prisma.activity.createMany({ data: ids.map((leadId) => ({ leadId, userId: porUserId, type: 'sistema', body: `Asesor → ${usuario.name} (según Sperant: ${a.username})` })) }),
+            ]);
+        }
+        resultado.push({ username: a.username, usuario: `${usuario.name} (${usuario.email})`, creado, leads: cambiar.length });
+    }
+    await prisma.auditLog.create({ data: { organizationId, userId: porUserId, action: 'sperant.reasignar', meta: resultado } });
+    return resultado;
+}

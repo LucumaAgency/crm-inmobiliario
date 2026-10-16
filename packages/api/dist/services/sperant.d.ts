@@ -249,4 +249,47 @@ export interface InformeCompletar {
 export declare function completarDatos(organizationId: string, simulacion: boolean): Promise<InformeCompletar>;
 /** Arranca la importación real en segundo plano. */
 export declare function iniciarImportacion(organizationId: string, mapa: MapaImporte): Promise<void>;
+/**
+ * Asesores de Sperant presentes en los leads importados, con cuántos leads tiene cada uno y
+ * quién los tiene hoy en el CRM. El nombre y correo sugeridos salen de los usuarios de Sperant
+ * del export (si el asesor aparece ahí).
+ */
+export declare function asesoresSperant(organizationId: string): Promise<{
+    username: string;
+    leads: number;
+    abiertos: number;
+    duenosActuales: {
+        nombre: string;
+        leads: number;
+    }[];
+    sugerido: {
+        nombre: string;
+        email: string;
+    } | null;
+}[]>;
+export interface AsignacionAsesor {
+    username: string;
+    /** Usuario existente del CRM… */
+    userId?: string;
+    /** …o uno nuevo, que entra con enlace al correo (sin contraseña). */
+    crear?: {
+        name: string;
+        email: string;
+        role: 'asesor' | 'gerente';
+    };
+}
+/**
+ * Reasigna los leads importados según quién los llevaba en Sperant (`attribution.sperant.asesor`),
+ * creando los usuarios que hagan falta. Pisa al dueño actual a propósito: es para deshacer una
+ * asignación provisional. No toca leads que no vinieron de Sperant.
+ *
+ * Sin aviso por correo (serían cientos); cada lead recibe su asignación en el historial y una
+ * actividad «Asesor → X (según Sperant)».
+ */
+export declare function reasignarPorAsesor(organizationId: string, porUserId: string, asignaciones: AsignacionAsesor[]): Promise<{
+    username: string;
+    usuario: string;
+    creado: boolean;
+    leads: number;
+}[]>;
 export {};

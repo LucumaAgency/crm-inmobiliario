@@ -3,7 +3,7 @@ import { prisma } from '../db.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
 import { audit, requirePermiso } from '../lib/auth.js';
 import { cifrar, pista } from '../lib/secretos.js';
-import { borrarDatos, completarDatos, hayDatos, importar, iniciarExportacion, iniciarImportacion, leerEstado, probar, resumen, sugerirMapa, tareaEnCurso, } from '../services/sperant.js';
+import { asesoresSperant, borrarDatos, completarDatos, hayDatos, importar, iniciarExportacion, iniciarImportacion, leerEstado, probar, reasignarPorAsesor, resumen, sugerirMapa, tareaEnCurso, } from '../services/sperant.js';
 export default async function sperantRoutes(app) {
     const guardia = requirePermiso('canales.configurar', 'usuarios.gestionar');
     /** Estado completo para la pantalla: config, tarea en curso, resumen y mapa sugerido. */
@@ -107,6 +107,36 @@ export default async function sperantRoutes(app) {
             if (!parsed.data.simulacion)
                 await audit(org, req.user.id, 'sperant.completar', { meta: informe });
             return informe;
+        }
+        catch (err) {
+            return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        }
+    });
+    /** Asesores de Sperant en los leads importados y quién los tiene hoy. */
+    app.get('/asesores', { preHandler: guardia }, async (req) => asesoresSperant(req.user.organizationId));
+    /**
+     * Reparte los leads importados según su asesor en Sperant, creando usuarios si hace falta.
+     * Crear usuarios exige `usuarios.gestionar` aunque la pantalla también la vea `canales`.
+     */
+    app.post('/reasignar', { preHandler: requirePermiso('usuarios.gestionar') }, async (req, reply) => {
+        const parsed = z
+            .object({
+            asignaciones: z
+                .array(z.object({
+                username: z.string().min(1),
+                userId: z.string().optional(),
+                crear: z.object({ name: z.string().trim().min(1).max(100), email: z.string().email(), role: z.enum(['asesor', 'gerente']) }).optional(),
+            }))
+                .min(1),
+        })
+            .safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Revisa nombre y correo de cada usuario nuevo' });
+        const org = req.user.organizationId;
+        if (tareaEnCurso(org))
+            return reply.code(409).send({ error: 'Hay una tarea en curso' });
+        try {
+            return { resultado: await reasignarPorAsesor(org, req.user.id, parsed.data.asignaciones) };
         }
         catch (err) {
             return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
