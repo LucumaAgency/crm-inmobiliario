@@ -23,6 +23,7 @@ import metaOAuthRoutes from './routes/meta-oauth.js';
 import cronRoutes from './routes/cron.js';
 import logRoutes from './routes/logs.js';
 import sperantRoutes from './routes/sperant.js';
+import diagnosticoRoutes from './routes/diagnostico.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -150,6 +151,14 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(leadRoutes, { prefix: '/api/v1/leads' });
   await app.register(sperantRoutes, { prefix: '/api/v1/sperant' });
+  await app.register(
+    async (scope) => {
+      // Pocas consultas por minuto: es para revisar, no para integrar.
+      await scope.register(rateLimit, { max: 20, timeWindow: '1 minute' });
+      await diagnosticoRoutes(scope);
+    },
+    { prefix: '/api/v1/diagnostico' }
+  );
   await app.register(reportesRoutes, { prefix: '/api/v1/reportes' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
   /**

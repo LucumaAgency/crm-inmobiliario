@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { fecha, precio, whatsappUrl } from '../lib/format.js';
@@ -28,6 +28,7 @@ interface Detalle {
   lostReason: string | null;
   attribution: Record<string, unknown> | null;
   sperantPareja?: { id: string; nombre: string } | null;
+  otrosLeads?: { id: string; status: string; lostReason: string | null; createdAt: string; updatedAt: string; project: { name: string } | null; stage: { name: string } | null; owner: { name: string } | null }[];
   contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null };
   project: { id: string; name: string } | null;
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
@@ -169,6 +170,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           <h2 style={{ margin: 0, fontSize: 19 }}>{nombre}</h2>
           {!lead.firstContactAt && <span className="chip chip-alerta">Sin contactar</span>}
         </div>
+        {(lead.otrosLeads ?? []).length > 0 && <OtrosLeads leads={lead.otrosLeads!} />}
         <div className="meta" style={{ marginTop: 6 }}>
           {lead.contact.phone ?? 'sin teléfono'} · {lead.contact.email ?? 'sin correo'}
           {lead.contact.document ? ` · ${lead.contact.documentType === 'PAS' ? 'Pasaporte' : lead.contact.documentType || 'DNI'} ${lead.contact.document}` : ''}
@@ -472,5 +474,29 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
       </div>
       <DatosSperant attribution={lead.attribution} pareja={lead.sperantPareja} />
     </>
+  );
+}
+
+/**
+ * Otros leads de la misma persona, arriba de la ficha. Un lead perdido antes va en rojo con
+ * su motivo: es lo primero que el asesor necesita saber cuando alguien descartado vuelve.
+ */
+function OtrosLeads({ leads }: { leads: NonNullable<Detalle['otrosLeads']> }) {
+  const perdidos = leads.filter((l) => l.status === 'perdido');
+  return (
+    <div className={perdidos.length ? 'aviso-perdido' : 'meta'} style={{ marginTop: 8, padding: perdidos.length ? '8px 10px' : 0, borderRadius: 8, background: perdidos.length ? 'var(--rojo-tinte)' : undefined }}>
+      {perdidos.map((l) => (
+        <div key={l.id}>
+          <strong>Esta persona ya tuvo un lead perdido</strong>{l.project ? ` en ${l.project.name}` : ''} (entró el {fecha(l.createdAt)}){l.lostReason ? `: ${l.lostReason}` : ''}.{' '}
+          <Link to={`/leads/${l.id}`}>Ver ese lead</Link>
+        </div>
+      ))}
+      {leads.filter((l) => l.status !== 'perdido').map((l) => (
+        <div key={l.id} className="meta">
+          También tiene un lead {l.status === 'ganado' ? 'ganado' : 'abierto'}{l.project ? ` en ${l.project.name}` : ''}
+          {l.stage ? ` (${l.stage.name})` : ''}{l.owner ? ` con ${l.owner.name}` : ''}. <Link to={`/leads/${l.id}`}>Ver</Link>
+        </div>
+      ))}
+    </div>
   );
 }

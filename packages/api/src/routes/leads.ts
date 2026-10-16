@@ -465,7 +465,22 @@ export default async function leadRoutes(app: FastifyInstance) {
       });
       if (otro) sperantPareja = { id: otro.id, nombre: `${otro.contact.fname} ${otro.contact.lname ?? ''}`.trim() };
     }
-    return { ...lead, sperantPareja };
+
+    /**
+     * Otros leads de la misma persona. Sobre todo los perdidos: quien fue desestimado por
+     * precio y vuelve a escribir crea un lead nuevo, y el asesor tiene que saber por qué se
+     * perdió la vez anterior antes de ofrecerle lo mismo.
+     */
+    const otrosLeads = await prisma.lead.findMany({
+      where: { organizationId: user.organizationId, contactId: lead.contactId, id: { not: lead.id } },
+      select: {
+        id: true, status: true, lostReason: true, createdAt: true, updatedAt: true,
+        project: { select: { name: true } }, stage: { select: { name: true } }, owner: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    return { ...lead, sperantPareja, otrosLeads };
   });
 
 

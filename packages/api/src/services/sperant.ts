@@ -1591,3 +1591,70 @@ export async function reasignarPorAsesor(organizationId: string, porUserId: stri
   await prisma.auditLog.create({ data: { organizationId, userId: porUserId, action: 'sperant.reasignar', meta: resultado as never } });
   return resultado;
 }
+
+/**
+ * Comparación export de Sperant ↔ CRM, solo con cifras e identificadores (sin nombres,
+ * teléfonos ni documentos). La usa el diagnóstico de solo lectura.
+ *
+ * Las matrices dicen «en Sperant X → en el CRM Y, N leads»: más útil que una lista de
+ * diferencias, porque un mapa de etapas mal elegido aparece como una fila grande.
+ */
+export async function compararConCrm(organizationId: string) {
+  const d = leerDatos(organizationId);
+  if (!d) return null;
+  const registros = unir(d);
+  const pidPorNombre = new Map(d.projects.map((x) => [String(x.name ?? '').toLowerCase(), Number(x.id)]));
+  const leads = await prisma.lead.findMany({
+    where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
+    select: { id: true, status: true, attribution: true, stage: { select: { name: true } }, owner: { select: { email: true } } },
+  });
+  const pidDe = (a: unknown) => {
+    const sp = (a as { sperant?: { project_id?: number; proyecto?: string } }).sperant ?? {};
+    return sp.project_id ?? (sp.proyecto ? pidPorNombre.get(sp.proyecto.toLowerCase()) : undefined) ?? null;
+  };
+  const porClave = new Map<string, string[]>();
+  const poner = (k: string, id: string) => porClave.set(k, [...new Set([...(porClave.get(k) ?? []), id])]);
+  for (const l of leads) {
+    const a = l.attribution as { sperant?: { client_id?: number }; sperant_fusiones?: number[] };
+    const pid = pidDe(l.attribution);
+    poner(claveLead(Number(a.sperant?.client_id), pid), l.id);
+    for (const f of a.sperant_fusiones ?? []) poner(claveLead(f, pid), l.id);
+  }
+  const porId = new Map(leads.map((l) => [l.id, l]));
+  const proyectosConLeads = new Set(leads.map((l) => pidDe(l.attribution)));
+  const correoSp = new Map(d.users.map((u) => [String(u.username ?? ''), String(u.email ?? '').toLowerCase()]));
+  const etapas = new Map<string, number>();
+  const asesores = new Map<string, number>();
+  const sumar = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+  const matriz = (m: Map<string, number>) => [...m.entries()].map(([k, n]) => ({ par: k, n })).sort((a, b) => b.n - a.n);
+  const faltan: { cliente: number; proyecto: string | null; etapa: string | null }[] = [];
+  const usados = new Set<string>();
+  let emparejados = 0;
+  let asesorDistinto = 0;
+  for (const r of registros) {
+    if (r.projectId !== null && !proyectosConLeads.has(r.projectId) && !proyectosConLeads.has(null)) continue;
+    const ids = porClave.get(claveLead(r.id, r.projectId)) ?? porClave.get(claveLead(r.id, null));
+    if (!ids?.length) { faltan.push({ cliente: r.id, proyecto: r.projectName, etapa: r.segment }); continue; }
+    emparejados++;
+    const l = porId.get(ids[0])!;
+    usados.add(l.id);
+    sumar(etapas, `${r.segment ?? '(sin etapa)'} → ${l.stage?.name ?? '(sin etapa)'} [${l.status}]`);
+    const esperado = r.seller ? correoSp.get(r.seller) : undefined;
+    if (!esperado || l.owner?.email.toLowerCase() !== esperado) asesorDistinto++;
+    sumar(asesores, `${r.seller ?? '(sin asesor)'} → ${l.owner?.email ?? '(sin asesor)'}`);
+  }
+  const duplicados = [...porClave.entries()].filter(([, ids]) => ids.length > 1).map(([clave, ids]) => ({ clave, leads: ids }));
+  const sinRegistro = leads.filter((l) => !usados.has(l.id)).map((l) => l.id);
+  return {
+    exportadoEl: d.exportadoEl,
+    registrosEnExport: registros.length,
+    leadsDeSperantEnCrm: leads.length,
+    emparejados,
+    faltanEnCrm: { total: faltan.length, primeros: faltan.slice(0, 50) },
+    leadsCrmSinRegistroEnExport: { total: sinRegistro.length, primeros: sinRegistro.slice(0, 50) },
+    duplicados: { total: duplicados.length, primeros: duplicados.slice(0, 20) },
+    etapas: matriz(etapas),
+    asesores: matriz(asesores),
+    asesorDistintoDelDeSperant: asesorDistinto,
+  };
+}
