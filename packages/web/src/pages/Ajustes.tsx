@@ -12,7 +12,7 @@ import AjustesEmbudo from './AjustesEmbudo.js';
 import Roles from './Roles.js';
 import MigracionSperant from './MigracionSperant.js';
 import { usePuede } from '../lib/permisos.js';
-import type { Permiso } from '@lucuma-crm/shared';
+import { PASSWORD_MIN, type Permiso } from '@lucuma-crm/shared';
 
 interface Site {
   id: string;
@@ -57,12 +57,14 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   const [uNombre, setUNombre] = useState('');
   const [uCorreo, setUCorreo] = useState('');
   const [uRol, setURol] = useState('asesor');
+  const [uClave, setUClave] = useState('');
+  const [claveDe, setClaveDe] = useState<string | null>(null);
 
   const sites = useQuery({ queryKey: ['sites'], queryFn: () => api.get<Site[]>('/sites') });
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () =>
-      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null; customRoleId: string | null }[]>(
+      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null; customRoleId: string | null; tienePassword: boolean }[]>(
         '/users',
       ),
   });
@@ -79,12 +81,18 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
 
   const crearUsuario = useMutation({
     mutationFn: () =>
-      api.post('/users', { name: uNombre.trim(), email: uCorreo.trim(), ...rolAPayload(uRol) }),
+      api.post('/users', {
+        name: uNombre.trim(),
+        email: uCorreo.trim(),
+        password: uClave || undefined,
+        ...rolAPayload(uRol),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       setUNombre('');
       setUCorreo('');
       setURol('asesor');
+      setUClave('');
     },
   });
 
@@ -228,7 +236,11 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                       </span>
                     )}
                   </td>
-                  <td className="ancho meta">{u.email}</td>
+                  <td className="ancho meta">
+                    {u.email}
+                    <br />
+                    <span style={{ fontSize: 12 }}>{u.tienePassword ? 'con contraseña' : 'solo enlace al correo'}</span>
+                  </td>
                   <td data-label="Rol">
                     <select
                       value={u.customRoleId ? `custom:${u.customRoleId}` : u.role}
@@ -249,11 +261,29 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                     <button
                       type="button"
                       className="btn btn-sec"
+                      onClick={() => setClaveDe(claveDe === u.id ? null : u.id)}
+                    >
+                      Contraseña
+                    </button>{' '}
+                    <button
+                      type="button"
+                      className="btn btn-sec"
                       disabled={cambiarUsuario.isPending}
                       onClick={() => cambiarUsuario.mutate({ id: u.id, active: !u.active })}
                     >
                       {u.active ? 'Desactivar' : 'Activar'}
                     </button>
+                    {claveDe === u.id && (
+                      <ClaveUsuario
+                        id={u.id}
+                        nombre={u.name}
+                        tiene={u.tienePassword}
+                        onListo={() => {
+                          setClaveDe(null);
+                          qc.invalidateQueries({ queryKey: ['users'] });
+                        }}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -282,18 +312,28 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                 />
               </div>
             </div>
-            <label htmlFor="u-rol">Rol</label>
-            <select id="u-rol" value={uRol} onChange={(e) => setURol(e.target.value)}>
-              <OpcionesRol propios={rolesPropios.data ?? []} />
-            </select>
+            <div className="rejilla-2">
+              <div>
+                <label htmlFor="u-rol">Rol</label>
+                <select id="u-rol" value={uRol} onChange={(e) => setURol(e.target.value)}>
+                  <OpcionesRol propios={rolesPropios.data ?? []} />
+                </select>
+              </div>
+              <div>
+                <label htmlFor="u-clave">Contraseña (opcional)</label>
+                <CampoClave id="u-clave" valor={uClave} onCambio={setUClave} />
+              </div>
+            </div>
             <p className="meta" style={{ marginTop: 8 }}>
               <strong>Descuento máximo</strong> es el tope (%) que ese usuario puede ofrecer en una
               cotización. Vacío = usa el de la organización (Embudo → Descuentos). Los precios de lista
               solo los cambian gerentes y administradores, y cada cambio queda en el registro.
             </p>
             <p className="meta" style={{ marginTop: 8 }}>
-              La primera vez la persona entra con un enlace enviado a ese correo (tiene que ser un
-              buzón real) y luego crea su contraseña en Mi cuenta. Los usuarios no se borran, se
+              Si le pones contraseña, se la pasas tú y entra con correo y contraseña. Si la dejas
+              vacía, la primera vez entra con un enlace enviado a ese correo (tiene que ser un buzón
+              real) y luego crea su contraseña en Mi cuenta. Con «Contraseña» en cada fila puedes
+              cambiársela cuando la olvide o deje el equipo: sus sesiones abiertas se cierran. Los usuarios no se borran, se
               desactivan: aparecen en asignaciones, actividades y auditoría, y borrarlos dejaría el
               historial sin dueño. Un asesor inactivo no puede entrar ni recibe leads nuevos.
             </p>
@@ -307,7 +347,12 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
               <button
                 type="submit"
                 className="btn"
-                disabled={!uNombre.trim() || !uCorreo.trim() || crearUsuario.isPending}
+                disabled={
+                  !uNombre.trim() ||
+                  !uCorreo.trim() ||
+                  (uClave.length > 0 && uClave.length < PASSWORD_MIN) ||
+                  crearUsuario.isPending
+                }
               >
                 {crearUsuario.isPending ? 'Creando…' : 'Añadir usuario'}
               </button>
@@ -348,6 +393,65 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   );
 }
 
+
+/** Contraseña visible (la va a dictar o copiar el administrador) con botón para generar una. */
+function CampoClave({ id, valor, onCambio }: { id: string; valor: string; onCambio: (v: string) => void }) {
+  return (
+    <>
+      <span style={{ display: 'flex', gap: 6 }}>
+        <input
+          id={id}
+          type="text"
+          autoComplete="new-password"
+          spellCheck={false}
+          value={valor}
+          onChange={(e) => onCambio(e.target.value)}
+          placeholder={`mínimo ${PASSWORD_MIN} caracteres`}
+          style={{ flex: 1 }}
+        />
+        <button type="button" className="btn btn-sec" onClick={() => onCambio(generarClave())}>
+          Generar
+        </button>
+      </span>
+      {valor.length > 0 && valor.length < PASSWORD_MIN && (
+        <span className="meta">Faltan {PASSWORD_MIN - valor.length} caracteres</span>
+      )}
+    </>
+  );
+}
+
+/** Clave aleatoria legible: sin 0/O ni 1/l/I, para dictarla sin confusiones. */
+function generarClave(largo = 12) {
+  const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const azar = crypto.getRandomValues(new Uint32Array(largo));
+  return Array.from(azar, (n) => letras[n % letras.length]).join('');
+}
+
+/** Asignar o cambiar la contraseña de otro usuario, desplegado bajo su fila. */
+function ClaveUsuario({ id, nombre, tiene, onListo }: { id: string; nombre: string; tiene: boolean; onListo: () => void }) {
+  const [clave, setClave] = useState('');
+  const guardar = useMutation({
+    mutationFn: () => api.put(`/users/${id}/password`, { password: clave }),
+    onSuccess: onListo,
+  });
+  return (
+    <div style={{ marginTop: 8, textAlign: 'left', minWidth: 260 }}>
+      <label htmlFor={`clave-${id}`}>{tiene ? 'Nueva contraseña' : 'Contraseña'} para {nombre}</label>
+      <CampoClave id={`clave-${id}`} valor={clave} onCambio={setClave} />
+      {tiene && <p className="meta">Reemplaza la actual y cierra sus sesiones abiertas.</p>}
+      {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}
+      <button
+        type="button"
+        className="btn"
+        style={{ marginTop: 6 }}
+        disabled={clave.length < PASSWORD_MIN || guardar.isPending}
+        onClick={() => guardar.mutate()}
+      >
+        {guardar.isPending ? 'Guardando…' : 'Guardar contraseña'}
+      </button>
+    </div>
+  );
+}
 
 /** Campo de porcentaje que guarda al salir o con Enter; vacío = sin tope propio. */
 function DescuentoUsuario({

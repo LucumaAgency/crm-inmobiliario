@@ -32,7 +32,7 @@ export function permisosDe(user: { role: RolBase; customRole?: { permissions: un
 }
 
 /** Caché corta de permisos por usuario: evita una consulta por petición sin que un cambio de rol tarde más de un minuto. */
-const cachePermisos = new Map<string, { expira: number; valor: Pick<SessionUser, 'role' | 'permissions' | 'roleName'> | null }>();
+const cachePermisos = new Map<string, { expira: number; valor: Pick<SessionUser, 'role' | 'permissions' | 'roleName'> | null; claveCambiada?: number }>();
 const TTL_PERMISOS_MS = 60 * 1000;
 
 export function olvidarPermisos(userId?: string) {
@@ -95,15 +95,24 @@ export async function loadUser(req: FastifyRequest) {
     if (!actual || actual.expira < ahora) {
       const u = await prisma.user.findUnique({
         where: { id: sesion.id },
-        select: { role: true, active: true, customRole: { select: { name: true, permissions: true } } },
+        select: { role: true, active: true, passwordChangedAt: true, customRole: { select: { name: true, permissions: true } } },
       });
       actual = {
         expira: ahora + TTL_PERMISOS_MS,
         valor: u && u.active ? { role: u.role, ...permisosDe(u) } : null,
+        claveCambiada: u?.passwordChangedAt?.getTime(),
       };
       cachePermisos.set(sesion.id, actual);
     }
     if (!actual.valor) return;
+
+    /**
+     * Una sesión emitida antes del último cambio de contraseña ya no vale: cuando el
+     * administrador cambia la clave de alguien (se fue, se filtró), el acceso viejo muere.
+     * `iat` va en segundos; el segundo de margen evita tumbar la sesión recién emitida.
+     */
+    const emitida = (sesion as SessionClaims & { iat?: number }).iat;
+    if (actual.claveCambiada && emitida && emitida * 1000 + 1000 < actual.claveCambiada) return;
 
     req.user = { ...sesion, ...actual.valor };
   } catch (err) {

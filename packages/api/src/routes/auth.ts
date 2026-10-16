@@ -11,6 +11,7 @@ import {
   clearSession,
   issueSession,
   loadUser,
+  olvidarPermisos,
   requireAuth,
   type SessionUser,
 } from '../lib/auth.js';
@@ -205,6 +206,9 @@ export default async function authRoutes(app: FastifyInstance) {
       data: { passwordHash: await hashPassword(parsed.data.nueva), passwordChangedAt: new Date() },
     });
     await audit(user.organizationId, user.id, 'user.password', { ip: req.ip });
+    // El cambio cierra las sesiones anteriores (ver `loadUser`); esta se renueva para no echarte.
+    olvidarPermisos(user.id);
+    issueSession(reply, { id: user.id, organizationId: user.organizationId, role: user.role, email: user.email, name: user.name });
     return { ok: true };
   });
 
