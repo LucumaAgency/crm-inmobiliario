@@ -436,6 +436,16 @@ interface InformeCompletar {
     notasProformaExistentes: number;
     notasProformaACrear: number;
   };
+  inventario: {
+    faltaExportarDetalle: boolean;
+    proyecto: string | null;
+    unidadesCompletadas: number;
+    unidadesSinParejaEnCrm: string[];
+    tipologiasCompletadas: number;
+    imagenesCopiadas: number;
+    imagenesConError: number;
+    direccionCompletada: boolean;
+  };
 }
 
 /**
@@ -484,6 +494,18 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             <tr><td>Notas de proforma {informe.simulacion ? 'a completar' : 'completadas'}</td><td>{informe.proformasCompletadas}</td></tr>
             <tr><td>Clientes del export sin lead en el CRM (omitidos o borrados)</td><td>{informe.sinLeadEnCrm}</td></tr>
             <tr><td>Notas de proforma que faltaban y se {informe.simulacion ? 'crearían' : 'crearon'}</td><td>{informe.diagnostico.notasProformaACrear}</td></tr>
+            <tr><td colSpan={2}><strong>Inventario{informe.inventario.proyecto ? ` (${informe.inventario.proyecto})` : ''}</strong></td></tr>
+            {informe.inventario.faltaExportarDetalle ? (
+              <tr className="error"><td colSpan={2}>El export es anterior al detalle de unidades: pulsa «Exportar de nuevo» arriba y vuelve a simular.</td></tr>
+            ) : (
+              <>
+                <tr><td>Unidades {informe.simulacion ? 'a completar' : 'completadas'} (piso, dormitorios, baños, vista, áreas)</td><td>{informe.inventario.unidadesCompletadas}</td></tr>
+                <tr><td>Unidades de Sperant que no están en el CRM</td><td>{informe.inventario.unidadesSinParejaEnCrm.join(', ') || '0'}</td></tr>
+                <tr><td>Tipologías con imágenes alojadas en Sperant {informe.simulacion ? '(se copiarán al CRM)' : ''}</td><td>{informe.inventario.tipologiasCompletadas}</td></tr>
+                {!informe.simulacion && <tr><td>Imágenes copiadas / con error</td><td>{informe.inventario.imagenesCopiadas} / {informe.inventario.imagenesConError}</td></tr>}
+                <tr><td>Dirección del proyecto</td><td>{informe.inventario.direccionCompletada ? (informe.simulacion ? 'se completa' : 'completada') : 'ya estaba'}</td></tr>
+              </>
+            )}
           </tbody>
         </table>
       )}

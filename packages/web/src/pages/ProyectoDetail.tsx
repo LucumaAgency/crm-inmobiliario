@@ -34,6 +34,22 @@ interface Unidad {
   price: string | null;
   currency: string;
   floor: number | null;
+  bathrooms?: number | null;
+  extra?: { sperant?: { vista?: string | null; area_techada?: number | null; area_libre?: number | null; pertenece_a?: string | null; estado_obra?: string | null } } | null;
+}
+
+/** Área, dormitorios, baños, vista y lo que trajo Sperant, en una línea. */
+function detalleUnidad(u: Unidad) {
+  const sp = u.extra?.sperant;
+  const partes = [
+    u.areaM2 ? `${Number(u.areaM2)} m²` : null,
+    sp?.area_techada != null && sp?.area_libre ? `(${sp.area_techada} techada + ${sp.area_libre} libre)` : null,
+    u.bedrooms ? `${u.bedrooms} dorm.` : null,
+    u.bathrooms ? `${u.bathrooms} baños` : null,
+    sp?.vista ? `vista ${sp.vista.toLowerCase()}` : null,
+    sp?.pertenece_a ? `va con la ${sp.pertenece_a}` : null,
+  ];
+  return partes.filter(Boolean).join(' · ') || '—';
 }
 
 const ESTADOS: Record<string, string> = {
@@ -398,7 +414,7 @@ export default function ProyectoDetail() {
               <div style={{ overflowX: 'auto' }}>
                 <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
                   <thead>
-                    <tr><th>Código</th><th>Tipología</th><th>Piso</th><th>Precio</th><th>Tipo</th><th>Estado</th></tr>
+                    <tr><th>Código</th><th>Tipología</th><th>Piso</th><th>Detalle</th><th>Precio</th><th>Tipo</th><th>Estado</th></tr>
                   </thead>
                   <tbody>
                     {unidades.data?.map((u) => (
@@ -416,6 +432,7 @@ export default function ProyectoDetail() {
                           </select>
                         </td>
                         <td data-label="Piso">{u.floor ?? '—'}</td>
+                        <td data-label="Detalle" className="meta">{detalleUnidad(u)}</td>
                         <td data-label="Precio">{u.price ? `${u.currency} ${u.price}` : '—'}</td>
                         <td data-label="Tipo">{TIPOS[u.kind] ?? u.kind}</td>
                         <td data-label="Estado">
