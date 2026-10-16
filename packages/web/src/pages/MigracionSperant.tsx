@@ -332,6 +332,7 @@ export default function MigracionSperant() {
         </div>
       )}
       {d.estado.hayDatos && <CompletarDatos ocupado={enCurso} />}
+      <AsesoresSperant ocupado={enCurso} />
     </>
   );
 }
@@ -504,6 +505,124 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             </tbody>
           </table>
         </details>
+      )}
+    </div>
+  );
+}
+
+interface AsesorSp {
+  username: string;
+  leads: number;
+  abiertos: number;
+  duenosActuales: { nombre: string; leads: number }[];
+  sugerido: { nombre: string; email: string } | null;
+}
+type Eleccion = { modo: 'nada' } | { modo: 'existente'; userId: string } | { modo: 'crear'; name: string; email: string; role: 'asesor' | 'gerente' };
+
+/**
+ * Reparte los leads importados según quién los llevaba en Sperant. Sirve para deshacer una
+ * asignación provisional (todo a una persona) y para dar de alta a los asesores de una vez.
+ */
+function AsesoresSperant({ ocupado }: { ocupado: boolean }) {
+  const qc = useQueryClient();
+  const asesores = useQuery({ queryKey: ['sperant-asesores'], queryFn: () => api.get<AsesorSp[]>('/sperant/asesores') });
+  const usuarios = useQuery({ queryKey: ['users'], queryFn: () => api.get<{ id: string; name: string; email: string; active: boolean }[]>('/users') });
+  const [eleccion, setEleccion] = useState<Record<string, Eleccion>>({});
+  const [resultado, setResultado] = useState<{ username: string; usuario: string; creado: boolean; leads: number }[] | null>(null);
+  const reasignar = useMutation({
+    mutationFn: () =>
+      api.post<{ resultado: NonNullable<typeof resultado> }>('/sperant/reasignar', {
+        asignaciones: Object.entries(eleccion)
+          .filter(([, e]) => e.modo !== 'nada')
+          .map(([username, e]) =>
+            e.modo === 'existente' ? { username, userId: e.userId } : { username, crear: { name: (e as { name: string }).name, email: (e as { email: string }).email, role: (e as { role: 'asesor' | 'gerente' }).role } },
+          ),
+      }),
+    onSuccess: (r) => {
+      setResultado(r.resultado);
+      setEleccion({});
+      qc.invalidateQueries({ queryKey: ['sperant-asesores'] });
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+  if (!asesores.data?.length) return null;
+  const elegidas = Object.values(eleccion).filter((e) => e.modo !== 'nada');
+  const incompleta = elegidas.some((e) => e.modo === 'crear' && (!e.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email.trim())));
+  const total = asesores.data.filter((a) => (eleccion[a.username]?.modo ?? 'nada') !== 'nada').reduce((n, a) => n + a.leads, 0);
+
+  return (
+    <div className="card">
+      <strong>Asesores: de Sperant al CRM</strong>
+      <p className="meta" style={{ marginTop: 6 }}>
+        Reparte los leads importados según quién los llevaba en Sperant. Elige un usuario existente o crea uno nuevo:
+        el usuario nuevo entra con un enlace a su correo (sin contraseña). Cambia el asesor actual de esos leads, sin
+        mandar avisos, y lo deja en el historial de cada uno. No toca los leads que entraron por el CRM.
+      </p>
+      <table className="tabla-compacta" style={{ marginTop: 8 }}>
+        <thead>
+          <tr><th style={{ textAlign: 'left' }}>En Sperant</th><th style={{ textAlign: 'left' }}>Leads</th><th style={{ textAlign: 'left' }}>Hoy los tiene</th><th style={{ textAlign: 'left' }}>Pasarlos a</th></tr>
+        </thead>
+        <tbody>
+          {asesores.data.map((a) => {
+            const e = eleccion[a.username] ?? { modo: 'nada' };
+            const poner = (x: Eleccion) => setEleccion({ ...eleccion, [a.username]: x });
+            return (
+              <tr key={a.username}>
+                <td style={{ verticalAlign: 'top' }}><strong>{a.username}</strong>{a.sugerido?.nombre && <div className="meta">{a.sugerido.nombre}</div>}</td>
+                <td style={{ verticalAlign: 'top' }}>{a.leads}<div className="meta">{a.abiertos} abiertos</div></td>
+                <td style={{ verticalAlign: 'top' }} className="meta">{a.duenosActuales.map((d) => `${d.nombre}: ${d.leads}`).join(' · ')}</td>
+                <td style={{ verticalAlign: 'top', minWidth: 240 }}>
+                  <select
+                    value={e.modo === 'existente' ? e.userId : e.modo}
+                    onChange={(ev) => {
+                      const v = ev.target.value;
+                      if (v === 'nada') poner({ modo: 'nada' });
+                      else if (v === 'crear') poner({ modo: 'crear', name: a.sugerido?.nombre ?? '', email: a.sugerido?.email ?? '', role: 'asesor' });
+                      else poner({ modo: 'existente', userId: v });
+                    }}
+                  >
+                    <option value="nada">No cambiar</option>
+                    <option value="crear">Crear usuario nuevo…</option>
+                    {usuarios.data?.filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+                  </select>
+                  {e.modo === 'crear' && (
+                    <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+                      <input placeholder="Nombre" value={e.name} onChange={(ev) => poner({ ...e, name: ev.target.value })} />
+                      <input placeholder="Correo (con él entra)" type="email" value={e.email} onChange={(ev) => poner({ ...e, email: ev.target.value })} />
+                      <select value={e.role} onChange={(ev) => poner({ ...e, role: ev.target.value as 'asesor' | 'gerente' })}>
+                        <option value="asesor">Asesor (recibe leads nuevos en el reparto)</option>
+                        <option value="gerente">Gerente (ve todo, no entra al reparto)</option>
+                      </select>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {reasignar.isError && <p className="error">{(reasignar.error as Error).message}</p>}
+      <div className="acciones">
+        <button
+          type="button"
+          className="btn"
+          disabled={ocupado || reasignar.isPending || elegidas.length === 0 || incompleta}
+          onClick={() => {
+            if (confirm(`Se van a reasignar ${total} leads${elegidas.some((e) => e.modo === 'crear') ? ' y crear los usuarios nuevos' : ''}. ¿Continuar?`)) reasignar.mutate();
+          }}
+        >
+          {reasignar.isPending ? 'Reasignando…' : 'Crear usuarios y reasignar'}
+        </button>
+      </div>
+      {resultado && (
+        <ul className="meta" style={{ marginTop: 8 }}>
+          {resultado.map((r) => (
+            <li key={r.username}>
+              {r.username} → {r.usuario}{r.creado ? ' (usuario creado)' : ''}: {r.leads} leads reasignados
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
