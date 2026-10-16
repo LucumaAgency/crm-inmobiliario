@@ -5,7 +5,7 @@
  * ve el avance), importar (primero simular, después de verdad). El mapa de etapas y asesores
  * lo decide la persona; el servidor solo propone.
  */
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
@@ -27,11 +27,14 @@ interface EstadoResp {
       asesores: Conteo[]; canales: Conteo[]; medios: Conteo[]; interes: Conteo[]; motivos: Conteo[];
       sinTelefono: number; sinCorreo: number; sinDocumento: number; conObservacion: number; sinNumeroWhatsApp: number;
     };
-    inventario: { proyecto: string | null; tipologias: string[]; unidades: number; porEstado: Conteo[]; porTipo: Conteo[] };
+    proyectos: ProyectoSp[];
+    sinProyecto: number;
+    exportViejo: boolean;
     proformas: { total: number; activas: number; financiamiento: Conteo[] };
     usuarios: { username: string; nombre: string; email: string }[];
   } | null;
   sugerencia: {
+    proyectos: Record<string, string | null>;
     etapas: Record<string, string | null>;
     asesores: Record<string, string | null>;
     etapasCrm: { id: string; name: string; isLost: boolean; isWon: boolean }[];
@@ -40,7 +43,14 @@ interface EstadoResp {
   proyectosCrm: { id: string; name: string }[];
 }
 
+interface ProyectoSp {
+  id: number; nombre: string; codigo: string | null; leads: number; unidades: number | null;
+  tipologias: string[] | null; porEstado: Conteo[]; proformas: number; direccion: string | null;
+}
+
 interface Diferencia {
+  clave: string;
+  proyecto: string;
   code: string;
   cambios: Record<string, { crm: string | number | null; sperant: string | number | null }>;
   aprobada: boolean;
@@ -48,7 +58,8 @@ interface Diferencia {
 
 interface Informe {
   simulacion: boolean;
-  leads: { total: number; nuevos: number; fusionados: number; yaImportados: number; omitidos: number; sinEtapa: number; sinAsesor: number; errores: number };
+  leads: { total: number; nuevos: number; fusionados: number; yaImportados: number; omitidos: number; sinEtapa: number; sinAsesor: number; deProyectoNoImportado: number; sinProyecto: number; errores: number };
+  proyectos: { sperant: string; crm: string | null; creado: boolean; leads: number; unidades: number }[];
   contactos: { nuevos: number; existentes: number };
   unidades: { creadas: number; actualizadas: number; sinCambios: number; pendientes: number; tipologiasCreadas: number; diferencias: Diferencia[] };
   proformas: { notas: number };
@@ -96,10 +107,10 @@ export default function MigracionSperant() {
   const d = estado.data;
 
   const [token, setToken] = useState('');
-  const [sperantProjectId, setSperantProjectId] = useState<string>('');
   const [prueba, setPrueba] = useState<{ ok: boolean; proyectos?: { id: number; code: string; name: string }[]; totalLeads?: number; error?: string } | null>(null);
 
-  const [crmProjectId, setCrmProjectId] = useState('');
+  /** Proyecto de Sperant (id) → proyecto del CRM (id), 'crear' o null (no importar). */
+  const [proyectos, setProyectos] = useState<Record<string, string | null> | null>(null);
   const [etapas, setEtapas] = useState<Record<string, string | null>>({});
   const [asesores, setAsesores] = useState<Record<string, string | null>>({});
   const [importarUnidades, setImportarUnidades] = useState(true);
@@ -113,12 +124,11 @@ export default function MigracionSperant() {
     if (!d?.sugerencia) return;
     setEtapas((prev) => (Object.keys(prev).length ? prev : d.sugerencia!.etapas));
     setAsesores((prev) => (Object.keys(prev).length ? prev : d.sugerencia!.asesores));
-    setCrmProjectId((prev) => prev || (d.proyectosCrm[0]?.id ?? ''));
-    setSperantProjectId((prev) => prev || (d.config.sperantProjectId ? String(d.config.sperantProjectId) : ''));
+    setProyectos((prev) => prev ?? d.sugerencia!.proyectos);
   }, [d]);
 
   const guardar = useMutation({
-    mutationFn: () => api.put('/sperant/config', { ...(token.trim() ? { token: token.trim() } : {}), sperantProjectId: sperantProjectId ? Number(sperantProjectId) : null }),
+    mutationFn: () => api.put('/sperant/config', { ...(token.trim() ? { token: token.trim() } : {}) }),
     onSuccess: () => { setToken(''); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
   });
   const probar = useMutation({
@@ -130,7 +140,7 @@ export default function MigracionSperant() {
     mutationFn: () => api.post('/sperant/exportar'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sperant-estado'] }),
   });
-  const cuerpo = (simulacion: boolean) => ({ simulacion, crmProjectId, etapas, asesores, importarUnidades, importarProformas, unidadesAprobadas: [...aprobadas] });
+  const cuerpo = (simulacion: boolean) => ({ simulacion, proyectos: proyectos ?? {}, etapas, asesores, importarUnidades, importarProformas, unidadesAprobadas: [...aprobadas] });
   const simular = useMutation({
     mutationFn: () => api.post<Informe>('/sperant/importar', cuerpo(true)),
     // Cada simulación nueva vuelve a pedir aprobación: la comparativa puede haber cambiado.
@@ -140,7 +150,7 @@ export default function MigracionSperant() {
     mutationFn: () => api.post('/sperant/importar', cuerpo(false)),
     onSuccess: () => { setInforme(null); setAprobadas(new Set()); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
   });
-  const pendientes = informe?.unidades.diferencias.filter((x) => !aprobadas.has(x.code)).length ?? 0;
+  const pendientes = informe?.unidades.diferencias.filter((x) => !aprobadas.has(x.clave)).length ?? 0;
   const borrar = useMutation({
     mutationFn: () => api.del('/sperant/datos'),
     onSuccess: () => { setInforme(null); qc.invalidateQueries({ queryKey: ['sperant-estado'] }); },
@@ -155,7 +165,7 @@ export default function MigracionSperant() {
   const r = d.resumen;
   const sug = d.sugerencia;
   const enCurso = d.estado.enCurso;
-  const listoParaImportar = d.estado.hayDatos && !enCurso && crmProjectId;
+  const listoParaImportar = d.estado.hayDatos && !enCurso && !r?.exportViejo && Object.values(proyectos ?? {}).some(Boolean);
 
   return (
     <>
@@ -171,10 +181,6 @@ export default function MigracionSperant() {
             <label htmlFor="sp-token">{d.config.tokenHint ? 'Nuevo token (opcional)' : 'Token'}</label>
             <input id="sp-token" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Pegar el token" autoComplete="off" />
           </div>
-          <div>
-            <label htmlFor="sp-proy">Proyecto en Sperant (id)</label>
-            <input id="sp-proy" inputMode="numeric" value={sperantProjectId} onChange={(e) => setSperantProjectId(e.target.value)} placeholder="2" style={{ width: 90 }} />
-          </div>
           <button className="btn" disabled={guardar.isPending || (!token.trim() && !d.config.tokenHint)}>Guardar</button>
           <button type="button" className="btn btn-sec" disabled={!d.config.tokenHint || probar.isPending} onClick={() => probar.mutate()}>Probar</button>
         </form>
@@ -182,7 +188,7 @@ export default function MigracionSperant() {
         {prueba && (prueba.ok ? (
           <p className="ok">
             Conecta. {prueba.totalLeads?.toLocaleString('es-PE')} leads. Proyectos: {prueba.proyectos?.map((p) => `${p.name} (id ${p.id}, ${p.code})`).join(' · ')}.
-            {!sperantProjectId && prueba.proyectos?.length ? ' Escribe arriba el id del proyecto a migrar y guarda.' : ''}
+
           </p>
         ) : <p className="error">{prueba.error}</p>)}
       </div>
@@ -229,14 +235,33 @@ export default function MigracionSperant() {
             <Tabla titulo="Motivo de descarte" filas={r.leads.motivos} />
             <Tabla titulo="Canal" filas={r.leads.canales} />
             <Tabla titulo="Medio" filas={r.leads.medios} />
-            <div>
-              <strong style={{ fontSize: 13 }}>Inventario{r.inventario.proyecto ? ` de ${r.inventario.proyecto}` : ''} y proformas</strong>
-              <p className="meta" style={{ marginTop: 4 }}>
-                {r.inventario.unidades} unidades · tipologías {r.inventario.tipologias.join(', ')}<br />
-                {r.inventario.porEstado.map((x) => `${x.valor} ${x.n}`).join(' · ')}<br />
-                {r.proformas.total} proformas ({r.proformas.activas} activas)
-              </p>
-            </div>
+          </div>
+        )}
+        {r && (
+          <div style={{ marginTop: 14 }}>
+            <strong style={{ fontSize: 13 }}>Proyectos en la cuenta de Sperant ({r.proyectos.length})</strong>
+            {r.exportViejo && (
+              <p className="error">Este export es de antes de traer todos los proyectos: pulsa «Exportar de nuevo» para ver el inventario de cada uno.</p>
+            )}
+            {r.sinProyecto > 0 && (
+              <p className="error">{r.sinProyecto} clientes llegaron sin proyecto (falló la petición a Sperant): «Exportar de nuevo» los completa.</p>
+            )}
+            <table className="tabla-compacta" style={{ marginTop: 6 }}>
+              <thead>
+                <tr><th style={{ textAlign: 'left' }}>Proyecto</th><th style={{ textAlign: 'right' }}>Leads</th><th style={{ textAlign: 'right' }}>Unidades</th><th style={{ textAlign: 'left' }}>Tipologías</th><th style={{ textAlign: 'right' }}>Proformas</th></tr>
+              </thead>
+              <tbody>
+                {r.proyectos.map((p) => (
+                  <tr key={p.id}>
+                    <td><strong>{p.nombre}</strong> <span className="meta">id {p.id}{p.codigo ? ` · ${p.codigo}` : ''}{p.direccion ? ` · ${p.direccion}` : ''}</span></td>
+                    <td style={{ textAlign: 'right' }}>{p.leads.toLocaleString('es-PE')}</td>
+                    <td style={{ textAlign: 'right' }}>{p.unidades ?? '—'}{p.porEstado.length ? <div className="meta">{p.porEstado.map((x) => `${x.valor} ${x.n}`).join(' · ')}</div> : null}</td>
+                    <td className="meta">{p.tipologias?.join(', ') ?? '—'}</td>
+                    <td style={{ textAlign: 'right' }}>{p.proformas}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -251,11 +276,22 @@ export default function MigracionSperant() {
             repetir: los ya importados se saltan.
           </p>
 
-          <label htmlFor="sp-crm-proy" style={{ marginTop: 10 }}>Proyecto del CRM</label>
-          <select id="sp-crm-proy" value={crmProjectId} onChange={(e) => setCrmProjectId(e.target.value)} style={{ maxWidth: 320 }}>
-            <option value="">Elegir…</option>
-            {d.proyectosCrm.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <strong style={{ fontSize: 13, display: 'block', marginTop: 10 }}>Proyectos</strong>
+          <p className="meta">Cada proyecto de Sperant va a un proyecto del CRM, a uno nuevo con su nombre, o no se importa (ni sus leads ni su inventario). Dos proyectos de Sperant no pueden ir al mismo del CRM.</p>
+          {r.proyectos.map((p) => {
+            const valor = proyectos?.[String(p.id)] ?? '';
+            const ocupado = (id: string) => Object.entries(proyectos ?? {}).some(([k, v]) => v === id && k !== String(p.id));
+            return (
+              <div key={p.id} className="fila-mapa">
+                <span>{p.nombre} <span className="meta">({p.leads} leads · {p.unidades ?? '?'} unidades)</span></span>
+                <select value={valor} onChange={(ev) => setProyectos({ ...(proyectos ?? {}), [String(p.id)]: ev.target.value || null })}>
+                  <option value="">No importar</option>
+                  <option value="crear">Crear proyecto «{p.nombre}»</option>
+                  {d.proyectosCrm.map((c) => <option key={c.id} value={c.id} disabled={ocupado(c.id)}>{c.name}{ocupado(c.id) ? ' (ya elegido)' : ''}</option>)}
+                </select>
+              </div>
+            );
+          })}
 
           <div className="rejilla-mapa" style={{ marginTop: 14 }}>
             <div>
@@ -348,6 +384,11 @@ function ResultadoImporte({ informe: i }: { informe: Informe }) {
           <tr><td>Fusionados con un lead activo existente</td><td>{i.leads.fusionados}</td></tr>
           <tr><td>Ya importados antes (se saltan)</td><td>{i.leads.yaImportados}</td></tr>
           <tr><td>Omitidos por el mapa de etapas</td><td>{i.leads.omitidos}</td></tr>
+          <tr><td>De proyectos que no se importan</td><td>{i.leads.deProyectoNoImportado ?? 0}</td></tr>
+          {(i.leads.sinProyecto ?? 0) > 0 && <tr className="error"><td>Sin proyecto en el export (exportar de nuevo)</td><td>{i.leads.sinProyecto}</td></tr>}
+          {(i.proyectos ?? []).map((p) => (
+            <tr key={p.sperant}><td>{p.sperant} → {p.crm ? `${p.crm}${p.creado ? ' (nuevo)' : ''}` : 'no se importa'}</td><td>{p.crm ? `${p.leads} leads nuevos · ${p.unidades} unidades` : '—'}</td></tr>
+          ))}
           <tr><td>Sin etapa en el mapa (quedan sin etapa)</td><td>{i.leads.sinEtapa}</td></tr>
           <tr><td>Sin asesor</td><td>{i.leads.sinAsesor}</td></tr>
           <tr><td>Contactos nuevos / ya existentes</td><td>{i.contactos.nuevos} / {i.contactos.existentes}</td></tr>
@@ -378,17 +419,17 @@ const VALOR = (v: string | number | null) => (v === null || v === '' ? '—' : t
  * difieren. Nada se aprueba por defecto: la importación real solo escribe lo marcado.
  */
 function Comparativa({ diferencias, aprobadas, onCambio }: { diferencias: Diferencia[]; aprobadas: Set<string>; onCambio: (s: Set<string>) => void }) {
-  const todas = diferencias.every((x) => aprobadas.has(x.code));
-  const alternar = (code: string) => {
+  const todas = diferencias.every((x) => aprobadas.has(x.clave));
+  const alternar = (clave: string) => {
     const n = new Set(aprobadas);
-    if (n.has(code)) n.delete(code); else n.add(code);
+    if (n.has(clave)) n.delete(clave); else n.add(clave);
     onCambio(n);
   };
   return (
     <div className="comparativa">
       <div className="comparativa-cabecera">
         <strong style={{ fontSize: 13 }}>Unidades que difieren entre el CRM y Sperant ({diferencias.length})</strong>
-        <button type="button" className="enlace-btn" onClick={() => onCambio(todas ? new Set() : new Set(diferencias.map((x) => x.code)))}>
+        <button type="button" className="enlace-btn" onClick={() => onCambio(todas ? new Set() : new Set(diferencias.map((x) => x.clave)))}>
           {todas ? 'Quitar todas' : 'Aprobar todas'}
         </button>
       </div>
@@ -401,11 +442,11 @@ function Comparativa({ diferencias, aprobadas, onCambio }: { diferencias: Difere
           {diferencias.map((u) => {
             const campos = Object.entries(u.cambios);
             return campos.map(([campo, v], i) => (
-              <tr key={`${u.code}-${campo}`} className={aprobadas.has(u.code) ? 'aprobada' : ''}>
+              <tr key={`${u.clave}-${campo}`} className={aprobadas.has(u.clave) ? 'aprobada' : ''}>
                 {i === 0 && (
-                  <td rowSpan={campos.length}><input type="checkbox" checked={aprobadas.has(u.code)} onChange={() => alternar(u.code)} aria-label={`Aprobar ${u.code}`} /></td>
+                  <td rowSpan={campos.length}><input type="checkbox" checked={aprobadas.has(u.clave)} onChange={() => alternar(u.clave)} aria-label={`Aprobar ${u.code}`} /></td>
                 )}
-                {i === 0 && <td rowSpan={campos.length}><strong>{u.code}</strong></td>}
+                {i === 0 && <td rowSpan={campos.length}><strong>{u.code}</strong><div className="meta">{u.proyecto}</div></td>}
                 <td>{campo}</td>
                 <td>{VALOR(v.crm)}</td>
                 <td className="sperant">{VALOR(v.sperant)}</td>
@@ -436,7 +477,8 @@ interface InformeCompletar {
     notasProformaExistentes: number;
     notasProformaACrear: number;
   };
-  inventario: {
+  inventarioDesconocido: boolean;
+  inventarios: {
     faltaExportarDetalle: boolean;
     proyecto: string | null;
     unidadesCompletadas: number;
@@ -449,7 +491,7 @@ interface InformeCompletar {
     unidadesDeOtroProyecto: string[];
     tipologiasDeOtroProyecto: string[];
     tipologiasAjenasEnUso: string[];
-  };
+  }[];
   reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[] };
 }
 
@@ -509,30 +551,37 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
                 )}
               </>
             )}
-            <tr><td colSpan={2}><strong>Inventario{informe.inventario.proyecto ? ` del CRM: ${informe.inventario.proyecto}` : ''}{informe.inventario.inventarioDe ? ` · de Sperant: ${informe.inventario.inventarioDe}` : ''}</strong></td></tr>
-            {informe.inventario.inventarioDe && informe.inventario.proyecto && informe.inventario.inventarioDe.toLowerCase() !== informe.inventario.proyecto.toLowerCase() && (
-              <tr className="error"><td colSpan={2}>El inventario exportado es de «{informe.inventario.inventarioDe}», no de «{informe.inventario.proyecto}». Revisa el id del proyecto de Sperant en el paso 1 y exporta de nuevo.</td></tr>
+            {informe.inventarioDesconocido && (
+              <tr className="error"><td colSpan={2}>El export no dice de qué proyecto es el inventario: pulsa «Exportar de nuevo» arriba y vuelve a simular.</td></tr>
             )}
-            {informe.inventario.unidadesDeOtroProyecto.length > 0 && (
-              <tr className="error"><td>Unidades de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{informe.inventario.unidadesDeOtroProyecto.join(', ')}</td></tr>
+            {informe.inventarios.map((inv) => (
+              <React.Fragment key={inv.inventarioDe ?? inv.proyecto ?? ''}>
+            <tr><td colSpan={2}><strong>Inventario{inv.proyecto ? ` del CRM: ${inv.proyecto}` : ''}{inv.inventarioDe ? ` · de Sperant: ${inv.inventarioDe}` : ''}</strong></td></tr>
+            {inv.inventarioDe && inv.proyecto && inv.inventarioDe.toLowerCase() !== inv.proyecto.toLowerCase() && (
+              <tr className="error"><td colSpan={2}>El inventario exportado es de «{inv.inventarioDe}», no de «{inv.proyecto}». Revisa el id del proyecto de Sperant en el paso 1 y exporta de nuevo.</td></tr>
             )}
-            {informe.inventario.tipologiasDeOtroProyecto.length > 0 && (
-              <tr className="error"><td>Tipologías de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{informe.inventario.tipologiasDeOtroProyecto.join(', ')}</td></tr>
+            {inv.unidadesDeOtroProyecto.length > 0 && (
+              <tr className="error"><td>Unidades de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{inv.unidadesDeOtroProyecto.join(', ')}</td></tr>
             )}
-            {informe.inventario.tipologiasAjenasEnUso.length > 0 && (
-              <tr><td>Tipologías de otro proyecto que todavía tienen unidades o interesados (primero importa y aprueba los cambios de unidades)</td><td>{informe.inventario.tipologiasAjenasEnUso.join(', ')}</td></tr>
+            {inv.tipologiasDeOtroProyecto.length > 0 && (
+              <tr className="error"><td>Tipologías de otro proyecto de Sperant que se {informe.simulacion ? 'quitarán' : 'quitaron'}</td><td>{inv.tipologiasDeOtroProyecto.join(', ')}</td></tr>
             )}
-            {informe.inventario.faltaExportarDetalle ? (
+            {inv.tipologiasAjenasEnUso.length > 0 && (
+              <tr><td>Tipologías de otro proyecto que todavía tienen unidades o interesados (primero importa y aprueba los cambios de unidades)</td><td>{inv.tipologiasAjenasEnUso.join(', ')}</td></tr>
+            )}
+            {inv.faltaExportarDetalle ? (
               <tr className="error"><td colSpan={2}>El export es anterior al detalle de unidades: pulsa «Exportar de nuevo» arriba y vuelve a simular.</td></tr>
             ) : (
               <>
-                <tr><td>Unidades {informe.simulacion ? 'a completar' : 'completadas'} (piso, dormitorios, baños, vista, áreas)</td><td>{informe.inventario.unidadesCompletadas}</td></tr>
-                <tr><td>Unidades de Sperant que no están en el CRM</td><td>{informe.inventario.unidadesSinParejaEnCrm.join(', ') || '0'}</td></tr>
-                <tr><td>Tipologías con imágenes alojadas en Sperant {informe.simulacion ? '(se copiarán al CRM)' : ''}</td><td>{informe.inventario.tipologiasCompletadas}</td></tr>
-                {!informe.simulacion && <tr><td>Imágenes copiadas / con error</td><td>{informe.inventario.imagenesCopiadas} / {informe.inventario.imagenesConError}</td></tr>}
-                <tr><td>Dirección del proyecto</td><td>{informe.inventario.direccionCompletada ? (informe.simulacion ? 'se completa' : 'completada') : 'ya estaba'}</td></tr>
+                <tr><td>Unidades {informe.simulacion ? 'a completar' : 'completadas'} (piso, dormitorios, baños, vista, áreas)</td><td>{inv.unidadesCompletadas}</td></tr>
+                <tr><td>Unidades de Sperant que no están en el CRM</td><td>{inv.unidadesSinParejaEnCrm.join(', ') || '0'}</td></tr>
+                <tr><td>Tipologías con imágenes alojadas en Sperant {informe.simulacion ? '(se copiarán al CRM)' : ''}</td><td>{inv.tipologiasCompletadas}</td></tr>
+                {!informe.simulacion && <tr><td>Imágenes copiadas / con error</td><td>{inv.imagenesCopiadas} / {inv.imagenesConError}</td></tr>}
+                <tr><td>Dirección del proyecto</td><td>{inv.direccionCompletada ? (informe.simulacion ? 'se completa' : 'completada') : 'ya estaba'}</td></tr>
               </>
             )}
+              </React.Fragment>
+            ))}
           </tbody>
         </table>
       )}
