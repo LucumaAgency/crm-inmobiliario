@@ -371,4 +371,45 @@ export declare function reasignarPorAsesor(organizationId: string, porUserId: st
     creado: boolean;
     leads: number;
 }[]>;
+/**
+ * Comparación export de Sperant ↔ CRM, solo con cifras e identificadores (sin nombres,
+ * teléfonos ni documentos). La usa el diagnóstico de solo lectura.
+ *
+ * Las matrices dicen «en Sperant X → en el CRM Y, N leads»: más útil que una lista de
+ * diferencias, porque un mapa de etapas mal elegido aparece como una fila grande.
+ */
+export declare function compararConCrm(organizationId: string): Promise<{
+    exportadoEl: string;
+    registrosEnExport: number;
+    leadsDeSperantEnCrm: number;
+    emparejados: number;
+    faltanEnCrm: {
+        total: number;
+        primeros: {
+            cliente: number;
+            proyecto: string | null;
+            etapa: string | null;
+        }[];
+    };
+    leadsCrmSinRegistroEnExport: {
+        total: number;
+        primeros: string[];
+    };
+    duplicados: {
+        total: number;
+        primeros: {
+            clave: string;
+            leads: string[];
+        }[];
+    };
+    etapas: {
+        par: string;
+        n: number;
+    }[];
+    asesores: {
+        par: string;
+        n: number;
+    }[];
+    asesorDistintoDelDeSperant: number;
+} | null>;
 export {};
