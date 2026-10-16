@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { normalizeDocument, normalizeEmail, normalizePhonePE } from '@lucuma-crm/shared';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { logError, logLine } from '../lib/log.js';
@@ -413,7 +414,15 @@ interface LeadSperant {
   channel: string | null;
   sourceName: string | null;
   interest: string | null;
+  /** Ficha completa tal como la devolvió Sperant: lo que el CRM no tiene como campo propio. */
+  crudo: { cliente: Plano; proyectos: Plano[] };
 }
+
+/**
+ * Sperant rellena el documento con `auto-123456` cuando el asesor no lo cargó. No es un
+ * documento: guardarlo ensucia la ficha y la deduplicación por DNI.
+ */
+const docReal = (v: string | null) => (v && !/^auto-/i.test(v) ? v : null);
 
 function unir(d: DatosExport): LeadSperant[] {
   const out: LeadSperant[] = [];
@@ -446,6 +455,7 @@ function unir(d: DatosExport): LeadSperant[] {
       channel: s(rel.input_channel_name),
       sourceName: s(rel.source_name),
       interest: s(rel.interest_type_name ?? det.interest_type),
+      crudo: { cliente: det, proyectos: d.proyectos[id] ?? [] },
     });
   }
   return out;
@@ -591,6 +601,10 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
     if (destino === null) { etapaPorSegmento.set(segmento, null); continue; }
     if (destino === 'crear' || destino === 'crear_perdida') {
       const isLost = destino === 'crear_perdida';
+      // Si una pasada anterior ya la creó, se reutiliza: correr la importación otra vez no
+      // puede duplicar etapas.
+      const yaCreada = etapas.find((e) => e.name.trim().toLowerCase() === segmento.trim().toLowerCase());
+      if (yaCreada) { etapaPorSegmento.set(segmento, yaCreada); continue; }
       informe.etapasCreadas.push(segmento);
       if (simulacion) { etapaPorSegmento.set(segmento, { id: `(nueva) ${segmento}`, isLost, isWon: false }); continue; }
       const slugBase = segmento.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'etapa';
@@ -759,7 +773,7 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
         lname: l.lname ?? undefined,
         email: normalizeEmail(l.email),
         phone: normalizePhonePE(l.phone),
-        document: normalizeDocument(l.document),
+        document: normalizeDocument(docReal(l.document)),
       };
       const existente = await prisma.contact.findFirst({
         where: {
@@ -789,6 +803,7 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
           ultima_interaccion: l.lastInteractionAt?.toISOString() ?? null,
           asignado_el: l.sellerAssignedAt?.toISOString() ?? null,
           importado_el: new Date().toISOString(),
+          ...l.crudo,
         },
       };
       const creado = l.createdAt ?? new Date();
@@ -808,7 +823,11 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
           // así los dos ids cuentan como importados en la siguiente pasada.
           const actual = ((await prisma.lead.findUnique({ where: { id: leadActivo.id }, select: { attribution: true } }))?.attribution ?? {}) as { sperant?: unknown; sperant_fusiones?: number[] } & Record<string, unknown>;
           const nuevaAttr = actual.sperant
-            ? { ...actual, sperant_fusiones: [...(actual.sperant_fusiones ?? []), l.id] }
+            ? {
+                ...actual,
+                sperant_fusiones: [...(actual.sperant_fusiones ?? []), l.id],
+                sperant_fusiones_datos: { ...((actual.sperant_fusiones_datos as Record<string, unknown>) ?? {}), [l.id]: l.crudo },
+              }
             : { ...actual, ...attribution };
           await prisma.lead.update({
             where: { id: leadActivo.id },
@@ -872,21 +891,122 @@ export async function importar(organizationId: string, mapa: MapaImporte, simula
   return informe;
 }
 
+/** Texto de la nota de una proforma de Sperant, con precios por unidad y cotitulares. */
+function textoProforma(b: Plano) {
+  const mon = b.currency === 'USD' ? 'US$' : 'S/';
+  const unidades = ((b.units as Plano[] | undefined) ?? [])
+    .map((u) => `${u.name ?? u.code}${u.sale_price != null ? ` ${mon} ${soles(u.sale_price)}` : ''}${u.discount ? ` (dto ${soles(u.discount)})` : ''}`)
+    .join(', ');
+  const total = soles(b.total_price);
+  const conDto = b.total_price_discount != null && Number(b.total_price_discount) !== Number(b.total_price) ? ` → con descuento ${mon} ${soles(b.total_price_discount)}` : '';
+  const titulares = ((b.titulars as Plano[] | undefined) ?? []);
+  const cotitulares = titulares.length > 1
+    ? ` · titulares: ${titulares.map((t) => `${[t.fname, t.lname].filter(Boolean).join(' ')}${t.document ? ` (doc ${t.document})` : ''}${t.percentage != null ? ` ${t.percentage}%` : ''}`).join('; ')}`
+    : '';
+  const tope = b.can_discount ? ` · descuento autorizado hasta ${mon} ${soles(b.can_discount)}` : '';
+  return `Proforma en Sperant ${b.code ?? b.id} del ${fechaCorta(fecha(b.created_at))}: ${unidades || 'sin unidades'} · total ${mon} ${total}${conDto} · ${b.funding_type ?? ''}${b.expire_date ? ` · vence ${fechaCorta(fecha(b.expire_date))}` : ''}${tope}${cotitulares}`;
+}
+
 async function notasProformas(leadId: string, proformas: Plano[]) {
   for (const b of proformas) {
-    const unidades = ((b.units as Plano[] | undefined) ?? []).map((u) => `${u.name ?? u.code}${u.discount ? ` (dto ${soles(u.discount)})` : ''}`).join(', ');
-    const total = soles(b.total_price);
-    const conDto = b.total_price_discount != null && Number(b.total_price_discount) !== Number(b.total_price) ? ` → con descuento ${b.currency === 'USD' ? 'US$' : 'S/'} ${soles(b.total_price_discount)}` : '';
     await prisma.activity.create({
       data: {
         leadId,
         type: 'nota',
-        body: `Proforma en Sperant ${b.code ?? b.id} del ${fechaCorta(fecha(b.created_at))}: ${unidades || 'sin unidades'} · ${b.currency === 'USD' ? 'US$' : 'S/'} ${total}${conDto} · ${b.funding_type ?? ''}${b.expire_date ? ` · vence ${fechaCorta(fecha(b.expire_date))}` : ''}`,
-        meta: { sperant_budget_id: b.id, sperant_budget_code: b.code } as never,
+        body: textoProforma(b),
+        meta: { sperant_budget_id: b.id, sperant_budget_code: b.code, sperant_budget: b } as never,
         createdAt: fecha(b.created_at) ?? new Date(),
       },
     });
   }
+}
+
+export interface InformeCompletar {
+  simulacion: boolean;
+  leadsRevisados: number;
+  leadsCompletados: number;
+  fusionesCompletadas: number;
+  documentosFalsosLimpiados: number;
+  proformasCompletadas: number;
+  sinLeadEnCrm: number;
+}
+
+/**
+ * Completa los leads YA importados con la ficha completa de Sperant.
+ *
+ * La primera versión del importador guardaba solo lo que el CRM tiene como campo (nombre,
+ * teléfono, etapa…) y se perdía el resto: género, estado civil, ubicación, pareja, teléfono
+ * principal, campos extra, interacciones manuales y digitales, cotitulares de las proformas.
+ * Esto lo agrega dentro de `attribution.sperant` sin tocar nada de lo que el equipo ya editó
+ * en el CRM (etapa, asesor, datos de contacto). Además quita los documentos `auto-…` que
+ * Sperant pone cuando no hay DNI, solo si el contacto sigue teniendo exactamente ese valor.
+ *
+ * Idempotente: correrlo dos veces no cambia nada la segunda.
+ */
+export async function completarDatos(organizationId: string, simulacion: boolean): Promise<InformeCompletar> {
+  const d = leerDatos(organizationId);
+  if (!d) throw new Error('No hay datos exportados');
+  const informe: InformeCompletar = { simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0 };
+  const porId = new Map(unir(d).map((l) => [l.id, l]));
+
+  const leads = await prisma.lead.findMany({
+    where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
+    select: { id: true, attribution: true, contact: { select: { id: true, document: true } } },
+  });
+  const vistos = new Set<number>();
+  for (const lead of leads) {
+    informe.leadsRevisados++;
+    const attr = (lead.attribution ?? {}) as Record<string, unknown> & {
+      sperant?: Record<string, unknown> & { client_id?: number };
+      sperant_fusiones?: number[];
+      sperant_fusiones_datos?: Record<string, unknown>;
+    };
+    const cid = Number(attr.sperant?.client_id);
+    const l = porId.get(cid);
+    if (!l) continue;
+    vistos.add(cid);
+    let nueva = attr;
+    if (!attr.sperant?.cliente) {
+      nueva = { ...nueva, sperant: { ...attr.sperant, ...l.crudo } };
+      informe.leadsCompletados++;
+    }
+    const faltan = (attr.sperant_fusiones ?? []).filter((f) => porId.has(Number(f)) && !attr.sperant_fusiones_datos?.[f]);
+    if (faltan.length) {
+      nueva = {
+        ...nueva,
+        sperant_fusiones_datos: { ...(attr.sperant_fusiones_datos ?? {}), ...Object.fromEntries(faltan.map((f) => [f, porId.get(Number(f))!.crudo])) },
+      };
+      informe.fusionesCompletadas += faltan.length;
+    }
+    for (const f of attr.sperant_fusiones ?? []) vistos.add(Number(f));
+    if (!simulacion && nueva !== attr) {
+      await prisma.lead.update({ where: { id: lead.id }, data: { attribution: nueva as never } });
+    }
+    const falso = l.document && !docReal(l.document) ? normalizeDocument(l.document) : null;
+    if (falso && lead.contact.document === falso) {
+      informe.documentosFalsosLimpiados++;
+      if (!simulacion) await prisma.contact.update({ where: { id: lead.contact.id }, data: { document: null } });
+    }
+  }
+  informe.sinLeadEnCrm = [...porId.keys()].filter((k) => !vistos.has(k)).length;
+
+  // Proformas: las notas ya creadas reciben la proforma completa y los cotitulares.
+  const presupuestos = new Map(d.budgets.map((b) => [String(b.id), b]));
+  const notas = await prisma.activity.findMany({
+    where: { lead: { organizationId }, type: 'nota', meta: { path: '$.sperant_budget_id', not: Prisma.AnyNull } },
+    select: { id: true, meta: true },
+  });
+  for (const n of notas) {
+    const meta = (n.meta ?? {}) as Record<string, unknown>;
+    if (meta.sperant_budget) continue;
+    const b = presupuestos.get(String(meta.sperant_budget_id));
+    if (!b) continue;
+    informe.proformasCompletadas++;
+    if (!simulacion) {
+      await prisma.activity.update({ where: { id: n.id }, data: { body: textoProforma(b), meta: { ...meta, sperant_budget: b } as never } });
+    }
+  }
+  return informe;
 }
 
 /** Arranca la importación real en segundo plano. */

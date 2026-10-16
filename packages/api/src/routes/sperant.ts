@@ -12,6 +12,7 @@ import { audit, requirePermiso } from '../lib/auth.js';
 import { cifrar, pista } from '../lib/secretos.js';
 import {
   borrarDatos,
+  completarDatos,
   hayDatos,
   importar,
   iniciarExportacion,
@@ -106,6 +107,22 @@ export default async function sperantRoutes(app: FastifyInstance) {
       await iniciarImportacion(org, m);
       await audit(org, req.user!.id, 'sperant.importar', { meta: { crmProjectId: m.crmProjectId } });
       return reply.code(202).send({ ok: true });
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Completa los leads ya importados con la ficha completa de Sperant (simular o aplicar). */
+  app.post('/completar', { preHandler: guardia }, async (req, reply) => {
+    const parsed = z.object({ simulacion: z.boolean() }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
+    const org = req.user!.organizationId;
+    if (!hayDatos(org)) return reply.code(409).send({ error: 'Primero hay que exportar' });
+    if (tareaEnCurso(org)) return reply.code(409).send({ error: 'Ya hay una tarea en curso' });
+    try {
+      const informe = await completarDatos(org, parsed.data.simulacion);
+      if (!parsed.data.simulacion) await audit(org, req.user!.id, 'sperant.completar', { meta: informe });
+      return informe;
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
     }

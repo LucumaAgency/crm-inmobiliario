@@ -331,6 +331,7 @@ export default function MigracionSperant() {
           {(informe ?? d.estado.importe) && <ResultadoImporte informe={(informe ?? d.estado.importe)!} />}
         </div>
       )}
+      {d.estado.hayDatos && <CompletarDatos ocupado={enCurso} />}
     </>
   );
 }
@@ -412,6 +413,68 @@ function Comparativa({ diferencias, aprobadas, onCambio }: { diferencias: Difere
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+interface InformeCompletar {
+  simulacion: boolean;
+  leadsRevisados: number;
+  leadsCompletados: number;
+  fusionesCompletadas: number;
+  documentosFalsosLimpiados: number;
+  proformasCompletadas: number;
+  sinLeadEnCrm: number;
+}
+
+/**
+ * Para leads importados antes de que se guardara la ficha completa de Sperant: agrega lo
+ * que faltaba (género, estado civil, ubicación, pareja, campos extra, cotitulares…) sin
+ * tocar lo que el equipo ya editó en el CRM.
+ */
+function CompletarDatos({ ocupado }: { ocupado: boolean }) {
+  const [informe, setInforme] = useState<InformeCompletar | null>(null);
+  const correr = useMutation({
+    mutationFn: (simulacion: boolean) => api.post<InformeCompletar>('/sperant/completar', { simulacion }),
+    onSuccess: setInforme,
+  });
+  return (
+    <div className="card">
+      <strong>Completar datos de leads ya importados</strong>
+      <p className="meta" style={{ marginTop: 6 }}>
+        Guarda en cada lead importado la ficha completa de Sperant: género, estado civil, ubicación, pareja o
+        cónyuge, teléfono principal, campos extra, interacciones y los cotitulares y precios de sus proformas.
+        Se ve en la ficha del lead, en «Datos de Sperant». No cambia etapa, asesor ni datos que hayan editado en el
+        CRM. Además quita los documentos falsos «auto-…» que Sperant pone cuando no hay DNI. Se puede correr
+        varias veces.
+      </p>
+      <div className="acciones">
+        <button type="button" className="btn btn-sec" disabled={ocupado || correr.isPending} onClick={() => correr.mutate(true)}>
+          {correr.isPending && correr.variables ? 'Revisando…' : 'Simular'}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={ocupado || correr.isPending || !informe?.simulacion}
+          onClick={() => correr.mutate(false)}
+        >
+          {correr.isPending && !correr.variables ? 'Completando…' : 'Completar'}
+        </button>
+      </div>
+      {correr.isError && <p className="error">{(correr.error as Error).message}</p>}
+      {informe && (
+        <table className="tabla-compacta" style={{ marginTop: 8 }}>
+          <tbody>
+            <tr><td colSpan={2}><strong>{informe.simulacion ? 'Simulación (no se escribió nada)' : 'Hecho'}</strong></td></tr>
+            <tr><td>Leads de Sperant en el CRM</td><td>{informe.leadsRevisados}</td></tr>
+            <tr><td>Leads {informe.simulacion ? 'a completar' : 'completados'} con la ficha</td><td>{informe.leadsCompletados}</td></tr>
+            <tr><td>Registros duplicados de Sperant {informe.simulacion ? 'a guardar' : 'guardados'} en su lead</td><td>{informe.fusionesCompletadas}</td></tr>
+            <tr><td>Documentos «auto-…» {informe.simulacion ? 'a quitar' : 'quitados'}</td><td>{informe.documentosFalsosLimpiados}</td></tr>
+            <tr><td>Notas de proforma {informe.simulacion ? 'a completar' : 'completadas'}</td><td>{informe.proformasCompletadas}</td></tr>
+            <tr><td>Clientes del export sin lead en el CRM (omitidos o borrados)</td><td>{informe.sinLeadEnCrm}</td></tr>
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

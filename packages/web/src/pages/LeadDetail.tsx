@@ -11,6 +11,7 @@ import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js'
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import BorrarLeads from '../components/BorrarLeads.js';
 import EditarDatosLead from '../components/EditarDatosLead.js';
+import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
 import type { ApiError } from '../lib/api.js';
 import { usePuede } from '../lib/permisos.js';
@@ -26,6 +27,7 @@ interface Detalle {
   interestLevel: number | null;
   lostReason: string | null;
   attribution: Record<string, unknown> | null;
+  sperantPareja?: { id: string; nombre: string } | null;
   contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null };
   project: { id: string; name: string } | null;
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
@@ -468,6 +470,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           ))}
         </div>
       </div>
+      <DatosSperant attribution={lead.attribution} pareja={lead.sperantPareja} />
     </>
   );
 }
