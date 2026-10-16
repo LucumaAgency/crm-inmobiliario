@@ -16,6 +16,7 @@ import { z } from 'zod';
 import {
   enviarPlantilla,
   enviarTexto,
+  interpretar,
   ventanaAbierta,
 } from '../services/whatsapp.js';
 
@@ -528,8 +529,16 @@ export default async function leadRoutes(app: FastifyInstance) {
       await prisma.waConversation.update({ where: { id: conversacion.id }, data: { unread: 0 } });
     }
 
+    // Mensajes guardados antes de que el CRM supiera leer reacciones, contactos o los
+    // «no soportados» de Meta: se reinterpretan desde el aviso original al mostrarlos.
+    const mensajes = conversacion.messages.map((m) => {
+      if (m.body || m.type !== 'unsupported' || !m.raw || m.direction !== 'entrante') return m;
+      const r = interpretar(m.raw as never);
+      return { ...m, body: r.texto ?? null, type: r.tipo };
+    });
+
     return {
-      conversacion: { ...conversacion, unread: 0 },
+      conversacion: { ...conversacion, messages: mensajes, unread: 0 },
       ventanaAbierta: ventanaAbierta(conversacion),
     };
   });

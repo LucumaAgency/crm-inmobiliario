@@ -296,6 +296,8 @@ function Contenido({ m }: { m: Mensaje }) {
       return texto ?? <span className="meta">[{TIPO_ES[m.type] ?? m.type}]</span>;
     }
     if (m.type === 'document' && m.direction === 'saliente') return texto ?? <span className="meta">[documento]</span>;
+    // Lo que WhatsApp no entrega a la API: el texto ya explica qué fue.
+    if (m.type === 'unsupported' && texto) return <span className="meta">{texto}</span>;
     return (
       <span>
         {texto}

@@ -60,6 +60,16 @@ interface MensajeEntrante {
   video?: { id?: string; mime_type?: string; caption?: string };
   sticker?: { id?: string; mime_type?: string; animated?: boolean };
   location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  /** Tarjeta de contacto compartida. */
+  contacts?: { name?: { formatted_name?: string }; phones?: { phone?: string; wa_id?: string }[] }[];
+  /** Reacción con un emoji a un mensaje anterior. */
+  reaction?: { message_id?: string; emoji?: string };
+  /** Pedido desde el catálogo de WhatsApp. */
+  order?: { product_items?: { product_retailer_id?: string; quantity?: number }[]; text?: string };
+  /** Aviso del sistema (p. ej. el cliente cambió de número). */
+  system?: { body?: string; type?: string };
+  /** Meta manda `type: unsupported` con el motivo aquí (ver una vez, encuestas, eventos...). */
+  errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[];
   /** Solo en los chats abiertos desde un anuncio Click-to-WhatsApp. */
   referral?: {
     source_url?: string;
@@ -786,7 +796,7 @@ async function guardarAvisoCrudo(
 }
 
 /** Texto y tipo de un mensaje entrante. Lo que no es texto se anota, no se descarga. */
-function interpretar(m: MensajeEntrante): {
+export function interpretar(m: MensajeEntrante): {
   texto: string | undefined;
   tipo: string;
   media: Record<string, unknown> | null;
@@ -823,9 +833,40 @@ function interpretar(m: MensajeEntrante): {
         tipo,
         media: { lat: m.location?.latitude, lng: m.location?.longitude },
       };
+    case 'contacts': {
+      const c = m.contacts?.[0];
+      const tel = c?.phones?.[0]?.phone ?? c?.phones?.[0]?.wa_id;
+      const otros = (m.contacts?.length ?? 0) > 1 ? ` y ${m.contacts!.length - 1} más` : '';
+      return { texto: `👤 Contacto compartido: ${c?.name?.formatted_name ?? 'sin nombre'}${tel ? ` · ${tel}` : ''}${otros}`, tipo: 'text', media: { original: 'contacts' } };
+    }
+    case 'reaction':
+      // Una reacción vacía es «quitó la reacción».
+      return { texto: m.reaction?.emoji ? `Reaccionó ${m.reaction.emoji} a un mensaje` : 'Quitó su reacción a un mensaje', tipo: 'text', media: { original: 'reaction' } };
+    case 'order':
+      return {
+        texto: `🛒 Pedido del catálogo: ${(m.order?.product_items ?? []).map((x) => `${x.quantity ?? 1} × ${x.product_retailer_id ?? '?'}`).join(', ') || 'sin productos'}${m.order?.text ? ` · ${m.order.text}` : ''}`,
+        tipo: 'text',
+        media: { original: 'order' },
+      };
+    case 'system':
+      return { texto: `ℹ️ ${m.system?.body ?? 'Aviso de WhatsApp'}`, tipo: 'text', media: { original: 'system' } };
+    case 'unsupported': {
+      /**
+       * Meta no entrega a la API algunos tipos: fotos o videos de «ver una vez», encuestas,
+       * eventos, mensajes editados o borrados, publicaciones de canales. Llega solo el aviso
+       * con un código (131051, «Message type unknown»). El contenido no existe del lado del
+       * CRM: solo se ve en el teléfono del cliente o en la app de WhatsApp Business.
+       */
+      const e = m.errors?.[0];
+      const detalle = e?.error_data?.details ?? e?.message ?? e?.title;
+      return {
+        texto: `Mensaje que WhatsApp no entrega a sistemas externos (por ejemplo, una foto de «ver una vez», una encuesta, un evento o un mensaje editado).${detalle ? ` Motivo de Meta: ${detalle}` : ''}`,
+        tipo: 'unsupported',
+        media: { original: 'unsupported', codigo: e?.code ?? null },
+      };
+    }
     default:
-      // Contacto, reacción... El asesor ve que llegó algo y lo abre en el móvil.
-      return { texto: undefined, tipo: 'unsupported', media: null };
+      return { texto: `Llegó un mensaje de tipo «${tipo}» que el CRM todavía no muestra.`, tipo: 'unsupported', media: { original: tipo } };
   }
 }
 

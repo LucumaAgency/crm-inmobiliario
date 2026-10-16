@@ -164,6 +164,19 @@ export default async function diagnosticoRoutes(app: FastifyInstance) {
     });
     const est = leerEstado(o);
 
+    // WhatsApp: qué números tiene ESTA organización y qué tipos de mensaje llegan. De los
+    // «no soportados» va el tipo original y el código de Meta, nunca el contenido.
+    const [numeros, tiposMensaje, raros] = await Promise.all([
+      prisma.waNumber.findMany({ where: { organizationId: o }, select: { id: true, displayNumber: true, phoneNumberId: true, active: true, projectId: true, createdAt: true } }),
+      prisma.waMessage.groupBy({ by: ['direction', 'type'], where: { conversation: { organizationId: o } }, _count: { _all: true } }),
+      prisma.waMessage.findMany({
+        where: { conversation: { organizationId: o }, type: 'unsupported' },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: { id: true, createdAt: true, body: true, raw: true, conversation: { select: { waNumber: { select: { displayNumber: true } } } } },
+      }),
+    ]);
+
     return {
       generadoEl: new Date().toISOString(),
       organizacion: { slug: org.slug, nombre: org.name, vertical: (org as { vertical?: string }).vertical ?? null },
@@ -211,6 +224,22 @@ export default async function diagnosticoRoutes(app: FastifyInstance) {
       proformasCrm: proformas,
       notasDeProformaSperant: notasProforma,
       conversacionesWhatsApp: conversaciones,
+      whatsapp: {
+        numeros: numeros.map((n) => ({ ...n, proyecto: n.projectId ? nombreProyecto.get(n.projectId) ?? null : null })),
+        mensajesPorTipo: tiposMensaje.map((t) => ({ direccion: t.direction, tipo: t.type, n: t._count._all })),
+        noSoportadosRecientes: raros.map((m) => {
+          const raw = (m.raw ?? {}) as { type?: string; errors?: { code?: number; title?: string; error_data?: { details?: string } }[] };
+          return {
+            id: m.id,
+            el: m.createdAt,
+            numero: m.conversation.waNumber?.displayNumber ?? null,
+            tipoOriginal: raw.type ?? null,
+            codigoMeta: raw.errors?.[0]?.code ?? null,
+            motivoMeta: raw.errors?.[0]?.error_data?.details ?? raw.errors?.[0]?.title ?? null,
+            tieneTexto: !!m.body,
+          };
+        }),
+      },
       sperant: {
         fase: est.fase,
         mapaProyectos: est.mapaProyectos ?? null,
