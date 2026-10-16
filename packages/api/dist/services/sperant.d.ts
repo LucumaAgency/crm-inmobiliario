@@ -15,6 +15,12 @@ export interface DatosExport {
     proyectos: Record<string, Plano[]>;
     /** /v3/budgets con titulares y unidades. */
     budgets: Plano[];
+    /** /v3/projects/{id}: ubicación, construcción, garantías, redes. Desde 2026-10-16. */
+    proyectoDetalle?: Plano | null;
+    /** /v3/projects/{id}/images (renders del proyecto). */
+    proyectoImagenes?: Plano[];
+    /** /v3/units/{id} por id: piso, áreas techada/libre, vista, dormitorios, fechas. */
+    unidadesDetalle?: Record<string, Plano>;
 }
 export type Fase = 'sin_token' | 'listo' | 'exportando' | 'exportado' | 'importando' | 'importado' | 'error';
 export interface Estado {
@@ -232,6 +238,17 @@ export interface InformeCompletar {
         notasProformaExistentes: number;
         /** Proformas del export que no tenían nota en el lead (importación sin proformas). */
         notasProformaACrear: number;
+    };
+    inventario: {
+        /** La exportación es anterior al detalle de unidades: hay que exportar de nuevo. */
+        faltaExportarDetalle: boolean;
+        proyecto: string | null;
+        unidadesCompletadas: number;
+        unidadesSinParejaEnCrm: string[];
+        tipologiasCompletadas: number;
+        imagenesCopiadas: number;
+        imagenesConError: number;
+        direccionCompletada: boolean;
     };
 }
 /**

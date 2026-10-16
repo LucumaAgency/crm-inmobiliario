@@ -26,6 +26,7 @@ import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
 import { logError, logLine } from '../lib/log.js';
 import { privadosDir } from '../lib/privados.js';
+import { guardar as guardarMedia } from '../lib/media.js';
 import { descifrar } from '../lib/secretos.js';
 import { upsertContacto } from './capture.js';
 const BASE = 'https://api.sperant.com';
@@ -226,6 +227,13 @@ async function exportar(organizationId, tok, sperantProjectId) {
     if (pid) {
         d.types = await todas(tok, `/v3/projects/${pid}/types`);
         d.units = await todas(tok, `/v3/projects/${pid}/units`);
+        // El listado de unidades trae pocas columnas; el detalle de cada una (23 en Domus) trae
+        // piso, áreas, vista, dormitorios y baños. Barato, se rehace siempre.
+        d.proyectoDetalle = plano((await get(tok, `/v3/projects/${pid}`)).data);
+        d.proyectoImagenes = await todas(tok, `/v3/projects/${pid}/images`);
+        d.unidadesDetalle = {};
+        for (const u of d.units)
+            d.unidadesDetalle[String(u.id)] = plano((await get(tok, `/v3/units/${u.id}`)).data);
     }
     guardarDatos(organizationId, d);
     // 2) Listado de clientes: siempre completo, para detectar los nuevos desde la última vez.
@@ -839,6 +847,7 @@ export async function completarDatos(organizationId, simulacion) {
         throw new Error('No hay datos exportados');
     const informe = {
         simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0,
+        inventario: { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false },
         diagnostico: { clientesEnExport: 0, sinDetalleEnExport: 0, documentosAutoEnExport: 0, documentoAutoContactoSinDocumento: 0, documentoAutoContactoConOtro: 0, proformasEnExport: d.budgets.length, notasProformaExistentes: 0, notasProformaACrear: 0 },
     };
     const todos = unir(d);
@@ -929,7 +938,130 @@ export async function completarDatos(organizationId, simulacion) {
             await prisma.activity.update({ where: { id: n.id }, data: { body: textoProforma(b), meta: { ...meta, sperant_budget: b } } });
         }
     }
+    // Inventario: el proyecto del CRM es el de los leads importados.
+    const grupos = await prisma.lead.groupBy({
+        by: ['projectId'],
+        where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull }, projectId: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { projectId: 'desc' } },
+    });
+    const projectId = grupos[0]?.projectId;
+    if (projectId)
+        await completarInventario(organizationId, projectId, d, simulacion, informe.inventario);
     return informe;
+}
+/** ¿Es un archivo de Sperant? Cuando Bastión deje Sperant, esas URLs pueden dejar de existir. */
+const deSperant = (url) => !!url && /sperant\.s3\.amazonaws\.com|sperant\.com\//i.test(url);
+/** Descarga una imagen de Sperant y la guarda en `uploads/` del CRM. Devuelve la ruta relativa. */
+async function copiarImagen(organizationId, url) {
+    try {
+        const r = await fetch(url);
+        if (!r.ok)
+            return null;
+        const mime = (r.headers.get('content-type') ?? '').split(';')[0].trim();
+        const g = await guardarMedia(organizationId, Buffer.from(await r.arrayBuffer()), mime);
+        return 'ruta' in g ? g.ruta : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * Completa unidades, tipologías y proyecto con lo que el listado no traía.
+ *
+ * Solo rellena lo vacío en columnas propias (piso, dormitorios, baños, dirección) y agrega
+ * el resto en `unit.extra.sperant` (vista, área techada y libre, estado de obra, unidad a la
+ * que pertenece, fechas de separación/venta/entrega). No toca precio ni estado: eso pasa por
+ * la comparativa con aprobación de la importación. Copia al CRM las imágenes que estaban en
+ * los servidores de Sperant.
+ */
+async function completarInventario(organizationId, projectId, d, simulacion, inf) {
+    const proyecto = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!proyecto)
+        return;
+    inf.proyecto = proyecto.name;
+    if (!d.unidadesDetalle) {
+        inf.faltaExportarDetalle = true;
+        return;
+    }
+    const unidades = await prisma.unit.findMany({ where: { projectId } });
+    const porCodigo = new Map(unidades.map((u) => [u.code, u]));
+    const codigoPorIdSp = new Map(d.units.map((u) => [String(u.id), String(u.name ?? u.code ?? '').trim()]));
+    const entero = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
+    const fechaIso = (v) => fecha(v)?.toISOString() ?? null;
+    for (const u of d.units) {
+        const code = String(u.name ?? u.code ?? '').trim();
+        const det = d.unidadesDetalle[String(u.id)] ?? {};
+        const crm = porCodigo.get(code);
+        if (!crm) {
+            inf.unidadesSinParejaEnCrm.push(code);
+            continue;
+        }
+        const extraActual = (crm.extra ?? {});
+        if (extraActual.sperant?.detalle)
+            continue;
+        const ex = (det.extra_fields ?? {});
+        const obra = (det.construction ?? {});
+        const sperant = {
+            unit_id: u.id,
+            code: u.code,
+            vista: ex.vista || null,
+            area_techada: obra.built_area ?? null,
+            area_libre: obra.free_area ?? null,
+            area_total: obra.total_area ?? u.total_area ?? null,
+            estado_obra: obra.status ?? null,
+            pertenece_a: det.parent_unit_id ? codigoPorIdSp.get(String(det.parent_unit_id)) ?? `#${det.parent_unit_id}` : null,
+            separada_el: fechaIso(det.separation_at),
+            vendida_el: fechaIso(det.sold_at),
+            entregada_el: fechaIso(det.handing_at),
+            precio_venta: det.sale_price || null,
+            estado_comercial: det.commercial_status ?? u.commercial_status ?? null,
+            detalle: det,
+        };
+        inf.unidadesCompletadas++;
+        if (!simulacion) {
+            await prisma.unit.update({
+                where: { id: crm.id },
+                data: {
+                    floor: crm.floor ?? entero(det.floor),
+                    bedrooms: crm.bedrooms ?? entero(ex.dormitorios),
+                    bathrooms: crm.bathrooms ?? entero(ex.banos),
+                    extra: { ...extraActual, sperant_unit_id: u.id, sperant_code: u.code, sperant },
+                },
+            });
+        }
+    }
+    // Tipologías: imagen local en vez del enlace a Sperant.
+    const tipologias = await prisma.typology.findMany({ where: { projectId } });
+    for (const t of tipologias) {
+        if (!deSperant(t.imageUrl) && !deSperant(t.planUrl))
+            continue;
+        inf.tipologiasCompletadas++;
+        if (simulacion)
+            continue;
+        const datos = {};
+        for (const campo of ['imageUrl', 'planUrl']) {
+            const url = t[campo];
+            if (!deSperant(url))
+                continue;
+            const ruta = await copiarImagen(organizationId, url);
+            if (ruta) {
+                datos[campo] = ruta;
+                inf.imagenesCopiadas++;
+            }
+            else
+                inf.imagenesConError++;
+        }
+        if (Object.keys(datos).length)
+            await prisma.typology.update({ where: { id: t.id }, data: datos });
+    }
+    // Proyecto: dirección si falta.
+    const ub = ((d.proyectoDetalle ?? {}).ubication ?? {});
+    if (!proyecto.address && ub.address) {
+        inf.direccionCompletada = true;
+        if (!simulacion)
+            await prisma.project.update({ where: { id: projectId }, data: { address: String(ub.address) } });
+    }
 }
 /** Arranca la importación real en segundo plano. */
 export async function iniciarImportacion(organizationId, mapa) {
