@@ -491,8 +491,9 @@ interface InformeCompletar {
     unidadesDeOtroProyecto: string[];
     tipologiasDeOtroProyecto: string[];
     tipologiasAjenasEnUso: string[];
+    tipologiasEnlazadas: string[];
   }[];
-  reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[] };
+  reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[]; fechasCorregidas: number };
 }
 
 /**
@@ -542,10 +543,11 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             <tr><td>Clientes del export sin lead en el CRM (omitidos o borrados)</td><td>{informe.sinLeadEnCrm}</td></tr>
             <tr><td>Notas de proforma que faltaban y se {informe.simulacion ? 'crearían' : 'crearon'}</td><td>{informe.diagnostico.notasProformaACrear}</td></tr>
             <tr><td>Leads importados sin etapa ni asesor que se {informe.simulacion ? 'reparan' : 'repararon'} con el export actual</td><td>{informe.reparados.leads}</td></tr>
-            {informe.reparados.leads > 0 && (
+            <tr><td>Leads sin etapa (o en «(vacío)») que reciben su etapa de Sperant</td><td>{informe.reparados.conEtapa}</td></tr>
+            <tr><td>Leads con fecha de alta corregida (tenían la del día de la importación)</td><td>{informe.reparados.fechasCorregidas}</td></tr>
+            {(informe.reparados.conEtapa > 0 || informe.reparados.sinEtapaEnCrm.length > 0) && (
               <>
-                <tr><td>… de ellos, con etapa puesta (por nombre)</td><td>{informe.reparados.conEtapa}</td></tr>
-                <tr><td>… que pasan a perdidos (desestimados en Sperant)</td><td>{informe.reparados.perdidos}</td></tr>
+                <tr><td>… de ellos, pasan a perdidos (desestimados en Sperant)</td><td>{informe.reparados.perdidos}</td></tr>
                 {informe.reparados.sinEtapaEnCrm.length > 0 && (
                   <tr className="error"><td>Etapas de Sperant sin etapa con ese nombre en el CRM (quedan sin etapa)</td><td>{informe.reparados.sinEtapaEnCrm.join(', ')}</td></tr>
                 )}
@@ -574,6 +576,7 @@ function CompletarDatos({ ocupado }: { ocupado: boolean }) {
             ) : (
               <>
                 <tr><td>Unidades {informe.simulacion ? 'a completar' : 'completadas'} (piso, dormitorios, baños, vista, áreas)</td><td>{inv.unidadesCompletadas}</td></tr>
+                {inv.tipologiasEnlazadas.length > 0 && <tr><td>Unidades a las que se les enlaza su tipología</td><td>{inv.tipologiasEnlazadas.join(', ')}</td></tr>}
                 <tr><td>Unidades de Sperant que no están en el CRM</td><td>{inv.unidadesSinParejaEnCrm.join(', ') || '0'}</td></tr>
                 <tr><td>Tipologías con imágenes alojadas en Sperant {informe.simulacion ? '(se copiarán al CRM)' : ''}</td><td>{inv.tipologiasCompletadas}</td></tr>
                 {!informe.simulacion && <tr><td>Imágenes copiadas / con error</td><td>{inv.imagenesCopiadas} / {inv.imagenesConError}</td></tr>}

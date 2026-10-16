@@ -1119,7 +1119,7 @@ export interface InformeCompletar {
   inventarioDesconocido: boolean;
   inventarios: InfoInventario[];
   /** Leads importados sin etapa ni asesor (la exportación no trajo su proyecto) y que ahora se reparan. */
-  reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[] };
+  reparados: { leads: number; conEtapa: number; perdidos: number; sinEtapaEnCrm: string[]; fechasCorregidas: number };
 }
 
 export interface InfoInventario {
@@ -1140,6 +1140,8 @@ export interface InfoInventario {
     tipologiasDeOtroProyecto: string[];
     /** Tipologías ajenas que no se pueden quitar todavía (tienen unidades o interesados). */
     tipologiasAjenasEnUso: string[];
+    /** Unidades a las que se les enlazó su tipología (la tenían en Sperant y no en el CRM). */
+    tipologiasEnlazadas: string[];
 }
 
 /**
@@ -1161,7 +1163,7 @@ export async function completarDatos(organizationId: string, simulacion: boolean
     simulacion, leadsRevisados: 0, leadsCompletados: 0, fusionesCompletadas: 0, documentosFalsosLimpiados: 0, proformasCompletadas: 0, sinLeadEnCrm: 0,
     inventarioDesconocido: false,
     inventarios: [],
-    reparados: { leads: 0, conEtapa: 0, perdidos: 0, sinEtapaEnCrm: [] },
+    reparados: { leads: 0, conEtapa: 0, perdidos: 0, sinEtapaEnCrm: [], fechasCorregidas: 0 },
     diagnostico: { clientesEnExport: 0, sinDetalleEnExport: 0, documentosAutoEnExport: 0, documentoAutoContactoSinDocumento: 0, documentoAutoContactoConOtro: 0, proformasEnExport: d.budgets.length, notasProformaExistentes: 0, notasProformaACrear: 0 },
   };
   const registros = unir(d);
@@ -1185,12 +1187,15 @@ export async function completarDatos(organizationId: string, simulacion: boolean
     where: { organizationId, attribution: { path: '$.sperant', not: Prisma.AnyNull } },
     select: {
       id: true, attribution: true, stageId: true, interestLevel: true, source: true, firstContactAt: true, lostReason: true, createdAt: true, projectId: true,
-      contact: { select: { id: true, document: true } },
+      status: true, message: true, consent: true, lastActivityAt: true,
+      contact: { select: { id: true, document: true, createdAt: true } },
     },
   });
   const etapas = await prisma.stage.findMany({ where: { organizationId } });
   const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   const etapaPorNombre = (seg: string) => etapas.find((e) => sinTildes(e.name) === sinTildes(seg)) ?? null;
+  // Etapa que la importación creó para el segmento vacío: cuenta como «sin etapa».
+  const etapasVacias = new Set(etapas.filter((e) => /^\(?\s*(vac[ií]o|sin etapa)\s*\)?$/i.test(e.name.trim())).map((e) => e.id));
   const vistos = new Set<number>();
   for (const lead of leads) {
     informe.leadsRevisados++;
@@ -1230,23 +1235,59 @@ export async function completarDatos(organizationId: string, simulacion: boolean
           proyectos: l.crudo.proyectos,
         },
       };
-      if (!lead.stageId && l.segment) {
-        const e = etapaPorNombre(l.segment);
-        if (e) {
-          informe.reparados.conEtapa++;
-          datosLead.stageId = e.id;
-          datosLead.status = e.isLost ? 'perdido' : e.isWon ? 'ganado' : 'activo';
-          if (e.isLost) { informe.reparados.perdidos++; if (!lead.lostReason) datosLead.lostReason = l.reasonResign ?? 'Desestimado en Sperant'; }
-        } else if (!informe.reparados.sinEtapaEnCrm.includes(l.segment)) informe.reparados.sinEtapaEnCrm.push(l.segment);
-      }
-      if (lead.interestLevel == null && l.interest && INTERES[l.interest] != null) datosLead.interestLevel = INTERES[l.interest];
-      if (lead.source === 'import' && FUENTE[(l.channel ?? '').toLowerCase()]) datosLead.source = FUENTE[(l.channel ?? '').toLowerCase()];
-      if (!lead.firstContactAt && l.segment && l.segment.toLowerCase() !== 'nuevo') datosLead.firstContactAt = l.lastInteractionAt ?? lead.createdAt;
     } else if (attr.sperant?.cliente && !(attr.sperant as { proyectos?: unknown[] }).proyectos?.length && l.crudo.proyectos.length) {
       nueva = { ...nueva, sperant: { ...(nueva.sperant ?? {}), proyectos: l.crudo.proyectos } };
     }
+
+    /**
+     * Etapa vacía: sin etapa, o en la etapa «(vacío)» que la importación creó para los que
+     * llegaron sin proyecto (en Bastión, los 571). Se pone la de Sperant por nombre, con su
+     * estado, motivo, interés, fuente y primer contacto, solo donde siguen vacíos.
+     */
+    const etapaVacia = !lead.stageId || etapasVacias.has(lead.stageId);
+    if (etapaVacia && l.segment) {
+      const e = etapaPorNombre(l.segment);
+      if (e) {
+        informe.reparados.conEtapa++;
+        datosLead.stageId = e.id;
+        datosLead.status = e.isLost ? 'perdido' : e.isWon ? 'ganado' : 'activo';
+        if (e.isLost) { informe.reparados.perdidos++; if (!lead.lostReason) datosLead.lostReason = l.reasonResign ?? 'Desestimado en Sperant'; }
+      } else if (!informe.reparados.sinEtapaEnCrm.includes(l.segment)) informe.reparados.sinEtapaEnCrm.push(l.segment);
+      if (lead.interestLevel == null && l.interest && INTERES[l.interest] != null) datosLead.interestLevel = INTERES[l.interest];
+      if (lead.source === 'import' && FUENTE[(l.channel ?? '').toLowerCase()]) datosLead.source = FUENTE[(l.channel ?? '').toLowerCase()];
+      if (!lead.firstContactAt && l.segment.toLowerCase() !== 'nuevo') datosLead.firstContactAt = l.lastInteractionAt ?? l.createdAt ?? lead.createdAt;
+    }
+
+    /**
+     * Fecha de alta: los que entraron sin ficha de detalle quedaron con la fecha del día de la
+     * importación (en Bastión, 571 de febrero a mayo aparecían como de octubre). Si Sperant
+     * dice que el cliente es de más de dos días antes, se corrige la fecha del lead, del
+     * contacto y de su actividad «Importado de Sperant», y se completa lo que el listado no
+     * traía: mensaje (observación), motivo y consentimiento.
+     */
+    let fechaCorregida: Date | null = null;
+    if (l.createdAt && lead.createdAt.getTime() - l.createdAt.getTime() > 2 * 86400000) {
+      fechaCorregida = l.createdAt;
+      informe.reparados.fechasCorregidas++;
+      datosLead.createdAt = l.createdAt;
+      const ultima = l.lastInteractionAt ?? l.createdAt;
+      if (!lead.lastActivityAt || lead.lastActivityAt.getTime() >= lead.createdAt.getTime()) datosLead.lastActivityAt = ultima;
+      if (!lead.message && l.observation) datosLead.message = l.observation;
+      if (!lead.consent) datosLead.consent = { origen: 'sperant', email: l.emailConsent, publicidad: l.publicityConsent };
+      if ((datosLead.status ?? lead.status) === 'perdido' && !lead.lostReason && l.reasonResign) datosLead.lostReason = l.reasonResign;
+    }
+    if (!simulacion && fechaCorregida) {
+      if (lead.contact.createdAt.getTime() > fechaCorregida.getTime()) {
+        await prisma.contact.update({ where: { id: lead.contact.id }, data: { createdAt: fechaCorregida } });
+      }
+      await prisma.activity.updateMany({
+        where: { leadId: lead.id, type: 'sistema', meta: { path: '$.sperant_client_id', equals: cid } },
+        data: { createdAt: fechaCorregida },
+      });
+    }
+
     if (!simulacion && Object.keys(datosLead).length) {
-      await prisma.lead.update({ where: { id: lead.id }, data: datosLead });
+      await prisma.lead.update({ where: { id: lead.id }, data: datosLead as never });
       await prisma.activity.create({
         data: {
           leadId: lead.id,
@@ -1332,7 +1373,7 @@ export async function completarDatos(organizationId: string, simulacion: boolean
     }
     if (!projectId || usados.has(projectId)) continue;
     usados.add(projectId);
-    const info: InfoInventario = { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false, inventarioDe: inv.nombre, unidadesDeOtroProyecto: [], tipologiasDeOtroProyecto: [], tipologiasAjenasEnUso: [] };
+    const info: InfoInventario = { faltaExportarDetalle: false, proyecto: null, unidadesCompletadas: 0, unidadesSinParejaEnCrm: [], tipologiasCompletadas: 0, imagenesCopiadas: 0, imagenesConError: 0, direccionCompletada: false, inventarioDe: inv.nombre, unidadesDeOtroProyecto: [], tipologiasDeOtroProyecto: [], tipologiasAjenasEnUso: [], tipologiasEnlazadas: [] };
     informe.inventarios.push(info);
     const otros = [...invs.filter((x) => x.id !== inv.id).flatMap((x) => x.types.map((t) => String(t.name ?? '').trim())), ...(d.tiposOtrosProyectos ?? [])];
     await completarInventario(organizationId, projectId, inv, otros, simulacion, info);
@@ -1374,6 +1415,7 @@ async function completarInventario(organizationId: string, projectId: string, in
 
   const unidades = await prisma.unit.findMany({ where: { projectId } });
   const porCodigo = new Map(unidades.map((u) => [u.code, u]));
+  const tipPorNombre = new Map((await prisma.typology.findMany({ where: { projectId }, select: { id: true, name: true } })).map((t) => [t.name.trim().toLowerCase(), t.id]));
   const codigoPorIdSp = new Map(d.units.map((u) => [String(u.id), String(u.name ?? u.code ?? '').trim()]));
   const entero = (v: unknown) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
   const fechaIso = (v: unknown) => fecha(v)?.toISOString() ?? null;
@@ -1382,6 +1424,13 @@ async function completarInventario(organizationId: string, projectId: string, in
     const det = d.unidadesDetalle[String(u.id)] ?? {};
     const crm = porCodigo.get(code);
     if (!crm) { inf.unidadesSinParejaEnCrm.push(code); continue; }
+    // Unidad sin tipología enlazada y Sperant dice cuál es: se enlaza (completar, no cambiar).
+    // La comparativa de la importación compara el texto, no el enlace, y por eso se escapaba.
+    const tipSp = u.type ? tipPorNombre.get(String(u.type).trim().toLowerCase()) : undefined;
+    if (!crm.typologyId && tipSp) {
+      inf.tipologiasEnlazadas.push(code);
+      if (!simulacion) await prisma.unit.update({ where: { id: crm.id }, data: { typologyId: tipSp, typology: String(u.type) } });
+    }
     const extraActual = (crm.extra ?? {}) as Record<string, unknown>;
     const previo = extraActual.sperant as { detalle?: unknown; unit_id?: unknown } | undefined;
     // Si el detalle guardado es de OTRA unidad de Sperant (el inventario de Bordeaux que se
