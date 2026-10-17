@@ -28,8 +28,11 @@ marcado, no como un aviso (2026-10-01):
 | **2 · Un número de la empresa en el CRM** | Número comercial (anuncios, web, letrero) cuyos chats entran como leads y se reparten. Los asesores conservan su WhatsApp personal para lo demás. | Un número **que no esté en ningún celular**: un chip nuevo, o el corporativo actual aceptando que deja de verse en la app y que el historial no se traslada. |
 | **3 · Todo el WhatsApp desde el CRM** | Como la 2, pero el equipo deja la app por completo. | Pasar antes unos meses por la 2. |
 
-Lo que **no existe** en ninguna plataforma: que el asesor siga chateando desde su celular y
-el CRM vea esos chats. Meta no lo permite. Sperant tampoco lo tiene.
+~~Lo que **no existe** en ninguna plataforma: que el asesor siga chateando desde su celular y
+el CRM vea esos chats.~~ **Desactualizado (2026-10-17):** Meta lo permite desde 2025 con la
+**coexistencia** (app WhatsApp Business + Cloud API en el mismo número), y Kommo ya lo ofrece.
+Requiere ser Tech Provider y el alta incrustada. Qué pide y qué hay que construir:
+`docs/27-WHATSAPP-KOMMO-Y-COEXISTENCIA.md`. Sperant no lo tiene.
 
 Secuencia comercial: el cliente entra en la 1 sin fricción. Cuando ve que los leads de web y
 Facebook llegan solos, pregunta por WhatsApp, y la 2 se vende con el argumento de que el
