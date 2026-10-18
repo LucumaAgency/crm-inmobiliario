@@ -868,6 +868,8 @@ model ClienteServicio {
   currency          String       @default("PEN")
   /// true: `amount` ya incluye IGV. false: se le suma el 18 %.
   igvIncluido       Boolean      @default(false)
+  /// Sin comprobante con IGV (el cliente no pide factura): se cobra `amount` tal cual.
+  sinIgv            Boolean      @default(false)
   /// mensual | anual | unico | variable | comision. Mensual y anual generan sus cobros solos;
   /// comision cobra un porcentaje de cada venta que se registra a mano (alianza comercial).
   periodicidad      String       @default("mensual")

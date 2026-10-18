@@ -20,6 +20,7 @@ interface Servicio {
   amount: string;
   currency: string;
   igvIncluido: boolean;
+  sinIgv: boolean;
   periodicidad: 'mensual' | 'anual' | 'unico' | 'variable' | 'comision';
   comisionPct: string | null;
   diaPago: number | null;
@@ -80,6 +81,9 @@ interface Ingresos {
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const dinero = (n: number | string, mon = 'PEN') =>
   `${mon === 'USD' ? 'US$' : 'S/'} ${Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** El IGV de un monto en un solo desplegable: se suma, ya está incluido, o no hay (sin factura). */
+const modoIgv = (f: { igvIncluido: boolean; sinIgv: boolean }) => (f.sinIgv ? 'sin' : f.igvIncluido ? 'si' : 'no');
+const deModoIgv = (v: string) => ({ igvIncluido: v === 'si', sinIgv: v === 'sin' });
 const corto = (n: number) => `S/ ${Math.round(n).toLocaleString('es-PE')}`;
 const dia = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
 const nombreMes = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
@@ -97,6 +101,7 @@ interface Atajo {
   amount: string | number;
   currency: string;
   igvIncluido: boolean;
+  sinIgv: boolean;
   periodicidad: Servicio['periodicidad'];
   comisionPct: string | number | null;
   diaPago: number | null;
@@ -273,6 +278,7 @@ interface FormServicio {
   amount: string;
   currency: string;
   igvIncluido: boolean;
+  sinIgv: boolean;
   periodicidad: Servicio['periodicidad'];
   comisionPct: string;
   diaPago: string;
@@ -288,6 +294,7 @@ function aCuerpo(f: FormServicio) {
     amount: Number(f.amount.replace(',', '.')) || 0,
     currency: f.currency,
     igvIncluido: f.igvIncluido,
+    sinIgv: f.sinIgv,
     periodicidad: f.periodicidad,
     comisionPct: f.periodicidad === 'comision' ? Number(f.comisionPct.replace(',', '.')) || null : null,
     diaPago: f.diaPago ? Number(f.diaPago) : null,
@@ -320,6 +327,7 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
                 amount: Number(a.amount) ? String(Number(a.amount)) : a.periodicidad === 'comision' ? '0' : '',
                 currency: a.currency,
                 igvIncluido: a.igvIncluido,
+                sinIgv: a.sinIgv,
                 periodicidad: a.periodicidad,
                 comisionPct: a.comisionPct ? String(Number(a.comisionPct)) : '',
                 diaPago: a.diaPago ? String(a.diaPago) : '',
@@ -379,9 +387,10 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
         </div>
         <div>
           <label htmlFor={`${id}-igv`}>IGV</label>
-          <select id={`${id}-igv`} value={f.igvIncluido ? 'si' : 'no'} onChange={(e) => set({ ...f, igvIncluido: e.target.value === 'si' })}>
+          <select id={`${id}-igv`} value={modoIgv(f)} onChange={(e) => set({ ...f, ...deModoIgv(e.target.value) })}>
             <option value="no">+ IGV</option>
             <option value="si">IGV incluido</option>
+            <option value="sin">Sin IGV (sin factura)</option>
           </select>
         </div>
         <div>
@@ -433,6 +442,7 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
     amount: String(Number(s.amount)),
     currency: s.currency,
     igvIncluido: s.igvIncluido,
+    sinIgv: s.sinIgv,
     periodicidad: s.periodicidad,
     comisionPct: s.comisionPct ? String(Number(s.comisionPct)) : '',
     diaPago: s.diaPago ? String(s.diaPago) : '',
@@ -465,8 +475,8 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
           <br />
           <span className="meta">
             {s.periodicidad === 'comision'
-              ? `${Number(s.comisionPct ?? 0)} % de cada venta + IGV`
-              : `${dinero(s.amount, s.currency)} ${s.igvIncluido ? 'IGV incl.' : '+ IGV'} · ${PERIODICIDAD[s.periodicidad]}`}
+              ? `${Number(s.comisionPct ?? 0)} % de cada venta ${s.sinIgv ? 'sin IGV' : '+ IGV'}`
+              : `${dinero(s.amount, s.currency)} ${s.sinIgv ? 'sin IGV' : s.igvIncluido ? 'IGV incl.' : '+ IGV'} · ${PERIODICIDAD[s.periodicidad]}`}
             {s.periodicidad === 'mensual' && ` · paga el día ${s.diaPago ?? Number(s.inicio.slice(8, 10))}`}
             {s.periodicidad === 'anual' && ` · cada ${new Date(s.inicio.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-PE', { month: 'long', timeZone: 'UTC' })}`} · desde {dia(s.inicio)}
             {s.fin && ` · renueva ${dia(s.fin)}`}
@@ -539,7 +549,7 @@ function RegistrarVenta({ servicio: s, alTerminar }: { servicio: Servicio; alTer
         </div>
       </div>
       <p className="meta" style={{ marginTop: 6 }}>
-        Comisión: {dinero(comision, s.currency)} + IGV = {dinero(comision * 1.18, s.currency)}. Queda como cobro pendiente en Cobranza.
+        Comisión: {s.sinIgv ? `${dinero(comision, s.currency)} sin IGV` : `${dinero(comision, s.currency)} + IGV = ${dinero(comision * 1.18, s.currency)}`}. Queda como cobro pendiente en Cobranza.
       </p>
       <div className="acciones" style={{ marginTop: 8 }}>
         <button className="btn" disabled={registrar.isPending || !v.detalle.trim() || monto <= 0} onClick={() => registrar.mutate()}>
@@ -553,7 +563,7 @@ function RegistrarVenta({ servicio: s, alTerminar }: { servicio: Servicio; alTer
 
 function NuevoServicio({ clienteId }: { clienteId: string }) {
   const qc = useQueryClient();
-  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: 'PEN', igvIncluido: false, periodicidad: 'mensual', comisionPct: '', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
+  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: 'PEN', igvIncluido: false, sinIgv: false, periodicidad: 'mensual', comisionPct: '', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
   const [abierto, setAbierto] = useState(false);
   const [f, setF] = useState<FormServicio>(vacio);
   const crear = useMutation({
@@ -722,7 +732,7 @@ function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: 
               </div>
               {variable && (
                 <div style={{ width: 130 }}>
-                  <label htmlFor={`${c.id}-a`}>Monto final (+ IGV)</label>
+                  <label htmlFor={`${c.id}-a`}>Monto final ({Number(c.base) === Number(c.total) ? 'sin IGV' : '+ IGV'})</label>
                   <input id={`${c.id}-a`} inputMode="decimal" placeholder={String(Number(c.base))} value={monto} onChange={(e) => setMonto(e.target.value)} />
                 </div>
               )}
@@ -735,7 +745,7 @@ function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: 
                     pagadoEl: pago.pagadoEl,
                     medio: pago.medio.trim() || null,
                     comprobante: pago.comprobante.trim() || null,
-                    ...(variable && monto ? { amount: Number(monto.replace(',', '.')), igvIncluido: false } : {}),
+                    ...(variable && monto ? { amount: Number(monto.replace(',', '.')), igvIncluido: false, sinIgv: Number(c.base) === Number(c.total) } : {}),
                   })
                 }
               >
@@ -753,7 +763,7 @@ function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: 
 function NuevoCobro({ mes }: { mes: string }) {
   const qc = useQueryClient();
   const clientes = useQuery({ queryKey: ['clientes'], queryFn: () => api.get<Cliente[]>('/clientes') });
-  const vacio = { clienteId: '', servicioId: '', concepto: '', amount: '', igvIncluido: false, vence: `${mes}-${hoyIso().slice(8, 10)}` };
+  const vacio = { clienteId: '', servicioId: '', concepto: '', amount: '', igvIncluido: false, sinIgv: false, vence: `${mes}-${hoyIso().slice(8, 10)}` };
   const [abierto, setAbierto] = useState(false);
   const [f, setF] = useState(vacio);
   const cliente = clientes.data?.find((c) => c.id === f.clienteId);
@@ -766,6 +776,7 @@ function NuevoCobro({ mes }: { mes: string }) {
         concepto: f.concepto.trim(),
         amount: Number(f.amount.replace(',', '.')) || 0,
         igvIncluido: f.igvIncluido,
+        sinIgv: f.sinIgv,
         vence: f.vence,
       }),
     onSuccess: () => {
@@ -803,7 +814,7 @@ function NuevoCobro({ mes }: { mes: string }) {
               value={f.servicioId}
               onChange={(e) => {
                 const s = cliente.servicios.find((x) => x.id === e.target.value);
-                setF({ ...f, servicioId: e.target.value, concepto: f.concepto || s?.name || '', amount: f.amount || (s ? String(Number(s.amount)) : ''), igvIncluido: s?.igvIncluido ?? f.igvIncluido });
+                setF({ ...f, servicioId: e.target.value, concepto: f.concepto || s?.name || '', amount: f.amount || (s ? String(Number(s.amount)) : ''), igvIncluido: s?.igvIncluido ?? f.igvIncluido, sinIgv: s?.sinIgv ?? f.sinIgv });
               }}
             >
               <option value="">Ninguno (extra)</option>
@@ -825,9 +836,10 @@ function NuevoCobro({ mes }: { mes: string }) {
         </div>
         <div>
           <label htmlFor="nc-igv">IGV</label>
-          <select id="nc-igv" value={f.igvIncluido ? 'si' : 'no'} onChange={(e) => setF({ ...f, igvIncluido: e.target.value === 'si' })}>
+          <select id="nc-igv" value={modoIgv(f)} onChange={(e) => setF({ ...f, ...deModoIgv(e.target.value) })}>
             <option value="no">+ IGV</option>
             <option value="si">IGV incluido</option>
+            <option value="sin">Sin IGV</option>
           </select>
         </div>
         <div>

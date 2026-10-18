@@ -60,8 +60,9 @@ export function vencimiento(mes: string, dia: number): Date {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). */
-export function importes(amount: number, igvIncluido: boolean): { base: number; total: number } {
+/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). Sin IGV, son iguales. */
+export function importes(amount: number, igvIncluido: boolean, sinIgv = false): { base: number; total: number } {
+  if (sinIgv) return { base: r2(amount), total: r2(amount) };
   return igvIncluido ? { base: r2(amount / (1 + IGV)), total: r2(amount) } : { base: r2(amount), total: r2(amount * (1 + IGV)) };
 }
 
@@ -81,7 +82,7 @@ export async function generarCobros(organizationId: string, hasta: string): Prom
     // Anual: se cobra en el mes aniversario del inicio (el primero desde cobrarDesde).
     if (paso === 12) while (mes.slice(5) !== mesDe(s.inicio).slice(5)) mes = sumarMeses(mes, 1);
     const tope = s.fin && mesDe(s.fin) < hasta ? mesDe(s.fin) : hasta;
-    const { base, total } = importes(Number(s.amount), s.igvIncluido);
+    const { base, total } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
     const dia = s.diaPago ?? s.inicio.getUTCDate();
     for (let i = 0; mes <= tope && i < 120; i++, mes = sumarMeses(mes, paso)) {
       filas.push({
