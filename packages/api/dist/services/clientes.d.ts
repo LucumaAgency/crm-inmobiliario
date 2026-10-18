@@ -15,8 +15,8 @@ export declare function mesDe(d: Date): string;
 export declare function sumarMeses(mes: string, n: number): string;
 /** Vencimiento del cobro de un mes: el día de pago, sin pasar del último día del mes. */
 export declare function vencimiento(mes: string, dia: number): Date;
-/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). */
-export declare function importes(amount: number, igvIncluido: boolean): {
+/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). Sin IGV, son iguales. */
+export declare function importes(amount: number, igvIncluido: boolean, sinIgv?: boolean): {
     base: number;
     total: number;
 };

@@ -50,8 +50,10 @@ export function vencimiento(mes, dia) {
     return fecha(`${mes}-${String(Math.min(Math.max(dia, 1), ultimo)).padStart(2, '0')}`);
 }
 const r2 = (n) => Math.round(n * 100) / 100;
-/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). */
-export function importes(amount, igvIncluido) {
+/** Del monto pactado a base (ingreso) y total (lo que paga el cliente). Sin IGV, son iguales. */
+export function importes(amount, igvIncluido, sinIgv = false) {
+    if (sinIgv)
+        return { base: r2(amount), total: r2(amount) };
     return igvIncluido ? { base: r2(amount / (1 + IGV)), total: r2(amount) } : { base: r2(amount), total: r2(amount * (1 + IGV)) };
 }
 /**
@@ -72,7 +74,7 @@ export async function generarCobros(organizationId, hasta) {
             while (mes.slice(5) !== mesDe(s.inicio).slice(5))
                 mes = sumarMeses(mes, 1);
         const tope = s.fin && mesDe(s.fin) < hasta ? mesDe(s.fin) : hasta;
-        const { base, total } = importes(Number(s.amount), s.igvIncluido);
+        const { base, total } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
         const dia = s.diaPago ?? s.inicio.getUTCDate();
         for (let i = 0; mes <= tope && i < 120; i++, mes = sumarMeses(mes, paso)) {
             filas.push({

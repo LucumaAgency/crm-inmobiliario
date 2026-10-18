@@ -21,6 +21,7 @@ const datosServicio = z.object({
     amount: z.number().min(0).max(10_000_000),
     currency: z.enum(['PEN', 'USD']).default('PEN'),
     igvIncluido: z.boolean().default(false),
+    sinIgv: z.boolean().default(false),
     periodicidad: z.enum(PERIODICIDADES).default('mensual'),
     comisionPct: z.number().min(0).max(100).nullable().optional(),
     diaPago: z.number().int().min(1).max(31).nullable().optional(),
@@ -31,7 +32,7 @@ const datosServicio = z.object({
 });
 /** Lo que un servicio recurrente aporta al mes, sin IGV: el anual se reparte en 12. */
 function alMes(s) {
-    const { base } = importes(Number(s.amount), s.igvIncluido);
+    const { base } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
     return s.periodicidad === 'anual' ? base / 12 : base;
 }
 async function soloAgencia(req, reply) {
@@ -163,7 +164,7 @@ export default async function clientesRoutes(app) {
         const todos = await prisma.clienteServicio.findMany({
             where: { organizationId: org(req) },
             orderBy: { createdAt: 'desc' },
-            select: { name: true, projectId: true, amount: true, currency: true, igvIncluido: true, periodicidad: true, comisionPct: true, diaPago: true },
+            select: { name: true, projectId: true, amount: true, currency: true, igvIncluido: true, sinIgv: true, periodicidad: true, comisionPct: true, diaPago: true },
         });
         const conteo = new Map();
         for (const s of todos) {
@@ -180,12 +181,12 @@ export default async function clientesRoutes(app) {
             if (top.length >= 4 || top.some((t) => t.name.trim().toLowerCase() === p.name.toLowerCase()))
                 continue;
             const comision = p.slug === 'alianza-comercial';
-            top.push({ name: p.name, projectId: p.id, amount: 0, currency: 'PEN', igvIncluido: false, periodicidad: comision ? 'comision' : 'anual', comisionPct: null, diaPago: null });
+            top.push({ name: p.name, projectId: p.id, amount: 0, currency: 'PEN', igvIncluido: false, sinIgv: false, periodicidad: comision ? 'comision' : 'anual', comisionPct: null, diaPago: null });
         }
         return top;
     });
     async function cobroUnico(s) {
-        const { base, total } = importes(Number(s.amount), s.igvIncluido);
+        const { base, total } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
         await prisma.cobro.createMany({
             data: [{ organizationId: s.organizationId, clienteId: s.clienteId, servicioId: s.id, periodo: mesDe(s.inicio), concepto: s.name, base, total, currency: s.currency, vence: s.inicio }],
             skipDuplicates: true,
@@ -242,8 +243,8 @@ export default async function clientesRoutes(app) {
             },
         });
         const desde = mesActual();
-        if (resto.amount !== undefined || resto.igvIncluido !== undefined || resto.name !== undefined || resto.diaPago !== undefined) {
-            const { base, total } = importes(Number(s.amount), s.igvIncluido);
+        if (resto.amount !== undefined || resto.igvIncluido !== undefined || resto.sinIgv !== undefined || resto.name !== undefined || resto.diaPago !== undefined) {
+            const { base, total } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
             const pendientes = await prisma.cobro.findMany({ where: { servicioId: s.id, estado: 'pendiente', periodo: { gte: desde } } });
             for (const c of pendientes) {
                 await prisma.cobro.update({
@@ -319,6 +320,7 @@ export default async function clientesRoutes(app) {
             concepto: z.string().trim().min(1).max(191),
             amount: z.number().min(0).max(10_000_000),
             igvIncluido: z.boolean().default(false),
+            sinIgv: z.boolean().default(false),
             currency: z.enum(['PEN', 'USD']).default('PEN'),
             vence: z.string().regex(DIA),
             notes: z.string().max(5000).nullable().optional(),
@@ -340,7 +342,7 @@ export default async function clientesRoutes(app) {
         if (servicioId && (await prisma.cobro.findFirst({ where: { servicioId, periodo: p.data.periodo }, select: { id: true } }))) {
             return reply.code(409).send({ error: 'Ese servicio ya tiene un cobro en ese mes. Edítalo.' });
         }
-        const { base, total } = importes(p.data.amount, p.data.igvIncluido);
+        const { base, total } = importes(p.data.amount, p.data.igvIncluido, p.data.sinIgv);
         const c = await prisma.cobro.create({
             data: {
                 organizationId: org(req),
@@ -378,7 +380,7 @@ export default async function clientesRoutes(app) {
         if (!s)
             return reply.code(404).send({ error: 'Alianza no encontrada' });
         const pct = Number(s.comisionPct ?? 0);
-        const { base, total } = importes((p.data.monto * pct) / 100, false);
+        const { base, total } = importes((p.data.monto * pct) / 100, false, s.sinIgv);
         const mon = s.currency === 'USD' ? 'US$' : 'S/';
         const c = await prisma.cobro.create({
             data: {
@@ -408,6 +410,7 @@ export default async function clientesRoutes(app) {
             concepto: z.string().trim().min(1).max(191).optional(),
             amount: z.number().min(0).max(10_000_000).optional(),
             igvIncluido: z.boolean().optional(),
+            sinIgv: z.boolean().optional(),
             vence: z.string().regex(DIA).optional(),
         })
             .safeParse(req.body);
@@ -416,10 +419,10 @@ export default async function clientesRoutes(app) {
         const c = await prisma.cobro.findFirst({ where: { id: req.params.id, organizationId: org(req) } });
         if (!c)
             return reply.code(404).send({ error: 'Cobro no encontrado' });
-        const { amount, igvIncluido, pagadoEl, vence, ...resto } = p.data;
+        const { amount, igvIncluido, sinIgv, pagadoEl, vence, ...resto } = p.data;
         const data = { ...resto };
         if (amount !== undefined)
-            Object.assign(data, importes(amount, igvIncluido ?? false));
+            Object.assign(data, importes(amount, igvIncluido ?? false, sinIgv ?? false));
         if (vence)
             data.vence = fecha(vence);
         if (resto.estado === 'pagado')
@@ -460,7 +463,7 @@ export default async function clientesRoutes(app) {
         }
         const servicios = await prisma.clienteServicio.findMany({
             where: { organizationId: org(req), estado: 'activo', periodicidad: { in: RECURRENTES }, cliente: { active: true } },
-            select: { amount: true, igvIncluido: true, currency: true, periodicidad: true },
+            select: { amount: true, igvIncluido: true, sinIgv: true, currency: true, periodicidad: true },
         });
         return {
             meses: porMes,
