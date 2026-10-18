@@ -158,8 +158,12 @@ export default async function diagnosticoRoutes(app) {
                 select: { id: true, createdAt: true, body: true, raw: true, conversation: { select: { waNumber: { select: { displayNumber: true } } } } },
             }),
         ]);
+        // Qué migraciones tiene aplicadas la base: un «Error interno» tras desplegar suele ser una
+        // migración sin aplicar (falta `prisma:deploy`) y desde fuera no había forma de verlo.
+        const migraciones = await prisma.$queryRawUnsafe('SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY started_at DESC LIMIT 5').catch((e) => [{ migration_name: `error: ${e instanceof Error ? e.message : String(e)}`, finished_at: null }]);
         return {
             generadoEl: new Date().toISOString(),
+            migraciones,
             organizacion: { slug: org.slug, nombre: org.name, vertical: org.vertical ?? null },
             usuarios: usuarios.map(({ passwordHash, customRole, ...u }) => ({ ...u, rolPropio: customRole?.name ?? null, tienePassword: !!passwordHash })),
             etapas,
