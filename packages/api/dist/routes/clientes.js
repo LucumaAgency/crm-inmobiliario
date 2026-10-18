@@ -154,6 +154,36 @@ export default async function clientesRoutes(app) {
         return c;
     });
     // ------------------------------------------------------------------ servicios
+    /**
+     * Atajos del formulario: los servicios que más se cargan (por nombre), con las condiciones de la
+     * última vez. Si hay menos de cuatro, completan servidor web y alianza comercial.
+     */
+    app.get('/servicios/frecuentes', { preHandler: pre }, async (req) => {
+        await catalogoBase(org(req));
+        const todos = await prisma.clienteServicio.findMany({
+            where: { organizationId: org(req) },
+            orderBy: { createdAt: 'desc' },
+            select: { name: true, projectId: true, amount: true, currency: true, igvIncluido: true, periodicidad: true, comisionPct: true, diaPago: true },
+        });
+        const conteo = new Map();
+        for (const s of todos) {
+            const k = s.name.trim().toLowerCase();
+            const c = conteo.get(k);
+            if (c)
+                c.n++;
+            else
+                conteo.set(k, { n: 1, ultimo: s });
+        }
+        const top = [...conteo.values()].sort((a, b) => b.n - a.n).slice(0, 4).map((c) => c.ultimo);
+        const catalogo = await prisma.project.findMany({ where: { organizationId: org(req), slug: { in: ['servidor-web', 'alianza-comercial'] } } });
+        for (const p of catalogo) {
+            if (top.length >= 4 || top.some((t) => t.name.trim().toLowerCase() === p.name.toLowerCase()))
+                continue;
+            const comision = p.slug === 'alianza-comercial';
+            top.push({ name: p.name, projectId: p.id, amount: 0, currency: 'PEN', igvIncluido: false, periodicidad: comision ? 'comision' : 'anual', comisionPct: null, diaPago: null });
+        }
+        return top;
+    });
     async function cobroUnico(s) {
         const { base, total } = importes(Number(s.amount), s.igvIncluido);
         await prisma.cobro.createMany({
