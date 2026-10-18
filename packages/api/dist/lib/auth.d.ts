@@ -40,6 +40,8 @@ export declare function requireRole(...roles: SessionUser['role'][]): (req: Fast
 export declare function tiene(user: SessionUser | undefined, ...permisos: Permiso[]): boolean;
 /** Exige al menos uno de los permisos. Usar como preHandler. */
 export declare function requirePermiso(...permisos: Permiso[]): (req: FastifyRequest, reply: FastifyReply) => Promise<undefined>;
+/** Solo la cuenta de Lucuma (`CUENTA_LUCUMA`). Usar como preHandler de las vistas internas. */
+export declare function requireCuentaLucuma(req: FastifyRequest, reply: FastifyReply): Promise<undefined>;
 /**
  * Filtro de visibilidad: quien no puede ver los leads del equipo ve solo los suyos.
  * El aislamiento va en la query, no en la interfaz.

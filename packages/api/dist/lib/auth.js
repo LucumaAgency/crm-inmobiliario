@@ -3,7 +3,7 @@ import { env } from '../env.js';
 import { prisma } from '../db.js';
 import { sesionCoincide } from './tenant.js';
 import { logError } from './log.js';
-import { ROLES_BASE, esPermiso } from '@lucuma-crm/shared';
+import { ROLES_BASE, esCuentaLucuma, esPermiso } from '@lucuma-crm/shared';
 /** Permisos de un usuario: los del rol personalizado si tiene, si no los del rol base. */
 export function permisosDe(user) {
     if (user.customRole) {
@@ -128,6 +128,14 @@ export function requirePermiso(...permisos) {
         if (!tiene(req.user, ...permisos))
             return reply.code(403).send({ error: 'Sin permisos' });
     };
+}
+/** Solo la cuenta de Lucuma (`CUENTA_LUCUMA`). Usar como preHandler de las vistas internas. */
+export async function requireCuentaLucuma(req, reply) {
+    await loadUser(req);
+    if (!req.user)
+        return reply.code(401).send({ error: 'No autenticado' });
+    if (!esCuentaLucuma(req.user.email))
+        return reply.code(403).send({ error: 'Sin permisos' });
 }
 /**
  * Filtro de visibilidad: quien no puede ver los leads del equipo ve solo los suyos.

@@ -20,7 +20,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { normalizeDocument, normalizeEmail, normalizePhonePE } from '@lucuma-crm/shared';
+import { esCuentaLucuma, normalizeDocument, normalizeEmail, normalizePhonePE } from '@lucuma-crm/shared';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
@@ -1474,6 +1474,8 @@ export async function reasignarPorAsesor(organizationId, porUserId, asignaciones
         if (!userId && a.crear) {
             const email = a.crear.email.trim().toLowerCase();
             const existe = await prisma.user.findFirst({ where: { organizationId, email } });
+            if (!existe && esCuentaLucuma(email))
+                continue; // reservado: se crea desde el servidor
             if (existe) {
                 userId = existe.id;
             }

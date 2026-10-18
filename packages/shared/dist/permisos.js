@@ -104,6 +104,19 @@ export const ROLES_BASE = {
         permisos: ['leads.ver_todos', 'reportes.ver'],
     },
 };
+/**
+ * La cuenta de Lucuma dentro de cada CRM.
+ *
+ * Es la puerta de Lucuma en las organizaciones de sus clientes y el gerente en la de Lucuma.
+ * Nadie puede desactivarla, cambiarle el rol ni la contraseña desde el panel, y solo ella ve
+ * las vistas internas (facturación y cobranza de Lucuma, herramientas de soporte). Se crea
+ * desde el servidor (`npm run admin:prod`); el panel no deja crear un usuario con este correo,
+ * porque un gerente que lo hiciera en su organización se daría a sí mismo esas vistas.
+ */
+export const CUENTA_LUCUMA = 'dev@lucumaagency.com';
+export function esCuentaLucuma(email) {
+    return (email ?? '').trim().toLowerCase() === CUENTA_LUCUMA;
+}
 export function esPermiso(x) {
     return PERMISOS_IDS.includes(x);
 }
