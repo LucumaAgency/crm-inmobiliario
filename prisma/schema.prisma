@@ -868,8 +868,11 @@ model ClienteServicio {
   currency          String       @default("PEN")
   /// true: `amount` ya incluye IGV. false: se le suma el 18 %.
   igvIncluido       Boolean      @default(false)
-  /// mensual | unico | variable. Solo el mensual genera cobros solo.
+  /// mensual | anual | unico | variable | comision. Mensual y anual generan sus cobros solos;
+  /// comision cobra un porcentaje de cada venta que se registra a mano (alianza comercial).
   periodicidad      String       @default("mensual")
+  /// Porcentaje por venta, solo en periodicidad comision.
+  comisionPct       Decimal?     @db.Decimal(5, 2)
   /// Día del mes en que vence el cobro (1-28). Null: el día de inicio.
   diaPago           Int?
   inicio            DateTime     @db.Date

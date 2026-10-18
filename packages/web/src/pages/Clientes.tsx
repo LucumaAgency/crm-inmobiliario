@@ -20,7 +20,8 @@ interface Servicio {
   amount: string;
   currency: string;
   igvIncluido: boolean;
-  periodicidad: 'mensual' | 'unico' | 'variable';
+  periodicidad: 'mensual' | 'anual' | 'unico' | 'variable' | 'comision';
+  comisionPct: string | null;
   diaPago: number | null;
   inicio: string;
   fin: string | null;
@@ -87,7 +88,13 @@ const mover = (m: string, n: number) => {
   const t = Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1 + n;
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
 };
-const PERIODICIDAD: Record<Servicio['periodicidad'], string> = { mensual: 'mensual', unico: 'pago único', variable: 'variable' };
+const PERIODICIDAD: Record<Servicio['periodicidad'], string> = { mensual: 'mensual', anual: 'anual', unico: 'pago único', variable: 'variable', comision: 'comisión por venta' };
+
+/** Atajos para los acuerdos que no son paquetes del catálogo. */
+const ATAJOS: { nombre: string; periodicidad: Servicio['periodicidad'] }[] = [
+  { nombre: 'Servidor web', periodicidad: 'anual' },
+  { nombre: 'Alianza comercial', periodicidad: 'comision' },
+];
 
 export default function Clientes() {
   const [params, setParams] = useSearchParams();
@@ -139,7 +146,7 @@ function ListaClientes() {
     <>
       <div className="kpis">
         <Kpi titulo="Clientes activos" icono="cuenta" tono="solido" valor={clientes.data ? String(activos.length) : '—'} />
-        <Kpi titulo="Ingreso mensual" icono="reportes" valor={clientes.data ? corto(mensual) : '—'} nota="servicios mensuales, sin IGV" />
+        <Kpi titulo="Ingreso mensual" icono="reportes" valor={clientes.data ? corto(mensual) : '—'} nota="mensuales + anuales ÷ 12, sin IGV" />
         <Kpi titulo="Vencido" icono="alerta" valor={clientes.data ? corto(vencido) : '—'} nota="con IGV" />
         <Kpi titulo="Servicios activos" icono="proyectos" valor={clientes.data ? String(activos.flatMap((c) => c.servicios).filter((s) => s.estado === 'activo').length) : '—'} />
       </div>
@@ -261,6 +268,7 @@ interface FormServicio {
   currency: string;
   igvIncluido: boolean;
   periodicidad: Servicio['periodicidad'];
+  comisionPct: string;
   diaPago: string;
   inicio: string;
   fin: string;
@@ -275,6 +283,7 @@ function aCuerpo(f: FormServicio) {
     currency: f.currency,
     igvIncluido: f.igvIncluido,
     periodicidad: f.periodicidad,
+    comisionPct: f.periodicidad === 'comision' ? Number(f.comisionPct.replace(',', '.')) || null : null,
     diaPago: f.diaPago ? Number(f.diaPago) : null,
     inicio: f.inicio,
     fin: f.fin || null,
@@ -284,8 +293,22 @@ function aCuerpo(f: FormServicio) {
 
 function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio) => void; id: string }) {
   const catalogo = useQuery({ queryKey: ['projects'], queryFn: () => api.get<{ id: string; name: string }[]>('/projects') });
+  const comision = f.periodicidad === 'comision';
   return (
     <>
+      <div className="acciones" style={{ marginTop: 6 }}>
+        <span className="meta">Atajos:</span>
+        {ATAJOS.map((a) => (
+          <button
+            key={a.nombre}
+            type="button"
+            className="btn btn-sec"
+            onClick={() => set({ ...f, name: a.nombre, periodicidad: a.periodicidad, ...(a.periodicidad === 'comision' ? { amount: '0', diaPago: '' } : {}) })}
+          >
+            {a.nombre}
+          </button>
+        ))}
+      </div>
       <div className="fila-form">
         <div style={{ flex: 1, minWidth: 180 }}>
           <label htmlFor={`${id}-cat`}>Servicio del catálogo</label>
@@ -309,10 +332,17 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
         </div>
       </div>
       <div className="fila-form">
-        <div style={{ width: 120 }}>
-          <label htmlFor={`${id}-monto`}>Monto</label>
-          <input id={`${id}-monto`} inputMode="decimal" value={f.amount} onChange={(e) => set({ ...f, amount: e.target.value })} />
-        </div>
+        {comision ? (
+          <div style={{ width: 120 }}>
+            <label htmlFor={`${id}-pct`}>% por venta</label>
+            <input id={`${id}-pct`} inputMode="decimal" placeholder="3" value={f.comisionPct} onChange={(e) => set({ ...f, comisionPct: e.target.value })} />
+          </div>
+        ) : (
+          <div style={{ width: 120 }}>
+            <label htmlFor={`${id}-monto`}>{f.periodicidad === 'anual' ? 'Monto al año' : 'Monto'}</label>
+            <input id={`${id}-monto`} inputMode="decimal" value={f.amount} onChange={(e) => set({ ...f, amount: e.target.value })} />
+          </div>
+        )}
         <div>
           <label htmlFor={`${id}-mon`}>Moneda</label>
           <select id={`${id}-mon`} value={f.currency} onChange={(e) => set({ ...f, currency: e.target.value })}>
@@ -331,11 +361,13 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
           <label htmlFor={`${id}-per`}>Cobro</label>
           <select id={`${id}-per`} value={f.periodicidad} onChange={(e) => set({ ...f, periodicidad: e.target.value as Servicio['periodicidad'] })}>
             <option value="mensual">Mensual</option>
+            <option value="anual">Anual</option>
             <option value="unico">Pago único</option>
             <option value="variable">Variable (a mano)</option>
+            <option value="comision">Comisión por venta</option>
           </select>
         </div>
-        {f.periodicidad === 'mensual' && (
+        {(f.periodicidad === 'mensual' || f.periodicidad === 'anual') && (
           <div style={{ width: 90 }}>
             <label htmlFor={`${id}-dia`}>Día de pago</label>
             <input id={`${id}-dia`} inputMode="numeric" placeholder="1-31" value={f.diaPago} onChange={(e) => set({ ...f, diaPago: e.target.value.replace(/\D/g, '').slice(0, 2) })} />
@@ -367,6 +399,7 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
 function FilaServicio({ servicio: s }: { servicio: Servicio }) {
   const qc = useQueryClient();
   const [editando, setEditando] = useState(false);
+  const [venta, setVenta] = useState(false);
   const [f, setF] = useState<FormServicio>({
     projectId: s.projectId ?? '',
     name: s.name,
@@ -374,6 +407,7 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
     currency: s.currency,
     igvIncluido: s.igvIncluido,
     periodicidad: s.periodicidad,
+    comisionPct: s.comisionPct ? String(Number(s.comisionPct)) : '',
     diaPago: s.diaPago ? String(s.diaPago) : '',
     inicio: s.inicio.slice(0, 10),
     fin: s.fin?.slice(0, 10) ?? '',
@@ -395,13 +429,22 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
           {s.name} <span className={`chip ${chip}`}>{s.estado}</span>
           <br />
           <span className="meta">
-            {dinero(s.amount, s.currency)} {s.igvIncluido ? 'IGV incl.' : '+ IGV'} · {PERIODICIDAD[s.periodicidad]}
-            {s.periodicidad === 'mensual' && ` · paga el día ${s.diaPago ?? Number(s.inicio.slice(8, 10))}`} · desde {dia(s.inicio)}
+            {s.periodicidad === 'comision'
+              ? `${Number(s.comisionPct ?? 0)} % de cada venta + IGV`
+              : `${dinero(s.amount, s.currency)} ${s.igvIncluido ? 'IGV incl.' : '+ IGV'} · ${PERIODICIDAD[s.periodicidad]}`}
+            {s.periodicidad === 'mensual' && ` · paga el día ${s.diaPago ?? Number(s.inicio.slice(8, 10))}`}
+            {s.periodicidad === 'anual' && ` · cada ${new Date(s.inicio.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-PE', { month: 'long', timeZone: 'UTC' })}`} · desde {dia(s.inicio)}
             {s.fin && ` · renueva ${dia(s.fin)}`}
           </span>
         </span>
-        <button type="button" className="btn btn-sec" onClick={() => setEditando(!editando)}>{editando ? 'Cerrar' : 'Editar'}</button>
+        <span className="acciones">
+          {s.periodicidad === 'comision' && s.estado === 'activo' && (
+            <button type="button" className="btn" onClick={() => setVenta(!venta)}>{venta ? 'Cerrar' : 'Registrar venta'}</button>
+          )}
+          <button type="button" className="btn btn-sec" onClick={() => setEditando(!editando)}>{editando ? 'Cerrar' : 'Editar'}</button>
+        </span>
       </div>
+      {venta && <RegistrarVenta servicio={s} alTerminar={() => setVenta(false)} />}
       {editando && (
         <>
           <CamposServicio f={f} set={setF} id={s.id} />
@@ -420,9 +463,51 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
   );
 }
 
+function RegistrarVenta({ servicio: s, alTerminar }: { servicio: Servicio; alTerminar: () => void }) {
+  const qc = useQueryClient();
+  const [v, setV] = useState({ detalle: '', monto: '', fecha: hoyIso() });
+  const monto = Number(v.monto.replace(',', '.')) || 0;
+  const comision = (monto * Number(s.comisionPct ?? 0)) / 100;
+  const registrar = useMutation({
+    mutationFn: () => api.post(`/clientes/servicios/${s.id}/ventas`, { detalle: v.detalle.trim(), monto, fecha: v.fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cobranza'] });
+      qc.invalidateQueries({ queryKey: ['clientes'] });
+      alTerminar();
+    },
+  });
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className="fila-form">
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label htmlFor={`${s.id}-vd`}>Venta</label>
+          <input id={`${s.id}-vd`} placeholder="Dpto 504 · Juan Pérez" value={v.detalle} onChange={(e) => setV({ ...v, detalle: e.target.value })} />
+        </div>
+        <div style={{ width: 130 }}>
+          <label htmlFor={`${s.id}-vm`}>Monto vendido</label>
+          <input id={`${s.id}-vm`} inputMode="decimal" value={v.monto} onChange={(e) => setV({ ...v, monto: e.target.value })} />
+        </div>
+        <div>
+          <label htmlFor={`${s.id}-vf`}>Fecha</label>
+          <input id={`${s.id}-vf`} type="date" value={v.fecha} onChange={(e) => setV({ ...v, fecha: e.target.value })} />
+        </div>
+      </div>
+      <p className="meta" style={{ marginTop: 6 }}>
+        Comisión: {dinero(comision, s.currency)} + IGV = {dinero(comision * 1.18, s.currency)}. Queda como cobro pendiente en Cobranza.
+      </p>
+      <div className="acciones" style={{ marginTop: 8 }}>
+        <button className="btn" disabled={registrar.isPending || !v.detalle.trim() || monto <= 0} onClick={() => registrar.mutate()}>
+          {registrar.isPending ? 'Guardando…' : 'Registrar venta'}
+        </button>
+      </div>
+      {registrar.error && <p className="error">{(registrar.error as Error).message}</p>}
+    </div>
+  );
+}
+
 function NuevoServicio({ clienteId }: { clienteId: string }) {
   const qc = useQueryClient();
-  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: 'PEN', igvIncluido: false, periodicidad: 'mensual', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
+  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: 'PEN', igvIncluido: false, periodicidad: 'mensual', comisionPct: '', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
   const [abierto, setAbierto] = useState(false);
   const [f, setF] = useState<FormServicio>(vacio);
   const crear = useMutation({
@@ -445,10 +530,10 @@ function NuevoServicio({ clienteId }: { clienteId: string }) {
     <div style={{ marginTop: 10 }}>
       <CamposServicio f={f} set={setF} id={`nuevo-${clienteId}`} />
       <p className="meta" style={{ marginTop: 6 }}>
-        Los cobros mensuales empiezan este mes aunque el inicio sea anterior: lo ya cobrado antes no aparece como deuda.
+        Los cobros mensuales empiezan este mes aunque el inicio sea anterior: lo ya cobrado antes no aparece como deuda. El anual se cobra en el mes aniversario del inicio. La alianza comercial no genera cobros sola: cada venta que registres crea el cobro de la comisión.
       </p>
       <div className="acciones" style={{ marginTop: 8 }}>
-        <button className="btn" disabled={crear.isPending || !f.name.trim() || !f.amount} onClick={() => crear.mutate()}>
+        <button className="btn" disabled={crear.isPending || !f.name.trim() || (f.periodicidad === 'comision' ? !f.comisionPct : !f.amount)} onClick={() => crear.mutate()}>
           {crear.isPending ? 'Guardando…' : 'Guardar servicio'}
         </button>
         <button className="btn btn-sec" onClick={() => setAbierto(false)}>Cancelar</button>
@@ -664,7 +749,7 @@ function NuevoCobro({ mes }: { mes: string }) {
             ))}
           </select>
         </div>
-        {cliente && cliente.servicios.some((s) => s.periodicidad !== 'mensual') && (
+        {cliente && cliente.servicios.some((s) => s.periodicidad === 'unico' || s.periodicidad === 'variable') && (
           <div style={{ minWidth: 180 }}>
             <label htmlFor="nc-ser">Servicio</label>
             <select
@@ -676,7 +761,7 @@ function NuevoCobro({ mes }: { mes: string }) {
               }}
             >
               <option value="">Ninguno (extra)</option>
-              {cliente.servicios.filter((s) => s.periodicidad !== 'mensual').map((s) => (
+              {cliente.servicios.filter((s) => s.periodicidad === 'unico' || s.periodicidad === 'variable').map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -723,7 +808,7 @@ function VistaIngresos() {
   return (
     <>
       <div className="kpis">
-        <Kpi titulo="Ingreso mensual recurrente" icono="reportes" tono="solido" valor={d ? corto(d.mensualActual) : '—'} nota="servicios mensuales activos, sin IGV" />
+        <Kpi titulo="Ingreso mensual recurrente" icono="reportes" tono="solido" valor={d ? corto(d.mensualActual) : '—'} nota="mensuales + anuales ÷ 12, sin IGV" />
         <Kpi titulo="Facturado este mes" icono="calendario" valor={actual ? corto(actual.facturado) : '—'} nota="sin IGV" />
         <Kpi titulo="Cobrado este mes" icono="check" valor={actual ? corto(actual.cobrado) : '—'} nota="sin IGV" />
         <Kpi titulo="Últimos 12 meses" icono="resumen" valor={d ? corto(d.meses.reduce((t, m) => t + m.facturado, 0)) : '—'} nota="facturado, sin IGV" />

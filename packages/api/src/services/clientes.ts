@@ -2,8 +2,9 @@
  * Clientes activos y cobranza (vertical agencia). Ver docs/22-VERTICAL-AGENCIA.md.
  *
  * Tres piezas: el cliente, sus servicios contratados y los cobros de cada mes. Los cobros de
- * un servicio mensual se generan solos y sin duplicar (`@@unique([servicioId, periodo])`); los
- * de un servicio variable se cargan a mano. Nada de esto emite comprobantes: se anota el número
+ * un servicio mensual (o anual) se generan solos y sin duplicar (`@@unique([servicioId, periodo])`); los
+ * de un servicio variable se cargan a mano, y los de una alianza comercial (comision) salen de
+ * cada venta registrada: el porcentaje pactado sobre el monto vendido. Nada de esto emite comprobantes: se anota el número
  * de la factura emitida fuera.
  *
  * Las fechas de cobro son fechas de calendario de Lima, sin hora: se guardan como DATE y se
@@ -15,7 +16,9 @@ import { logError, logLine } from '../lib/log.js';
 import { sendMail } from '../lib/mail.js';
 
 export const IGV = 0.18;
-export const PERIODICIDADES = ['mensual', 'unico', 'variable'] as const;
+export const PERIODICIDADES = ['mensual', 'anual', 'unico', 'variable', 'comision'] as const;
+/** Las que generan sus cobros solas. */
+export const RECURRENTES = ['mensual', 'anual'];
 export const ESTADOS_SERVICIO = ['activo', 'pausado', 'terminado'] as const;
 export const ESTADOS_COBRO = ['pendiente', 'pagado', 'anulado'] as const;
 
@@ -69,15 +72,18 @@ export function importes(amount: number, igvIncluido: boolean): { base: number; 
  */
 export async function generarCobros(organizationId: string, hasta: string): Promise<number> {
   const servicios = await prisma.clienteServicio.findMany({
-    where: { organizationId, periodicidad: 'mensual', estado: 'activo', cliente: { active: true } },
+    where: { organizationId, periodicidad: { in: RECURRENTES }, estado: 'activo', cliente: { active: true } },
   });
   const filas = [];
   for (const s of servicios) {
+    const paso = s.periodicidad === 'anual' ? 12 : 1;
     let mes = [s.cobrarDesde, mesDe(s.inicio)].sort().at(-1)!;
+    // Anual: se cobra en el mes aniversario del inicio (el primero desde cobrarDesde).
+    if (paso === 12) while (mes.slice(5) !== mesDe(s.inicio).slice(5)) mes = sumarMeses(mes, 1);
     const tope = s.fin && mesDe(s.fin) < hasta ? mesDe(s.fin) : hasta;
     const { base, total } = importes(Number(s.amount), s.igvIncluido);
     const dia = s.diaPago ?? s.inicio.getUTCDate();
-    for (let i = 0; mes <= tope && i < 120; i++, mes = sumarMeses(mes, 1)) {
+    for (let i = 0; mes <= tope && i < 120; i++, mes = sumarMeses(mes, paso)) {
       filas.push({
         organizationId,
         clienteId: s.clienteId,
