@@ -448,6 +448,14 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
       qc.invalidateQueries({ queryKey: ['cobranza'] });
     },
   });
+  const borrar = useMutation({
+    mutationFn: () => api.del(`/clientes/servicios/${s.id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clientes'] });
+      qc.invalidateQueries({ queryKey: ['cobranza'] });
+      qc.invalidateQueries({ queryKey: ['ingresos'] });
+    },
+  });
   const chip = s.estado === 'activo' ? 'chip-verde' : 'chip-gris';
   return (
     <div style={{ padding: '8px 0', borderBottom: '1px solid var(--borde)' }}>
@@ -482,8 +490,19 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
             <button className="btn" disabled={guardar.isPending || !f.name.trim()} onClick={() => guardar.mutate()}>
               {guardar.isPending ? 'Guardando…' : 'Guardar servicio'}
             </button>
+            <button
+              type="button"
+              className="btn btn-peligro"
+              disabled={borrar.isPending}
+              onClick={() => {
+                if (confirm(`¿Borrar «${s.name}»? Se borran también sus cobros pendientes. Los ya pagados se quedan en Ingresos.`)) borrar.mutate();
+              }}
+            >
+              {borrar.isPending ? 'Borrando…' : 'Borrar servicio'}
+            </button>
           </div>
           {guardar.error && <p className="error">{(guardar.error as Error).message}</p>}
+          {borrar.error && <p className="error">{(borrar.error as Error).message}</p>}
         </>
       )}
     </div>
