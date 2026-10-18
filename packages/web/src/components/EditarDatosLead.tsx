@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { FUENTES } from '../lib/reportes.js';
 import { usePuede } from '../lib/permisos.js';
+import { REDES, type CampoRed } from '@lucuma-crm/shared';
 
 export interface DatosLead {
   id: string;
   source: string;
   message: string | null;
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType?: string | null };
+  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType?: string | null } & Partial<Record<CampoRed, string | null>>;
   owner: { id: string; name: string } | null;
 }
 
@@ -34,6 +35,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
     source: lead.source,
     message: lead.message ?? '',
     ownerId: lead.owner?.id ?? '',
+    ...(Object.fromEntries(REDES.map((r) => [r.campo, lead.contact[r.campo] ?? ''])) as Record<CampoRed, string>),
   });
   const campo = (k: keyof typeof f) => ({
     value: f[k],
@@ -57,6 +59,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
         document: f.document,
         source: f.source,
         message: f.message,
+        ...Object.fromEntries(REDES.map((r) => [r.campo, f[r.campo]])),
       });
       if (reasigna && f.ownerId && f.ownerId !== (lead.owner?.id ?? '')) {
         await api.patch(`/leads/${lead.id}`, { ownerId: f.ownerId });
@@ -85,7 +88,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
         >
           <div className="rejilla-2">
             <div>
-              <label htmlFor="ed-fname">Nombre</label>
+              <label htmlFor="ed-fname">Nombre *</label>
               <input id="ed-fname" {...campo('fname')} required />
             </div>
             <div>
@@ -128,10 +131,18 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
               </div>
             )}
           </div>
+          <div className="rejilla-2">
+            {REDES.map((r) => (
+              <div key={r.campo}>
+                <label htmlFor={`ed-${r.campo}`}>{r.nombre}</label>
+                <input id={`ed-${r.campo}`} placeholder={r.ejemplo} {...campo(r.campo)} />
+              </div>
+            ))}
+          </div>
           <label htmlFor="ed-msg">Mensaje con el que entró</label>
           <textarea id="ed-msg" rows={3} {...campo('message')} />
           <p className="meta" style={{ marginTop: 8 }}>
-            Nombre, teléfono, correo y documento son de la persona: si tiene otro lead, el cambio
+            Nombre, teléfono, correo, documento y redes son de la persona: si tiene otro lead, el cambio
             también se ve ahí. Lo que cambies queda en las actividades con el valor anterior.
           </p>
           {guardar.isError && <p className="error">{(guardar.error as Error).message}</p>}

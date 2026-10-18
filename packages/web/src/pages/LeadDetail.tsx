@@ -10,6 +10,7 @@ import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
 import BorrarLeads from '../components/BorrarLeads.js';
+import { REDES, enlaceRed, type CampoRed } from '@lucuma-crm/shared';
 import EditarDatosLead from '../components/EditarDatosLead.js';
 import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
@@ -29,7 +30,7 @@ interface Detalle {
   attribution: Record<string, unknown> | null;
   sperantPareja?: { id: string; nombre: string } | null;
   otrosLeads?: { id: string; status: string; lostReason: string | null; createdAt: string; updatedAt: string; project: { name: string } | null; stage: { name: string } | null; owner: { name: string } | null }[];
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null };
+  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null } & Partial<Record<CampoRed, string | null>>;
   project: { id: string; name: string } | null;
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
   stage: { id: string; name: string } | null;
@@ -175,6 +176,16 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           {lead.contact.phone ?? 'sin teléfono'} · {lead.contact.email ?? 'sin correo'}
           {lead.contact.document ? ` · ${lead.contact.documentType === 'PAS' ? 'Pasaporte' : lead.contact.documentType || 'DNI'} ${lead.contact.document}` : ''}
         </div>
+
+        {REDES.some((r) => lead.contact[r.campo]) && (
+          <div className="meta" style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+            {REDES.filter((r) => lead.contact[r.campo]).map((r) => (
+              <a key={r.campo} href={enlaceRed(r.campo, lead.contact[r.campo]) ?? '#'} target="_blank" rel="noreferrer">
+                {r.nombre}: {lead.contact[r.campo]}
+              </a>
+            ))}
+          </div>
+        )}
 
         <div className="acciones">
           {wa && <a className="btn btn-wa" href={wa} target="_blank" rel="noreferrer">WhatsApp</a>}

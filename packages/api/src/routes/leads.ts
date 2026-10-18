@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
-import { activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
+import { REDES, activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, seguimientoInput, seguimientoPatch, type CampoRed } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -947,10 +947,11 @@ export default async function leadRoutes(app: FastifyInstance) {
         documentType: z.enum(['DNI', 'CE', 'RUC', 'PAS']).optional(),
         source: z.enum(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import']).optional(),
         message: texto(5000),
+        ...Object.fromEntries(REDES.map((r) => [r.campo, texto(191)])),
       })
       .safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
-    const d = parsed.data;
+    const d = parsed.data as typeof parsed.data & Partial<Record<CampoRed, string | null>>;
 
     const lead = await prisma.lead.findFirst({
       where: { id: req.params.id, ...scopeForUser(user) },
@@ -965,6 +966,7 @@ export default async function leadRoutes(app: FastifyInstance) {
     if (d.fname !== undefined) datosContacto.fname = d.fname;
     if (d.lname !== undefined) datosContacto.lname = d.lname?.trim() || null;
     if (d.documentType !== undefined) datosContacto.documentType = d.documentType;
+    for (const r of REDES) if (d[r.campo] !== undefined) datosContacto[r.campo] = d[r.campo]?.trim() || null;
     const claves = [
       ['phone', 'teléfono', normalizePhonePE],
       ['email', 'correo', normalizeEmail],
@@ -993,6 +995,7 @@ export default async function leadRoutes(app: FastifyInstance) {
     const ETIQUETA: Record<string, string> = {
       fname: 'nombre', lname: 'apellido', phone: 'teléfono', email: 'correo', document: 'documento',
       documentType: 'tipo de documento', source: 'fuente', message: 'mensaje',
+      ...Object.fromEntries(REDES.map((r) => [r.campo, r.nombre])),
     };
     const cambios: { campo: string; antes: unknown; despues: unknown }[] = [];
     for (const [k, v] of Object.entries(datosContacto)) {

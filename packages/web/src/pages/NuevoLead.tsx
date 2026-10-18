@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import SelectorInteres from '../components/SelectorInteres.js';
 import { useEtiquetas } from '../lib/vertical.js';
+import { REDES, type CampoRed } from '@lucuma-crm/shared';
 
 interface Props {
   onCerrar: () => void;
@@ -33,6 +34,7 @@ export default function NuevoLead({ onCerrar }: Props) {
   const [message, setMessage] = useState('');
   const [typologyIds, setTypologyIds] = useState<string[]>([]);
   const [unitIds, setUnitIds] = useState<string[]>([]);
+  const [redes, setRedes] = useState<Partial<Record<CampoRed, string>>>({});
 
   const proyectos = useQuery({
     queryKey: ['projects'],
@@ -48,7 +50,8 @@ export default function NuevoLead({ onCerrar }: Props) {
         email: email.trim() || undefined,
         document: document.trim() || undefined,
         message: message.trim() || undefined,
-        projectId: projectId || undefined,
+        projectId,
+        redes,
         typologyIds: projectId && typologyIds.length ? typologyIds : undefined,
         unitIds: projectId && unitIds.length ? unitIds : undefined,
         source: 'manual',
@@ -61,10 +64,11 @@ export default function NuevoLead({ onCerrar }: Props) {
     },
   });
 
-  // Sin teléfono ni correo no hay clave de identidad, y cada alta crearía un contacto
-  // nuevo aunque sea la misma persona. Se exige al menos uno.
+  // Obligatorios: nombre y proyecto (servicio en la agencia). Sin teléfono ni correo no hay
+  // clave de identidad y no se reconoce a la persona si vuelve; se avisa, pero no se exige:
+  // hay leads que solo dejan su Instagram.
   const sinIdentidad = !phone.trim() && !email.trim();
-  const invalido = !fname.trim() || sinIdentidad;
+  const invalido = !fname.trim() || !projectId;
 
   return (
     <div className="modal-fondo" onClick={onCerrar}>
@@ -114,7 +118,7 @@ export default function NuevoLead({ onCerrar }: Props) {
               <input id="nl-doc" value={document} onChange={(e) => setDocument(e.target.value)} />
             </div>
             <div>
-              <label htmlFor="nl-proy">{L.proyecto}</label>
+              <label htmlFor="nl-proy">{L.proyecto} *</label>
               <select
                 id="nl-proy"
                 value={projectId}
@@ -124,7 +128,7 @@ export default function NuevoLead({ onCerrar }: Props) {
                   setUnitIds([]);
                 }}
               >
-                <option value="">Sin {L.proyecto.toLowerCase()}</option>
+                <option value="">Elige…</option>
                 {proyectos.data?.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -141,6 +145,20 @@ export default function NuevoLead({ onCerrar }: Props) {
             />
           )}
 
+          <div className="rejilla-2">
+            {REDES.map((r) => (
+              <div key={r.campo}>
+                <label htmlFor={`nl-${r.campo}`}>{r.nombre}</label>
+                <input
+                  id={`nl-${r.campo}`}
+                  placeholder={r.ejemplo}
+                  value={redes[r.campo] ?? ''}
+                  onChange={(e) => setRedes({ ...redes, [r.campo]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+
           <label htmlFor="nl-msg">Nota</label>
           <textarea
             id="nl-msg"
@@ -152,8 +170,8 @@ export default function NuevoLead({ onCerrar }: Props) {
 
           {sinIdentidad && fname.trim() !== '' && (
             <p className="meta" style={{ marginTop: 10 }}>
-              Indica teléfono o correo: es lo que permite reconocer a la persona si vuelve a
-              escribir y evitar que queden dos fichas de la misma.
+              Sin teléfono ni correo se puede crear, pero si la persona vuelve a escribir el CRM no
+              la va a reconocer y quedarían dos fichas.
             </p>
           )}
           {crear.isError && <p className="error">{(crear.error as Error).message}</p>}

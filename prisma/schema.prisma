@@ -266,6 +266,12 @@ model Contact {
   phone          String?
   document       String?
   documentType   String?      @default("DNI")
+  // Redes sociales, tal como se escribieron (usuario o enlace). Ver shared/redes.ts.
+  instagram      String?      @db.VarChar(191)
+  facebook       String?      @db.VarChar(191)
+  tiktok         String?      @db.VarChar(191)
+  linkedin       String?      @db.VarChar(191)
+  website        String?      @db.VarChar(191)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
