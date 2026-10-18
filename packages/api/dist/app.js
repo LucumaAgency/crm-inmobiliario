@@ -25,6 +25,7 @@ import logRoutes from './routes/logs.js';
 import sperantRoutes from './routes/sperant.js';
 import diagnosticoRoutes from './routes/diagnostico.js';
 import respaldosRoutes from './routes/respaldos.js';
+import clientesRoutes from './routes/clientes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function buildApp() {
     // Passenger se queda con stdout y lo entierra en un log del servidor difícil de
@@ -137,6 +138,7 @@ export async function buildApp() {
         await diagnosticoRoutes(scope);
     }, { prefix: '/api/v1/diagnostico' });
     await app.register(respaldosRoutes, { prefix: '/api/v1/respaldos' });
+    await app.register(clientesRoutes, { prefix: '/api/v1/clientes' });
     await app.register(reportesRoutes, { prefix: '/api/v1/reportes' });
     await app.register(adminRoutes, { prefix: '/api/v1' });
     /**

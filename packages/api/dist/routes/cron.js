@@ -22,6 +22,7 @@ import { env } from '../env.js';
 import { logError, logLine } from '../lib/log.js';
 import { procesarCola } from '../services/cola.js';
 import { respaldosAutomaticos } from '../services/respaldos.js';
+import { avisosCobranza } from '../services/clientes.js';
 /**
  * Tope de tiempo de una llamada.
  *
@@ -73,6 +74,8 @@ export default async function cronRoutes(app) {
          * siempre vuelve al instante porque a nadie le toca (ver services/respaldos.ts).
          */
         void respaldosAutomaticos();
+        // Avisos de cobranza de las agencias: como mucho una vez por hora (services/clientes.ts).
+        void avisosCobranza();
         return { ok: true, jobs: total, ms: Date.now() - inicio, pendiente: vueltas >= MAX_VUELTAS };
     };
     /**

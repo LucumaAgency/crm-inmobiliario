@@ -68,6 +68,9 @@ export const TABLAS = [
     { modelo: 'WaConversation', where: (org) => ({ organizationId: org }) },
     { modelo: 'WaMessage', where: (org) => ({ conversation: { organizationId: org } }) },
     { modelo: 'NotaVoz', where: (org) => ({ organizationId: org }) },
+    { modelo: 'Cliente', where: (org) => ({ organizationId: org }) },
+    { modelo: 'ClienteServicio', where: (org) => ({ organizationId: org }) },
+    { modelo: 'Cobro', where: (org) => ({ organizationId: org }) },
     { modelo: 'AuditLog', where: (org) => ({ organizationId: org }) },
 ];
 export function delegado(modelo) {
