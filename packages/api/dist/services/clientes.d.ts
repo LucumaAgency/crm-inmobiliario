@@ -1,5 +1,7 @@
 export declare const IGV = 0.18;
-export declare const PERIODICIDADES: readonly ["mensual", "unico", "variable"];
+export declare const PERIODICIDADES: readonly ["mensual", "anual", "unico", "variable", "comision"];
+/** Las que generan sus cobros solas. */
+export declare const RECURRENTES: string[];
 export declare const ESTADOS_SERVICIO: readonly ["activo", "pausado", "terminado"];
 export declare const ESTADOS_COBRO: readonly ["pendiente", "pagado", "anulado"];
 /** «2026-10» del día de hoy en Lima. */
