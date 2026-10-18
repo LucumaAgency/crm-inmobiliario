@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { cambiarPasswordInput, loginInput, magicLinkInput } from '@lucuma-crm/shared';
+import { cambiarPasswordInput, esCuentaLucuma, loginInput, magicLinkInput } from '@lucuma-crm/shared';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
@@ -227,7 +227,7 @@ export default async function authRoutes(app: FastifyInstance) {
     // El tope propio manda; si no tiene, el de la organización; si tampoco, sin tope.
     const descuentoMaximoPct =
       propio?.maxDiscountPct != null ? Number(propio.maxDiscountPct) : ajustes.descuentoMaximoPct;
-    return { user: { ...req.user, phone: propio?.phone ?? null }, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
+    return { user: { ...req.user, phone: propio?.phone ?? null, cuentaLucuma: esCuentaLucuma(req.user.email) }, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
   });
 
   /** Datos propios que no son credenciales: hoy solo el teléfono, que sale en la proforma. */

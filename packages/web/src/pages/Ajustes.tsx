@@ -68,7 +68,7 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   const usuarios = useQuery({
     queryKey: ['users'],
     queryFn: () =>
-      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null; customRoleId: string | null; tienePassword: boolean }[]>(
+      api.get<{ id: string; name: string; email: string; role: string; active: boolean; maxDiscountPct: string | null; customRoleId: string | null; tienePassword: boolean; protegida?: boolean }[]>(
         '/users',
       ),
   });
@@ -239,6 +239,11 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                         inactivo
                       </span>
                     )}
+                    {u.protegida && (
+                      <span className="chip chip-gris" style={{ marginLeft: 6 }} title="No se puede desactivar ni cambiar de rol">
+                        cuenta Lucuma
+                      </span>
+                    )}
                   </td>
                   <td className="ancho meta">
                     {u.email}
@@ -248,7 +253,7 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                   <td data-label="Rol">
                     <select
                       value={u.customRoleId ? `custom:${u.customRoleId}` : u.role}
-                      disabled={cambiarUsuario.isPending}
+                      disabled={cambiarUsuario.isPending || u.protegida}
                       onChange={(e) => cambiarUsuario.mutate({ id: u.id, role: e.target.value })}
                     >
                       <OpcionesRol propios={rolesPropios.data ?? []} />
@@ -262,6 +267,10 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                     />
                   </td>
                   <td className="accion">
+                    {u.protegida ? (
+                      <span className="meta">Protegida</span>
+                    ) : (
+                    <>
                     <button
                       type="button"
                       className="btn btn-sec"
@@ -277,6 +286,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
                     >
                       {u.active ? 'Desactivar' : 'Activar'}
                     </button>
+                    </>
+                    )}
                     {claveDe === u.id && (
                       <ClaveUsuario
                         id={u.id}

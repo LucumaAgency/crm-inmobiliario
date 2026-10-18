@@ -4,7 +4,7 @@ import { env } from '../env.js';
 import { prisma } from '../db.js';
 import { sesionCoincide } from './tenant.js';
 import { logError } from './log.js';
-import { ROLES_BASE, esPermiso, type Permiso, type RolBase } from '@lucuma-crm/shared';
+import { ROLES_BASE, esCuentaLucuma, esPermiso, type Permiso, type RolBase } from '@lucuma-crm/shared';
 
 export interface SessionUser {
   id: string;
@@ -152,6 +152,13 @@ export function requirePermiso(...permisos: Permiso[]) {
     if (!req.user) return reply.code(401).send({ error: 'No autenticado' });
     if (!tiene(req.user, ...permisos)) return reply.code(403).send({ error: 'Sin permisos' });
   };
+}
+
+/** Solo la cuenta de Lucuma (`CUENTA_LUCUMA`). Usar como preHandler de las vistas internas. */
+export async function requireCuentaLucuma(req: FastifyRequest, reply: FastifyReply) {
+  await loadUser(req);
+  if (!req.user) return reply.code(401).send({ error: 'No autenticado' });
+  if (!esCuentaLucuma(req.user.email)) return reply.code(403).send({ error: 'Sin permisos' });
 }
 
 /**

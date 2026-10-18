@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISOS_IDS, ROLES_BASE, esPermiso, formSchema, passwordSchema, type Permiso } from '@lucuma-crm/shared';
+import { PERMISOS_IDS, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, passwordSchema, type Permiso } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
@@ -758,7 +758,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       orderBy: { name: 'asc' },
     });
     // El hash nunca sale del servidor: solo si la persona tiene contraseña o entra por enlace.
-    return lista.map(({ passwordHash, ...u }) => ({ ...u, tienePassword: !!passwordHash }));
+    return lista.map(({ passwordHash, ...u }) => ({ ...u, tienePassword: !!passwordHash, protegida: esCuentaLucuma(u.email) }));
   });
 
   app.post('/users', { preHandler: usuarios }, async (req, reply) => {
@@ -785,6 +785,9 @@ export default async function adminRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: 'Solo Lucuma puede crear administradores Lucuma' });
     }
     const email = datos.email.toLowerCase();
+    if (esCuentaLucuma(email)) {
+      return reply.code(403).send({ error: 'Ese correo está reservado para la cuenta de Lucuma' });
+    }
     if (await prisma.user.findFirst({ where: { organizationId: req.user!.organizationId, email } })) {
       return reply.code(409).send({ error: 'Ya hay un usuario con ese correo' });
     }
@@ -827,6 +830,9 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id: req.params.id, organizationId: req.user!.organizationId },
     });
     if (!objetivo) return reply.code(404).send({ error: 'Usuario no encontrado' });
+    if (esCuentaLucuma(objetivo.email)) {
+      return reply.code(403).send({ error: 'La contraseña de la cuenta de Lucuma solo se cambia desde Mi cuenta' });
+    }
     if (objetivo.role === 'admin_lucuma' && req.user!.role !== 'admin_lucuma') {
       return reply.code(403).send({ error: 'Solo Lucuma puede cambiar la contraseña de un administrador Lucuma' });
     }
@@ -876,6 +882,16 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id: req.params.id, organizationId: req.user!.organizationId },
     });
     if (!objetivo) return reply.code(404).send({ error: 'Usuario no encontrado' });
+
+    // La cuenta de Lucuma no se apaga ni pierde rango, ni siquiera por ella misma.
+    if (
+      esCuentaLucuma(objetivo.email) &&
+      (parsed.data.active === false ||
+        (parsed.data.role !== undefined && parsed.data.role !== 'admin_lucuma') ||
+        parsed.data.customRoleId)
+    ) {
+      return reply.code(403).send({ error: 'La cuenta de Lucuma no se puede desactivar ni cambiar de rol' });
+    }
 
     // Quedarse sin ningún administrador activo deja la organización sin quien gestione.
     if (parsed.data.active === false || (parsed.data.role && parsed.data.role !== 'admin_lucuma')) {

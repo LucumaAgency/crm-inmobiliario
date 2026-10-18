@@ -17,3 +17,13 @@ export function usePuede() {
   const permisos = useContext(PermisosContext);
   return (...p: Permiso[]) => p.some((x) => permisos.includes(x));
 }
+
+/**
+ * Si quien está en sesión es la cuenta de Lucuma (`CUENTA_LUCUMA`). Las vistas internas se
+ * pintan solo con esto; el servidor las protege con `requireCuentaLucuma`.
+ */
+export const CuentaLucumaContext = createContext(false);
+
+export function useEsCuentaLucuma() {
+  return useContext(CuentaLucumaContext);
+}

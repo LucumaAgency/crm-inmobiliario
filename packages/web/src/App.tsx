@@ -18,13 +18,13 @@ import Formularios from './pages/Formularios.js';
 import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
-import { PermisosContext } from './lib/permisos.js';
+import { CuentaLucumaContext, PermisosContext } from './lib/permisos.js';
 import { VerticalContext } from './lib/vertical.js';
 import { etiquetas, type Vertical } from '@lucuma-crm/shared';
 import type { Permiso } from '@lucuma-crm/shared';
 
 interface Me {
-  user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string };
+  user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string; cuentaLucuma?: boolean };
   organization: { id: string; name: string; vertical?: string } | null;
   tienePassword: boolean;
 }
@@ -179,6 +179,7 @@ export default function App() {
 
   return (
     <PermisosContext.Provider value={permisos}>
+    <CuentaLucumaContext.Provider value={!!data.user.cuentaLucuma}>
     <VerticalContext.Provider value={vertical}>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
@@ -318,6 +319,7 @@ export default function App() {
       </div>
     </div>
     </VerticalContext.Provider>
+    </CuentaLucumaContext.Provider>
     </PermisosContext.Provider>
   );
 }
