@@ -90,11 +90,17 @@ const mover = (m: string, n: number) => {
 };
 const PERIODICIDAD: Record<Servicio['periodicidad'], string> = { mensual: 'mensual', anual: 'anual', unico: 'pago único', variable: 'variable', comision: 'comisión por venta' };
 
-/** Atajos para los acuerdos que no son paquetes del catálogo. */
-const ATAJOS: { nombre: string; periodicidad: Servicio['periodicidad'] }[] = [
-  { nombre: 'Servidor web', periodicidad: 'anual' },
-  { nombre: 'Alianza comercial', periodicidad: 'comision' },
-];
+/** Atajo del formulario: un servicio que se carga seguido, con las condiciones de la última vez. */
+interface Atajo {
+  name: string;
+  projectId: string | null;
+  amount: string | number;
+  currency: string;
+  igvIncluido: boolean;
+  periodicidad: Servicio['periodicidad'];
+  comisionPct: string | number | null;
+  diaPago: number | null;
+}
 
 export default function Clientes() {
   const [params, setParams] = useSearchParams();
@@ -294,22 +300,33 @@ function aCuerpo(f: FormServicio) {
 function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio) => void; id: string }) {
   const catalogo = useQuery({ queryKey: ['projects'], queryFn: () => api.get<{ id: string; name: string }[]>('/projects') });
   const comision = f.periodicidad === 'comision';
-  const cambios = (a: (typeof ATAJOS)[number]): Partial<FormServicio> => ({
-    periodicidad: a.periodicidad,
-    ...(a.periodicidad === 'comision' ? { amount: '0', diaPago: '' } : {}),
-  });
+  const atajos = useQuery({ queryKey: ['servicios-frecuentes'], queryFn: () => api.get<Atajo[]>('/clientes/servicios/frecuentes') });
+  // El nombre se rellena con el del catálogo salvo que se haya escrito uno propio.
+  const nombreAuto = (n: string) => !n.trim() || !!catalogo.data?.some((p) => p.name === n) || !!atajos.data?.some((a) => a.name === n);
   return (
     <>
       <div className="acciones" style={{ marginTop: 6 }}>
         <span className="meta">Atajos:</span>
-        {ATAJOS.map((a) => (
+        {atajos.data?.map((a) => (
           <button
-            key={a.nombre}
+            key={a.name}
             type="button"
             className="btn btn-sec"
-            onClick={() => set({ ...f, ...cambios(a), name: a.nombre, projectId: catalogo.data?.find((p) => p.name === a.nombre)?.id ?? f.projectId })}
+            onClick={() =>
+              set({
+                ...f,
+                name: a.name,
+                projectId: a.projectId ?? '',
+                amount: Number(a.amount) ? String(Number(a.amount)) : a.periodicidad === 'comision' ? '0' : '',
+                currency: a.currency,
+                igvIncluido: a.igvIncluido,
+                periodicidad: a.periodicidad,
+                comisionPct: a.comisionPct ? String(Number(a.comisionPct)) : '',
+                diaPago: a.diaPago ? String(a.diaPago) : '',
+              })
+            }
           >
-            {a.nombre}
+            {a.name}
           </button>
         ))}
       </div>
@@ -321,8 +338,13 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
             value={f.projectId}
             onChange={(e) => {
               const p = catalogo.data?.find((x) => x.id === e.target.value);
-              const atajo = ATAJOS.find((a) => a.nombre === p?.name);
-              set({ ...f, ...(atajo ? cambios(atajo) : {}), projectId: e.target.value, name: f.name || p?.name || '' });
+              const tipo = p?.name === 'Servidor web' ? 'anual' : p?.name === 'Alianza comercial' ? 'comision' : null;
+              set({
+                ...f,
+                ...(tipo ? { periodicidad: tipo, ...(tipo === 'comision' ? { amount: '0', diaPago: '' } : {}) } : {}),
+                projectId: e.target.value,
+                name: p && nombreAuto(f.name) ? p.name : f.name,
+              });
             }}
           >
             <option value="">A medida / otro</option>
