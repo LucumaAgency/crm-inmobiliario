@@ -294,6 +294,10 @@ function aCuerpo(f: FormServicio) {
 function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio) => void; id: string }) {
   const catalogo = useQuery({ queryKey: ['projects'], queryFn: () => api.get<{ id: string; name: string }[]>('/projects') });
   const comision = f.periodicidad === 'comision';
+  const cambios = (a: (typeof ATAJOS)[number]): Partial<FormServicio> => ({
+    periodicidad: a.periodicidad,
+    ...(a.periodicidad === 'comision' ? { amount: '0', diaPago: '' } : {}),
+  });
   return (
     <>
       <div className="acciones" style={{ marginTop: 6 }}>
@@ -303,7 +307,7 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
             key={a.nombre}
             type="button"
             className="btn btn-sec"
-            onClick={() => set({ ...f, name: a.nombre, periodicidad: a.periodicidad, ...(a.periodicidad === 'comision' ? { amount: '0', diaPago: '' } : {}) })}
+            onClick={() => set({ ...f, ...cambios(a), name: a.nombre, projectId: catalogo.data?.find((p) => p.name === a.nombre)?.id ?? f.projectId })}
           >
             {a.nombre}
           </button>
@@ -317,7 +321,8 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
             value={f.projectId}
             onChange={(e) => {
               const p = catalogo.data?.find((x) => x.id === e.target.value);
-              set({ ...f, projectId: e.target.value, name: f.name || p?.name || '' });
+              const atajo = ATAJOS.find((a) => a.nombre === p?.name);
+              set({ ...f, ...(atajo ? cambios(atajo) : {}), projectId: e.target.value, name: f.name || p?.name || '' });
             }}
           >
             <option value="">A medida / otro</option>

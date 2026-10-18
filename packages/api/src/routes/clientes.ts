@@ -73,8 +73,23 @@ export default async function clientesRoutes(app: FastifyInstance) {
     return p?.id ?? null;
   }
 
+  /**
+   * Servidor web y alianza comercial son servicios que no se venden por paquetes, pero tienen que
+   * estar en el catálogo para elegirlos y para que Ingresos los separe. Se crean si faltan.
+   */
+  async function catalogoBase(organizationId: string) {
+    for (const [slug, name] of [['servidor-web', 'Servidor web'], ['alianza-comercial', 'Alianza comercial']]) {
+      await prisma.project.upsert({
+        where: { organizationId_slug: { organizationId, slug } },
+        create: { organizationId, slug, name },
+        update: {},
+      });
+    }
+  }
+
   // ------------------------------------------------------------------ clientes
   app.get('/', { preHandler: pre }, async (req) => {
+    await catalogoBase(org(req));
     const hoy = fecha(hoyLima());
     const lista = await prisma.cliente.findMany({
       where: { organizationId: org(req) },
