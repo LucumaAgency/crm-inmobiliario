@@ -264,6 +264,21 @@ export default async function clientesRoutes(app) {
         await audit(org(req), req.user.id, 'cliente.servicio.update', { entity: 'cliente', entityId: s.clienteId, meta: { servicio: s.id, ...p.data } });
         return s;
     });
+    /**
+     * Borrar un servicio (cargado por error o que ya no va). Sus cobros pendientes y anulados se
+     * borran con él; los pagados se quedan, sin enlazar, para que Ingresos no cambie.
+     */
+    app.delete('/servicios/:sid', { preHandler: pre }, async (req, reply) => {
+        const s = await prisma.clienteServicio.findFirst({ where: { id: req.params.sid, organizationId: org(req) } });
+        if (!s)
+            return reply.code(404).send({ error: 'Servicio no encontrado' });
+        const [cobros] = await prisma.$transaction([
+            prisma.cobro.deleteMany({ where: { servicioId: s.id, estado: { not: 'pagado' } } }),
+            prisma.clienteServicio.delete({ where: { id: s.id } }),
+        ]);
+        await audit(org(req), req.user.id, 'cliente.servicio.delete', { entity: 'cliente', entityId: s.clienteId, meta: { servicio: s.name, cobrosBorrados: cobros.count } });
+        return { ok: true, cobrosBorrados: cobros.count };
+    });
     // ------------------------------------------------------------------ cobranza
     /**
      * Cobros de un mes y, aparte, los pendientes de meses anteriores (lo que se arrastra).
