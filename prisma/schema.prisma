@@ -23,21 +23,24 @@ model Organization {
   vertical  String   @default("inmobiliaria")
   createdAt DateTime @default(now())
 
-  users    User[]
-  customRoles CustomRole[]
-  proformas   Proforma[]
-  sites    Site[]
-  projects Project[]
-  contacts Contact[]
-  leads    Lead[]
-  stages   Stage[]
-  forms     Form[]
-  metaPages MetaPage[]
-  metaLeads MetaLead[]
-  waNumbers WaNumber[]
-  waConversations WaConversation[]
-  notasVoz  NotaVoz[]
-  settings  Json?
+  users            User[]
+  customRoles      CustomRole[]
+  proformas        Proforma[]
+  sites            Site[]
+  projects         Project[]
+  contacts         Contact[]
+  leads            Lead[]
+  stages           Stage[]
+  forms            Form[]
+  metaPages        MetaPage[]
+  metaLeads        MetaLead[]
+  waNumbers        WaNumber[]
+  waConversations  WaConversation[]
+  notasVoz         NotaVoz[]
+  clientes         Cliente[]
+  clienteServicios ClienteServicio[]
+  cobros           Cobro[]
+  settings         Json?
 
   @@map("organizations")
 }
@@ -68,16 +71,16 @@ enum Role {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String
-  name           String
-  role           Role         @default(asesor)
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email             String
+  name              String
+  role              Role         @default(asesor)
   /// Rol creado por la organización. Si está, sus permisos mandan sobre los de `role`.
-  customRoleId   String?
-  customRole     CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
-  active         Boolean      @default(true)
+  customRoleId      String?
+  customRole        CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  active            Boolean      @default(true)
   /// scrypt, formato `scrypt$N$r$p$sal$hash` (lib/password.ts). Null = aún sin contraseña:
   /// entra por enlace al correo y la define en Ajustes.
   passwordHash      String?
@@ -87,8 +90,8 @@ model User {
   maxDiscountPct    Decimal?     @db.Decimal(5, 2)
   /// Teléfono del asesor: sale en la proforma para que el cliente lo llame.
   phone             String?
-  lastLoginAt    DateTime?
-  createdAt      DateTime     @default(now())
+  lastLoginAt       DateTime?
+  createdAt         DateTime     @default(now())
 
   assignedLeads Lead[]       @relation("LeadOwner")
   proformas     Proforma[]
@@ -157,13 +160,14 @@ model Project {
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
 
-  units      Unit[]
-  proformas  Proforma[]
-  typologies Typology[]
-  leads      Lead[]
-  forms      Form[]
-  metaPages  MetaPage[]
-  waNumbers  WaNumber[]
+  units            Unit[]
+  proformas        Proforma[]
+  typologies       Typology[]
+  leads            Lead[]
+  forms            Form[]
+  metaPages        MetaPage[]
+  waNumbers        WaNumber[]
+  clienteServicios ClienteServicio[]
 
   @@unique([organizationId, slug])
   @@map("projects")
@@ -265,7 +269,8 @@ model Contact {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  leads Lead[]
+  leads           Lead[]
+  waConversations WaConversation[]
 
   // Claves de identidad. Únicas a nivel de motor, no solo por convención del código:
   // dos submits simultáneos de la misma persona son una condición de carrera que debe
@@ -277,8 +282,6 @@ model Contact {
   @@unique([organizationId, email], name: "uq_contact_email")
   @@unique([organizationId, phone], name: "uq_contact_phone")
   @@unique([organizationId, document], name: "uq_contact_document")
-  waConversations WaConversation[]
-
   @@map("contacts")
 }
 
@@ -342,15 +345,16 @@ model Lead {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  activities  Activity[]
-  assignments Assignment[]
-  submissions FormSubmission[]
-  metaLeads   MetaLead[]
-  waConversations WaConversation[]
-  notasVoz        NotaVoz[]
+  activities        Activity[]
+  assignments       Assignment[]
+  submissions       FormSubmission[]
+  metaLeads         MetaLead[]
+  waConversations   WaConversation[]
+  notasVoz          NotaVoz[]
   typologyInterests LeadTypologyInterest[]
   unitInterests     LeadUnitInterest[]
   proformas         Proforma[]
+  clientes          Cliente[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, ownerId])
@@ -386,14 +390,14 @@ model Proforma {
   agent  Json
   items  Json // [{unitId, kind, code, bedrooms, bathrooms, areaM2, price}]
 
-  currency       String  @default("PEN")
-  listTotal      Decimal @db.Decimal(14, 2)
-  discountPct    Decimal @default(0) @db.Decimal(5, 2)
-  discountAmount Decimal @default(0) @db.Decimal(14, 2)
-  finalTotal     Decimal @db.Decimal(14, 2)
-  validDays      Int     @default(3)
+  currency       String   @default("PEN")
+  listTotal      Decimal  @db.Decimal(14, 2)
+  discountPct    Decimal  @default(0) @db.Decimal(5, 2)
+  discountAmount Decimal  @default(0) @db.Decimal(14, 2)
+  finalTotal     Decimal  @db.Decimal(14, 2)
+  validDays      Int      @default(3)
   validUntil     DateTime
-  note           String? @db.Text
+  note           String?  @db.Text
 
   pdfPath String
 
@@ -792,16 +796,16 @@ model NotaVoz {
   bytes       Int
   durationSec Int?
 
-  status      NotaVozStatus @default(pendiente)
-  transcript  String?       @db.Text
+  status     NotaVozStatus @default(pendiente)
+  transcript String?       @db.Text
   /// { resumen, tipo, siguientePaso: { tipo, cuando, descripcion } | null }
-  propuesta   Json?
-  error       String?       @db.Text
+  propuesta  Json?
+  error      String?       @db.Text
   /// Actividad creada al confirmar. Null mientras la propuesta no se registre.
-  activityId  String?
+  activityId String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([leadId, createdAt])
   @@map("notas_voz")
@@ -814,4 +818,110 @@ enum NotaVozStatus {
   transcrita
   lista
   error
+}
+
+// ------------------------------------------------- clientes activos (vertical agencia)
+//
+// Lo que pasa DESPUÉS de ganar: qué servicios tiene contratados cada cliente, cuánto paga y
+// qué cobros están pagados o vencidos. No es contabilidad: el comprobante de SUNAT se emite
+// fuera y aquí solo se anota su número (docs/22-VERTICAL-AGENCIA.md). Solo lo ve la cuenta
+// de Lucuma.
+
+model Cliente {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// El lead del que vino, si se convirtió desde el embudo.
+  leadId         String?
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  name           String
+  legalName      String?
+  ruc            String?
+  contactName    String?
+  email          String?
+  phone          String?
+  notes          String?      @db.Text
+  /// Archivado: ya no es cliente. No se borra para conservar sus cobros.
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  servicios ClienteServicio[]
+  cobros    Cobro[]
+
+  @@index([organizationId, active])
+  @@map("clientes")
+}
+
+model ClienteServicio {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clienteId         String
+  cliente           Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  /// Servicio del catálogo (Project en la vertical agencia). Opcional: hay acuerdos a medida.
+  projectId         String?
+  project           Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// Nombre que se muestra: «SEO · Crecimiento», «Web + mantenimiento».
+  name              String
+  amount            Decimal      @db.Decimal(12, 2)
+  currency          String       @default("PEN")
+  /// true: `amount` ya incluye IGV. false: se le suma el 18 %.
+  igvIncluido       Boolean      @default(false)
+  /// mensual | unico | variable. Solo el mensual genera cobros solo.
+  periodicidad      String       @default("mensual")
+  /// Día del mes en que vence el cobro (1-28). Null: el día de inicio.
+  diaPago           Int?
+  inicio            DateTime     @db.Date
+  /// Fin del contrato o fecha de renovación. Avisa 30 días antes.
+  fin               DateTime?    @db.Date
+  /// activo | pausado | terminado
+  estado            String       @default("activo")
+  notes             String?      @db.Text
+  /// Desde qué mes se generan cobros. Al cargar un cliente antiguo es el mes de alta, para no
+  /// llenar la cobranza de meses pasados que ya se cobraron fuera del CRM.
+  cobrarDesde       String
+  avisoRenovacionEl DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  cobros Cobro[]
+
+  @@index([organizationId, estado])
+  @@index([clienteId])
+  @@map("cliente_servicios")
+}
+
+model Cobro {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clienteId      String
+  cliente        Cliente          @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  servicioId     String?
+  servicio       ClienteServicio? @relation(fields: [servicioId], references: [id], onDelete: SetNull)
+  /// Mes al que corresponde: "2026-10". Con el servicio, evita generar dos veces el mismo mes.
+  periodo        String
+  concepto       String
+  /// Sin IGV (lo que se reporta como ingreso) y total con IGV (lo que paga el cliente).
+  base           Decimal          @db.Decimal(12, 2)
+  total          Decimal          @db.Decimal(12, 2)
+  currency       String           @default("PEN")
+  vence          DateTime         @db.Date
+  /// pendiente | pagado | anulado. «Vencido» no se guarda: es pendiente con fecha pasada.
+  estado         String           @default("pendiente")
+  pagadoEl       DateTime?        @db.Date
+  medio          String?
+  comprobante    String?
+  notes          String?          @db.Text
+  avisoVenceEl   DateTime?
+  avisoVencidoEl DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([servicioId, periodo])
+  @@index([organizationId, vence])
+  @@index([organizationId, periodo])
+  @@index([clienteId])
+  @@map("cobros")
 }

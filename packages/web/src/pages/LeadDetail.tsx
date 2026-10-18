@@ -14,7 +14,7 @@ import EditarDatosLead from '../components/EditarDatosLead.js';
 import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
 import type { ApiError } from '../lib/api.js';
-import { usePuede } from '../lib/permisos.js';
+import { useEsCuentaLucuma, usePuede } from '../lib/permisos.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Detalle {
@@ -215,6 +215,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             {lead.status === 'perdido' && lead.lostReason && (
               <p className="meta" style={{ marginTop: 6 }}>Perdido: {lead.lostReason}</p>
             )}
+            {lead.status === 'ganado' && <ConvertirEnCliente leadId={lead.id} />}
           </div>
           <div>
             <label>Nivel de interés</label>
@@ -497,6 +498,32 @@ function OtrosLeads({ leads }: { leads: NonNullable<Detalle['otrosLeads']> }) {
           {l.stage ? ` (${l.stage.name})` : ''}{l.owner ? ` con ${l.owner.name}` : ''}. <Link to={`/leads/${l.id}`}>Ver</Link>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Agencia, solo la cuenta de Lucuma: pasar un lead ganado a «Clientes», con los paquetes de su
+ * última propuesta como servicios (docs/22-VERTICAL-AGENCIA.md).
+ */
+function ConvertirEnCliente({ leadId }: { leadId: string }) {
+  const esLucuma = useEsCuentaLucuma();
+  const vertical = useVertical();
+  const navigate = useNavigate();
+  const convertir = useMutation({
+    mutationFn: () => api.post<{ id: string }>(`/clientes/desde-lead/${leadId}`),
+    onSuccess: () => navigate('/clientes'),
+    onError: (e: ApiError) => {
+      if (e.status === 409) navigate('/clientes');
+    },
+  });
+  if (!esLucuma || vertical !== 'agencia') return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button type="button" className="btn btn-sec" disabled={convertir.isPending} onClick={() => convertir.mutate()}>
+        {convertir.isPending ? 'Convirtiendo…' : 'Convertir en cliente'}
+      </button>
+      {convertir.isError && (convertir.error as ApiError).status !== 409 && <p className="error">{(convertir.error as ApiError).message}</p>}
     </div>
   );
 }

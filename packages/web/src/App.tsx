@@ -18,6 +18,7 @@ import Formularios from './pages/Formularios.js';
 import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
+import Clientes from './pages/Clientes.js';
 import { CuentaLucumaContext, PermisosContext } from './lib/permisos.js';
 import { VerticalContext } from './lib/vertical.js';
 import { etiquetas, type Vertical } from '@lucuma-crm/shared';
@@ -48,6 +49,7 @@ const TITULOS: [string, string][] = [
   ['/formularios/:id', 'Editar formulario'],
   ['/formularios', 'Formularios'],
   ['/ajustes', 'Ajustes'],
+  ['/clientes', 'Clientes'],
   ['/cuenta', 'Mi cuenta'],
 ];
 
@@ -165,6 +167,8 @@ export default function App() {
   const puedeFormularios = puede('canales.configurar');
   const puedeInventario = puede('inventario.editar');
   const puedeReportes = puede('reportes.ver');
+  // Clientes y cobranza: solo la cuenta de Lucuma y solo en una agencia (docs/22).
+  const verClientes = !!data.user.cuentaLucuma && vertical === 'agencia';
   const enlace = ({ isActive }: { isActive: boolean }) => (isActive ? 'activo' : '');
   const titulo =
     (TITULOS.find(([patron]) => matchPath(patron, location.pathname))?.[1] ?? 'Lucuma CRM')
@@ -206,6 +210,11 @@ export default function App() {
           {puedeReportes && (
             <NavLink to="/reportes" className={enlace}>
               <Icono nombre="reportes" />Reportes
+            </NavLink>
+          )}
+          {verClientes && (
+            <NavLink to="/clientes" className={enlace}>
+              <Icono nombre="cuenta" />Clientes
             </NavLink>
           )}
 
@@ -301,6 +310,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/resumen" replace />} />
             <Route path="/resumen" element={<Resumen />} />
             {puedeReportes && <Route path="/reportes" element={<Reportes />} />}
+            {verClientes && <Route path="/clientes" element={<Clientes />} />}
             <Route path="/leads" element={<Leads />} />
             <Route path="/tablero" element={<Tablero rol={data.user.role} />} />
             <Route path="/leads/:id" element={<LeadDetail rol={data.user.role} />} />

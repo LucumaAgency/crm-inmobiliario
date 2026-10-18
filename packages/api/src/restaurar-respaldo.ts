@@ -62,6 +62,11 @@ async function main() {
   const tablas: Record<string, Fila[]> = {};
   for (const t of TABLAS) {
     const b = zip.get(`datos/${t.modelo}.json`);
+    // Una tabla que no existía cuando se hizo el respaldo (y que el manifiesto no cuenta) va vacía.
+    if (!b && manifiesto.conteos[t.modelo] === undefined) {
+      tablas[t.modelo] = [];
+      continue;
+    }
     if (!b) throw new Error(`Falta datos/${t.modelo}.json`);
     tablas[t.modelo] = JSON.parse(b.toString('utf8')) as Fila[];
     const esperado = manifiesto.conteos[t.modelo];
