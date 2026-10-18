@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PERMISOS_IDS, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, passwordSchema } from '@lucuma-crm/shared';
+import { PERMISOS_IDS, REDES, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, passwordSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
@@ -1240,15 +1240,18 @@ export default async function adminRoutes(app) {
             phone: z.string().optional(),
             document: z.string().optional(),
             message: z.string().optional(),
-            projectId: z.string().optional(),
+            // El proyecto (servicio en la agencia) es obligatorio en el alta manual: sin él el lead
+            // no entra a ningún embudo útil. Teléfono y correo no: hay leads que solo dejan una red.
+            projectId: z.string({ required_error: 'Elige el proyecto' }).min(1, 'Elige el proyecto'),
+            redes: z.object(Object.fromEntries(REDES.map((r) => [r.campo, z.string().max(191).optional()]))).optional(),
             typologyIds: z.array(z.string()).optional(),
             unitIds: z.array(z.string()).optional(),
             source: z.string().default('manual'),
         })
             .safeParse(req.body);
         if (!parsed.success)
-            return reply.code(400).send({ error: 'Datos inválidos' });
-        const { projectId, typologyIds, unitIds, source, ...values } = parsed.data;
+            return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
+        const { projectId, typologyIds, unitIds, source, redes, ...values } = parsed.data;
         if (projectId) {
             const proyecto = await prisma.project.findFirst({
                 where: { id: projectId, organizationId: req.user.organizationId },
@@ -1270,6 +1273,13 @@ export default async function adminRoutes(app) {
         // lo marcado en el alta se agrega a lo que ya tenía.
         if (result.leadId && (typologyIds?.length || unitIds?.length)) {
             await sumarIntereses(prisma, result.leadId, { typologyIds, unitIds });
+        }
+        // Las redes completan el contacto; una vacía no borra lo que ya tenía.
+        const conRedes = Object.fromEntries(Object.entries(redes ?? {}).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
+        if (result.leadId && Object.keys(conRedes).length) {
+            const lead = await prisma.lead.findUnique({ where: { id: result.leadId }, select: { contactId: true } });
+            if (lead)
+                await prisma.contact.update({ where: { id: lead.contactId }, data: conRedes });
         }
         return result;
     });

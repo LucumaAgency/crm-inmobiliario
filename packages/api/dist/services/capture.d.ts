@@ -39,12 +39,17 @@ export declare function buscarContacto(organizationId: string, d: DatosContacto)
     createdAt: Date;
     updatedAt: Date;
     organizationId: string;
+    instagram: string | null;
+    facebook: string | null;
     fname: string;
     lname: string | null;
     email: string | null;
     phone: string | null;
     document: string | null;
     documentType: string | null;
+    tiktok: string | null;
+    linkedin: string | null;
+    website: string | null;
 } | null>;
 /**
  * Identidad del contacto.
@@ -61,12 +66,17 @@ export declare function upsertContacto(organizationId: string, d: DatosContacto)
     createdAt: Date;
     updatedAt: Date;
     organizationId: string;
+    instagram: string | null;
+    facebook: string | null;
     fname: string;
     lname: string | null;
     email: string | null;
     phone: string | null;
     document: string | null;
     documentType: string | null;
+    tiktok: string | null;
+    linkedin: string | null;
+    website: string | null;
 }>;
 /**
  * Enlace a la ficha del lead.
