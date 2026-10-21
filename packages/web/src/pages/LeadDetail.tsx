@@ -15,7 +15,7 @@ import EditarDatosLead from '../components/EditarDatosLead.js';
 import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
 import type { ApiError } from '../lib/api.js';
-import { useEsCuentaLucuma, usePuede } from '../lib/permisos.js';
+import { usePuede, useVerClientes } from '../lib/permisos.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Detalle {
@@ -514,12 +514,11 @@ function OtrosLeads({ leads }: { leads: NonNullable<Detalle['otrosLeads']> }) {
 }
 
 /**
- * Agencia, solo la cuenta de Lucuma: pasar un lead ganado a «Clientes», con los paquetes de su
+ * Agencia, quien ve Clientes: pasar un lead ganado a «Clientes», con los paquetes de su
  * última propuesta como servicios (docs/22-VERTICAL-AGENCIA.md).
  */
 function ConvertirEnCliente({ leadId }: { leadId: string }) {
-  const esLucuma = useEsCuentaLucuma();
-  const vertical = useVertical();
+  const verClientes = useVerClientes();
   const navigate = useNavigate();
   const convertir = useMutation({
     mutationFn: () => api.post<{ id: string }>(`/clientes/desde-lead/${leadId}`),
@@ -528,7 +527,7 @@ function ConvertirEnCliente({ leadId }: { leadId: string }) {
       if (e.status === 409) navigate('/clientes');
     },
   });
-  if (!esLucuma || vertical !== 'agencia') return null;
+  if (!verClientes) return null;
   return (
     <div style={{ marginTop: 8 }}>
       <button type="button" className="btn btn-sec" disabled={convertir.isPending} onClick={() => convertir.mutate()}>

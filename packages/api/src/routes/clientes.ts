@@ -1,11 +1,13 @@
 /**
- * Clientes activos y cobranza (vertical agencia). Solo la cuenta de Lucuma, y solo en una
- * organización agencia: en el CRM de una inmobiliaria estas rutas no existen para nadie.
+ * Clientes activos y cobranza (vertical agencia). En la organización de Lucuma solo la cuenta de
+ * Lucuma; en otra agencia, quien tenga `clientes.gestionar` (ver `puedeVerClientes`). En el CRM
+ * de una inmobiliaria estas rutas no existen para nadie.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { audit, requireCuentaLucuma } from '../lib/auth.js';
+import { puedeVerClientes } from '@lucuma-crm/shared';
+import { audit, loadUser } from '../lib/auth.js';
 import {
   ESTADOS_COBRO,
   ESTADOS_SERVICIO,
@@ -59,13 +61,19 @@ function alMes(s: { amount: unknown; igvIncluido: boolean; sinIgv: boolean; peri
   return s.periodicidad === 'anual' ? base / 12 : base;
 }
 
-async function soloAgencia(req: FastifyRequest, reply: FastifyReply) {
-  const org = await prisma.organization.findUnique({ where: { id: req.user!.organizationId }, select: { vertical: true } });
+/** Solo en agencias (404 en una inmobiliaria) y solo para quien puede ver Clientes (403). */
+async function acceso(req: FastifyRequest, reply: FastifyReply) {
+  await loadUser(req);
+  if (!req.user) return reply.code(401).send({ error: 'No autenticado' });
+  const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { vertical: true, slug: true } });
   if (org?.vertical !== 'agencia') return reply.code(404).send({ error: 'No disponible' });
+  if (!puedeVerClientes({ vertical: org.vertical, orgSlug: org.slug, email: req.user.email, permissions: req.user.permissions })) {
+    return reply.code(403).send({ error: 'Sin permisos' });
+  }
 }
 
 export default async function clientesRoutes(app: FastifyInstance) {
-  const pre = [requireCuentaLucuma, soloAgencia];
+  const pre = [acceso];
   const org = (req: FastifyRequest) => req.user!.organizationId;
 
   async function proyectoValido(organizationId: string, id: string | null | undefined) {

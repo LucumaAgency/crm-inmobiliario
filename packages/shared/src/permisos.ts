@@ -82,6 +82,13 @@ export const PERMISOS = [
     detalle: 'Ver el estado de los respaldos y descargar una copia completa de la información (leads, conversaciones, proformas, archivos). Queda en auditoría.',
   },
   {
+    id: 'clientes.gestionar',
+    grupo: 'Clientes',
+    nombre: 'Clientes y cobranza',
+    detalle: 'Solo en agencias: clientes activos, servicios contratados, cobranza e ingresos.',
+    vertical: 'agencia',
+  },
+  {
     id: 'registro.ver',
     grupo: 'Configuración',
     nombre: 'Ver el registro técnico',
@@ -123,6 +130,20 @@ export const CUENTA_LUCUMA = 'dev@lucumaagency.com';
 
 export function esCuentaLucuma(email: string | null | undefined): boolean {
   return (email ?? '').trim().toLowerCase() === CUENTA_LUCUMA;
+}
+
+/** La organización de Lucuma: ahí Clientes es solo de la cuenta de Lucuma, no de cualquier gerente. */
+export const ORG_LUCUMA = 'lucuma';
+
+/**
+ * Quién ve «Clientes» (cobranza de una agencia): solo en organizaciones agencia; en la de Lucuma,
+ * solo la cuenta de Lucuma; en otra agencia (p. ej. Conecta), quien tenga `clientes.gestionar`
+ * (el gerente) y la cuenta de Lucuma, que entra como soporte (ya ve todo lo demás).
+ */
+export function puedeVerClientes(o: { vertical: string | null | undefined; orgSlug: string; email: string; permissions: readonly string[] }): boolean {
+  if (o.vertical !== 'agencia') return false;
+  if (o.orgSlug === ORG_LUCUMA) return esCuentaLucuma(o.email);
+  return esCuentaLucuma(o.email) || o.permissions.includes('clientes.gestionar');
 }
 
 export function esPermiso(x: string): x is Permiso {

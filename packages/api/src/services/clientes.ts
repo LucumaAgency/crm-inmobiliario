@@ -10,7 +10,8 @@
  * Las fechas de cobro son fechas de calendario de Lima, sin hora: se guardan como DATE y se
  * construyen a mediodía UTC para que ningún desfase de zona las mueva de día.
  */
-import { CUENTA_LUCUMA } from '@lucuma-crm/shared';
+import { ORG_LUCUMA, esCuentaLucuma } from '@lucuma-crm/shared';
+import { permisosDe } from '../lib/auth.js';
 import { prisma } from '../db.js';
 import { logError, logLine } from '../lib/log.js';
 import { sendMail } from '../lib/mail.js';
@@ -127,8 +128,17 @@ export async function avisosCobranza(ahora = new Date()): Promise<void> {
 }
 
 async function avisosDe(org: { id: string; name: string; slug: string }, ahora: Date) {
-  const destino = await prisma.user.findFirst({ where: { organizationId: org.id, email: CUENTA_LUCUMA, active: true }, select: { email: true } });
-  if (!destino) return;
+  // En Lucuma, la cuenta de Lucuma; en otra agencia, quienes gestionan sus clientes (sin la
+  // cuenta de Lucuma: la cobranza del cliente no es asunto del correo de Lucuma).
+  const usuarios = await prisma.user.findMany({
+    where: { organizationId: org.id, active: true },
+    select: { email: true, role: true, customRole: { select: { permissions: true, name: true } } },
+  });
+  const para = usuarios
+    .filter((u) => (org.slug === ORG_LUCUMA ? esCuentaLucuma(u.email) : !esCuentaLucuma(u.email) && permisosDe(u).permissions.includes('clientes.gestionar')))
+    .map((u) => u.email);
+  if (!para.length) return;
+  const destino = { email: para };
 
   const hoy = fecha(hoyLima(ahora));
   const en3 = new Date(hoy.getTime() + 3 * 86_400_000);
@@ -167,5 +177,5 @@ async function avisosDe(org: { id: string; name: string; slug: string }, ahora: 
     vencidos.length && prisma.cobro.updateMany({ where: { id: { in: vencidos.map((c) => c.id) } }, data: { avisoVencidoEl: marca } }),
     renovaciones.length && prisma.clienteServicio.updateMany({ where: { id: { in: renovaciones.map((s) => s.id) } }, data: { avisoRenovacionEl: marca } }),
   ]);
-  logLine(`cobranza: aviso a ${destino.email} (${vencidos.length} vencidos, ${porVencer.length} por vencer, ${renovaciones.length} renovaciones)`);
+  logLine(`cobranza: aviso a ${para.join(', ')} (${vencidos.length} vencidos, ${porVencer.length} por vencer, ${renovaciones.length} renovaciones)`);
 }

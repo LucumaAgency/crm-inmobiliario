@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PERMISOS, ROLES_BASE, type Permiso } from '@lucuma-crm/shared';
+import { PERMISOS as TODOS, ROLES_BASE, type Permiso } from '@lucuma-crm/shared';
 import { api, ApiError } from '../lib/api.js';
 import Icono from '../components/Icono.js';
+import { useVertical } from '../lib/vertical.js';
 
 interface Rol { id: string; name: string; permissions: Permiso[]; _count: { users: number } }
 
-const GRUPOS = [...new Set(PERMISOS.map((p) => p.grupo))];
 
 /**
  * Roles de la organización: un nombre y una lista de casillas.
@@ -18,6 +18,10 @@ const GRUPOS = [...new Set(PERMISOS.map((p) => p.grupo))];
  */
 export default function Roles() {
   const qc = useQueryClient();
+  const vertical = useVertical();
+  // Permisos de otro vertical (Clientes en una inmobiliaria) no se muestran.
+  const PERMISOS = TODOS.filter((p) => !('vertical' in p) || p.vertical === vertical);
+  const GRUPOS = [...new Set(PERMISOS.map((p) => p.grupo))];
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api.get<Rol[]>('/roles') });
   const [editando, setEditando] = useState<{ id?: string; name: string; permissions: Permiso[] } | null>(null);
   const [borrando, setBorrando] = useState<Rol | null>(null);

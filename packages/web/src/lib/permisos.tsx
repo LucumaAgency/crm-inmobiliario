@@ -27,3 +27,10 @@ export const CuentaLucumaContext = createContext(false);
 export function useEsCuentaLucuma() {
   return useContext(CuentaLucumaContext);
 }
+
+/** Si ve «Clientes» (lo decide el servidor en /me con `puedeVerClientes`). */
+export const VerClientesContext = createContext(false);
+
+export function useVerClientes() {
+  return useContext(VerClientesContext);
+}
