@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { audit, requireCuentaLucuma } from '../lib/auth.js';
+import { puedeVerClientes } from '@lucuma-crm/shared';
+import { audit, loadUser } from '../lib/auth.js';
 import { ESTADOS_COBRO, ESTADOS_SERVICIO, PERIODICIDADES, RECURRENTES, fecha, generarCobros, hoyLima, importes, isoDe, mesActual, mesDe, sumarMeses, vencimiento, } from '../services/clientes.js';
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,13 +36,20 @@ function alMes(s) {
     const { base } = importes(Number(s.amount), s.igvIncluido, s.sinIgv);
     return s.periodicidad === 'anual' ? base / 12 : base;
 }
-async function soloAgencia(req, reply) {
-    const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { vertical: true } });
+/** Solo en agencias (404 en una inmobiliaria) y solo para quien puede ver Clientes (403). */
+async function acceso(req, reply) {
+    await loadUser(req);
+    if (!req.user)
+        return reply.code(401).send({ error: 'No autenticado' });
+    const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { vertical: true, slug: true } });
     if (org?.vertical !== 'agencia')
         return reply.code(404).send({ error: 'No disponible' });
+    if (!puedeVerClientes({ vertical: org.vertical, orgSlug: org.slug, email: req.user.email, permissions: req.user.permissions })) {
+        return reply.code(403).send({ error: 'Sin permisos' });
+    }
 }
 export default async function clientesRoutes(app) {
-    const pre = [requireCuentaLucuma, soloAgencia];
+    const pre = [acceso];
     const org = (req) => req.user.organizationId;
     async function proyectoValido(organizationId, id) {
         if (!id)

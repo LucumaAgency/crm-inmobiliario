@@ -19,7 +19,7 @@ export declare function permisosDe(user: {
         name: string;
     } | null;
 }): {
-    permissions: ("leads.ver_todos" | "leads.editar" | "leads.reasignar" | "leads.exportar" | "leads.borrar" | "reportes.ver" | "inventario.editar" | "inventario.precios" | "embudo.configurar" | "usuarios.gestionar" | "canales.configurar" | "respaldos.descargar" | "registro.ver")[];
+    permissions: ("leads.ver_todos" | "leads.editar" | "leads.reasignar" | "leads.exportar" | "leads.borrar" | "reportes.ver" | "inventario.editar" | "inventario.precios" | "embudo.configurar" | "usuarios.gestionar" | "canales.configurar" | "respaldos.descargar" | "clientes.gestionar" | "registro.ver")[];
     roleName: string;
 };
 export declare function olvidarPermisos(userId?: string): void;

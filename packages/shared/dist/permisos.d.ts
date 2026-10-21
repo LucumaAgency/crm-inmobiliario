@@ -69,6 +69,12 @@ export declare const PERMISOS: readonly [{
     readonly nombre: "Descargar respaldos";
     readonly detalle: "Ver el estado de los respaldos y descargar una copia completa de la información (leads, conversaciones, proformas, archivos). Queda en auditoría.";
 }, {
+    readonly id: "clientes.gestionar";
+    readonly grupo: "Clientes";
+    readonly nombre: "Clientes y cobranza";
+    readonly detalle: "Solo en agencias: clientes activos, servicios contratados, cobranza e ingresos.";
+    readonly vertical: "agencia";
+}, {
     readonly id: "registro.ver";
     readonly grupo: "Configuración";
     readonly nombre: "Ver el registro técnico";
@@ -92,4 +98,17 @@ export declare const ROLES_BASE: Record<RolBase, {
  */
 export declare const CUENTA_LUCUMA = "dev@lucumaagency.com";
 export declare function esCuentaLucuma(email: string | null | undefined): boolean;
+/** La organización de Lucuma: ahí Clientes es solo de la cuenta de Lucuma, no de cualquier gerente. */
+export declare const ORG_LUCUMA = "lucuma";
+/**
+ * Quién ve «Clientes» (cobranza de una agencia): solo en organizaciones agencia; en la de Lucuma,
+ * solo la cuenta de Lucuma; en otra agencia (p. ej. Conecta), quien tenga `clientes.gestionar`
+ * (el gerente) y la cuenta de Lucuma, que entra como soporte (ya ve todo lo demás).
+ */
+export declare function puedeVerClientes(o: {
+    vertical: string | null | undefined;
+    orgSlug: string;
+    email: string;
+    permissions: readonly string[];
+}): boolean;
 export declare function esPermiso(x: string): x is Permiso;
