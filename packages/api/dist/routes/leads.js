@@ -928,6 +928,7 @@ export default async function leadRoutes(app) {
             source: z.enum(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import']).optional(),
             message: texto(5000),
             ...Object.fromEntries(REDES.map((r) => [r.campo, texto(191)])),
+            company: texto(191),
         })
             .safeParse(req.body);
         if (!parsed.success)
@@ -952,6 +953,8 @@ export default async function leadRoutes(app) {
         for (const r of REDES)
             if (d[r.campo] !== undefined)
                 datosContacto[r.campo] = d[r.campo]?.trim() || null;
+        if (d.company !== undefined)
+            datosContacto.company = d.company?.trim() || null;
         const claves = [
             ['phone', 'teléfono', normalizePhonePE],
             ['email', 'correo', normalizeEmail],
@@ -983,7 +986,7 @@ export default async function leadRoutes(app) {
         }
         const ETIQUETA = {
             fname: 'nombre', lname: 'apellido', phone: 'teléfono', email: 'correo', document: 'documento',
-            documentType: 'tipo de documento', source: 'fuente', message: 'mensaje',
+            documentType: 'tipo de documento', source: 'fuente', message: 'mensaje', company: 'empresa',
             ...Object.fromEntries(REDES.map((r) => [r.campo, r.nombre])),
         };
         const cambios = [];

@@ -47,6 +47,7 @@ export declare function buscarContacto(organizationId: string, d: DatosContacto)
     phone: string | null;
     document: string | null;
     documentType: string | null;
+    company: string | null;
     tiktok: string | null;
     linkedin: string | null;
     website: string | null;
@@ -74,6 +75,7 @@ export declare function upsertContacto(organizationId: string, d: DatosContacto)
     phone: string | null;
     document: string | null;
     documentType: string | null;
+    company: string | null;
     tiktok: string | null;
     linkedin: string | null;
     website: string | null;
