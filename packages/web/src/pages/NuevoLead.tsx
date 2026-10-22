@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import SelectorInteres from '../components/SelectorInteres.js';
-import { useEtiquetas } from '../lib/vertical.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 import { REDES, type CampoRed } from '@lucuma-crm/shared';
 
 interface Props {
@@ -24,6 +24,8 @@ export default function NuevoLead({ onCerrar }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const L = useEtiquetas();
+  const agencia = useVertical() === 'agencia';
+  const [company, setCompany] = useState('');
 
   const [fname, setFname] = useState('');
   const [lname, setLname] = useState('');
@@ -52,6 +54,7 @@ export default function NuevoLead({ onCerrar }: Props) {
         message: message.trim() || undefined,
         projectId,
         redes,
+        company: agencia ? company.trim() || undefined : undefined,
         typologyIds: projectId && typologyIds.length ? typologyIds : undefined,
         unitIds: projectId && unitIds.length ? unitIds : undefined,
         source: 'manual',
@@ -94,6 +97,13 @@ export default function NuevoLead({ onCerrar }: Props) {
               <input id="nl-lname" value={lname} onChange={(e) => setLname(e.target.value)} />
             </div>
           </div>
+
+          {agencia && (
+            <>
+              <label htmlFor="nl-company">Empresa</label>
+              <input id="nl-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Opcional" />
+            </>
+          )}
 
           <div className="rejilla-2">
             <div>

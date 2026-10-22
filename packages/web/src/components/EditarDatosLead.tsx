@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { FUENTES } from '../lib/reportes.js';
 import { usePuede } from '../lib/permisos.js';
+import { useVertical } from '../lib/vertical.js';
 import { REDES, type CampoRed } from '@lucuma-crm/shared';
 
 export interface DatosLead {
   id: string;
   source: string;
   message: string | null;
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType?: string | null } & Partial<Record<CampoRed, string | null>>;
+  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType?: string | null; company?: string | null } & Partial<Record<CampoRed, string | null>>;
   owner: { id: string; name: string } | null;
 }
 
@@ -25,6 +26,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
   const qc = useQueryClient();
   const puede = usePuede();
   const reasigna = puede('leads.reasignar');
+  const agencia = useVertical() === 'agencia';
   const [f, setF] = useState({
     fname: lead.contact.fname,
     lname: lead.contact.lname ?? '',
@@ -35,6 +37,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
     source: lead.source,
     message: lead.message ?? '',
     ownerId: lead.owner?.id ?? '',
+    company: lead.contact.company ?? '',
     ...(Object.fromEntries(REDES.map((r) => [r.campo, lead.contact[r.campo] ?? ''])) as Record<CampoRed, string>),
   });
   const campo = (k: keyof typeof f) => ({
@@ -59,6 +62,7 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
         document: f.document,
         source: f.source,
         message: f.message,
+        ...(agencia ? { company: f.company } : {}),
         ...Object.fromEntries(REDES.map((r) => [r.campo, f[r.campo]])),
       });
       if (reasigna && f.ownerId && f.ownerId !== (lead.owner?.id ?? '')) {
@@ -95,6 +99,12 @@ export default function EditarDatosLead({ lead, onCerrar }: { lead: DatosLead; o
               <label htmlFor="ed-lname">Apellido</label>
               <input id="ed-lname" {...campo('lname')} />
             </div>
+            {agencia && (
+              <div>
+                <label htmlFor="ed-company">Empresa</label>
+                <input id="ed-company" {...campo('company')} placeholder="Opcional" />
+              </div>
+            )}
             <div>
               <label htmlFor="ed-phone">Teléfono</label>
               <input id="ed-phone" type="tel" {...campo('phone')} placeholder="987 654 321" />

@@ -1311,6 +1311,7 @@ export default async function adminRoutes(app: FastifyInstance) {
         // no entra a ningún embudo útil. Teléfono y correo no: hay leads que solo dejan una red.
         projectId: z.string({ required_error: 'Elige el proyecto' }).min(1, 'Elige el proyecto'),
         redes: z.object(Object.fromEntries(REDES.map((r) => [r.campo, z.string().max(191).optional()]))).optional(),
+        company: z.string().max(191).optional(),
         typologyIds: z.array(z.string()).optional(),
         unitIds: z.array(z.string()).optional(),
         source: z.string().default('manual'),
@@ -1318,7 +1319,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       .safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
 
-    const { projectId, typologyIds, unitIds, source, redes, ...values } = parsed.data;
+    const { projectId, typologyIds, unitIds, source, redes, company, ...values } = parsed.data;
     if (projectId) {
       const proyecto = await prisma.project.findFirst({
         where: { id: projectId, organizationId: req.user!.organizationId },
@@ -1344,7 +1345,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       await sumarIntereses(prisma, result.leadId, { typologyIds, unitIds });
     }
     // Las redes completan el contacto; una vacía no borra lo que ya tenía.
-    const conRedes = Object.fromEntries(Object.entries(redes ?? {}).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
+    const conRedes = Object.fromEntries(Object.entries({ ...(redes ?? {}), company }).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
     if (result.leadId && Object.keys(conRedes).length) {
       const lead = await prisma.lead.findUnique({ where: { id: result.leadId }, select: { contactId: true } });
       if (lead) await prisma.contact.update({ where: { id: lead.contactId }, data: conRedes });

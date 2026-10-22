@@ -30,7 +30,7 @@ interface Detalle {
   attribution: Record<string, unknown> | null;
   sperantPareja?: { id: string; nombre: string } | null;
   otrosLeads?: { id: string; status: string; lostReason: string | null; createdAt: string; updatedAt: string; project: { name: string } | null; stage: { name: string } | null; owner: { name: string } | null }[];
-  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null } & Partial<Record<CampoRed, string | null>>;
+  contact: { fname: string; lname: string | null; phone: string | null; email: string | null; document: string | null; documentType: string | null; company?: string | null } & Partial<Record<CampoRed, string | null>>;
   project: { id: string; name: string } | null;
   unit: { code: string; price: string | null; currency: string; areaM2: string | null; bedrooms: number | null } | null;
   stage: { id: string; name: string } | null;
@@ -172,6 +172,9 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
           <h2 style={{ margin: 0, fontSize: 19 }}>{nombre}</h2>
           {!lead.firstContactAt && <span className="chip chip-alerta">Sin contactar</span>}
         </div>
+        {vertical === 'agencia' && lead.contact.company && (
+          <div className="meta" style={{ marginTop: 2 }}>Empresa: <strong>{lead.contact.company}</strong></div>
+        )}
         {(lead.otrosLeads ?? []).length > 0 && <OtrosLeads leads={lead.otrosLeads!} />}
         <div className="meta" style={{ marginTop: 6 }}>
           {lead.contact.phone ?? 'sin teléfono'} · {lead.contact.email ?? 'sin correo'}

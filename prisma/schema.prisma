@@ -266,6 +266,8 @@ model Contact {
   phone          String?
   document       String?
   documentType   String?      @default("DNI")
+  // Empresa donde trabaja (agencias: el cliente es una empresa). Opcional, texto libre.
+  company        String?      @db.VarChar(191)
   // Redes sociales, tal como se escribieron (usuario o enlace). Ver shared/redes.ts.
   instagram      String?      @db.VarChar(191)
   facebook       String?      @db.VarChar(191)

@@ -33,6 +33,8 @@ const hora = (iso: string) =>
 const diaYHora = (iso: string) =>
   new Date(iso).toLocaleString('es-PE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+const esHoy = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+
 /** Valor para <input type="datetime-local"> en la hora local del navegador. */
 function paraInput(d: Date) {
   const off = d.getTimezoneOffset() * 60000;
@@ -76,7 +78,7 @@ function Fila({
     <div className="seg-fila">
       <div className="seg-cuando">
         <span className={vencido ? 'chip chip-alerta' : 'chip chip-gris'}>
-          {vencido ? diaYHora(s.dueAt) : hora(s.dueAt)}
+          {esHoy(s.dueAt) ? `Hoy ${hora(s.dueAt)}` : diaYHora(s.dueAt)}
         </span>
       </div>
       <div className="seg-quien">
