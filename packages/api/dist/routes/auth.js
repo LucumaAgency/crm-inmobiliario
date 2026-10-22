@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { cambiarPasswordInput, esCuentaLucuma, loginInput, magicLinkInput, puedeVerClientes } from '@lucuma-crm/shared';
+import { cambiarPasswordInput, esCuentaLucuma, loginInput, magicLinkInput, notasVozDisponibles, puedeVerClientes } from '@lucuma-crm/shared';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { leerAjustes } from '../lib/ajustes.js';
@@ -198,7 +198,7 @@ export default async function authRoutes(app) {
         const ajustes = await leerAjustes(req.user.organizationId);
         // El tope propio manda; si no tiene, el de la organización; si tampoco, sin tope.
         const descuentoMaximoPct = propio?.maxDiscountPct != null ? Number(propio.maxDiscountPct) : ajustes.descuentoMaximoPct;
-        return { user: { ...req.user, phone: propio?.phone ?? null, cuentaLucuma: esCuentaLucuma(req.user.email), verClientes: !!org && puedeVerClientes({ vertical: org.vertical, orgSlug: org.slug, email: req.user.email, permissions: req.user.permissions }) }, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
+        return { user: { ...req.user, phone: propio?.phone ?? null, cuentaLucuma: esCuentaLucuma(req.user.email), verClientes: !!org && puedeVerClientes({ vertical: org.vertical, orgSlug: org.slug, email: req.user.email, permissions: req.user.permissions }), notasVoz: notasVozDisponibles(org?.slug) }, organization: org, tienePassword: !!propio?.passwordHash, descuentoMaximoPct };
     });
     /** Datos propios que no son credenciales: hoy solo el teléfono, que sale en la proforma. */
     app.post('/perfil', { preHandler: requireAuth }, async (req, reply) => {

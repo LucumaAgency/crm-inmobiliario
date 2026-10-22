@@ -111,4 +111,9 @@ export declare function puedeVerClientes(o: {
     email: string;
     permissions: readonly string[];
 }): boolean;
+/**
+ * Notas de voz (grabar en la ficha + transcripción): solo en el CRM de Lucuma. En las
+ * organizaciones de clientes no se muestran ni se aceptan grabaciones nuevas.
+ */
+export declare function notasVozDisponibles(orgSlug: string | null | undefined): boolean;
 export declare function esPermiso(x: string): x is Permiso;

@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { REDES, activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
+import { REDES, activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, notasVozDisponibles, seguimientoInput, seguimientoPatch } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -753,8 +753,14 @@ export default async function leadRoutes(app) {
         return registrarActividad(user, lead, parsed.data);
     });
     // ------------------------------------------------------------ notas de voz
+    /** Notas de voz: solo en el CRM de Lucuma (`notasVozDisponibles`). En las demás orgs, 404. */
+    const soloVoz = async (req, reply) => {
+        const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { slug: true } });
+        if (!notasVozDisponibles(org?.slug))
+            return reply.code(404).send({ error: 'Las notas de voz no están disponibles.' });
+    };
     /** Subir una nota de voz. Se procesa en un job; la respuesta no espera a la transcripción. */
-    app.post('/:id/notas-voz', { preHandler: escritura }, async (req, reply) => {
+    app.post('/:id/notas-voz', { preHandler: [soloVoz, escritura] }, async (req, reply) => {
         const user = req.user;
         const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(user) } });
         if (!lead)
@@ -792,7 +798,7 @@ export default async function leadRoutes(app) {
         return sinRuta(nota);
     });
     /** Notas de voz del lead, la más reciente primero. */
-    app.get('/:id/notas-voz', async (req, reply) => {
+    app.get('/:id/notas-voz', { preHandler: soloVoz }, async (req, reply) => {
         const lead = await prisma.lead.findFirst({ where: { id: req.params.id, ...scopeForUser(req.user) } });
         if (!lead)
             return reply.code(404).send({ error: 'Lead no encontrado' });
@@ -808,7 +814,7 @@ export default async function leadRoutes(app) {
         return { transcribir: ajustes.transcribirVoz, notas: notas.map(sinRuta) };
     });
     /** El audio, solo para quien puede ver el lead. Nunca por una URL pública. */
-    app.get('/notas-voz/:id/audio', async (req, reply) => {
+    app.get('/notas-voz/:id/audio', { preHandler: soloVoz }, async (req, reply) => {
         const nota = await buscarNota(req.params.id, req.user);
         if (!nota)
             return reply.code(404).send({ error: 'Nota no encontrada' });
@@ -820,7 +826,7 @@ export default async function leadRoutes(app) {
      * Transcribir una nota: la que falló (por ejemplo, antes de configurar la clave) o una
      * guardada solo como audio cuando la transcripción estaba apagada.
      */
-    app.post('/notas-voz/:id/reintentar', { preHandler: escritura }, async (req, reply) => {
+    app.post('/notas-voz/:id/reintentar', { preHandler: [soloVoz, escritura] }, async (req, reply) => {
         const nota = await buscarNota(req.params.id, req.user);
         if (!nota)
             return reply.code(404).send({ error: 'Nota no encontrada' });
@@ -837,7 +843,7 @@ export default async function leadRoutes(app) {
      * Registrar la propuesta, ya revisada por el asesor. Lo que llega es lo que el asesor
      * dejó en pantalla, no la propuesta original: puede haber corregido la fecha o el texto.
      */
-    app.post('/notas-voz/:id/registrar', { preHandler: escritura }, async (req, reply) => {
+    app.post('/notas-voz/:id/registrar', { preHandler: [soloVoz, escritura] }, async (req, reply) => {
         const user = req.user;
         const parsed = activityInput.safeParse(req.body);
         if (!parsed.success)

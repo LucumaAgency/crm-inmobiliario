@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PERMISOS_IDS, REDES, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, passwordSchema } from '@lucuma-crm/shared';
+import { PERMISOS_IDS, REDES, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, notasVozDisponibles, passwordSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
@@ -218,6 +218,11 @@ export default async function adminRoutes(app) {
             .safeParse(req.body);
         if (!parsed.success)
             return reply.code(400).send({ error: 'Datos inválidos' });
+        if (parsed.data.transcribirVoz !== undefined) {
+            const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { slug: true } });
+            if (!notasVozDisponibles(org?.slug))
+                return reply.code(404).send({ error: 'Las notas de voz no están disponibles.' });
+        }
         const ajustes = await guardarAjustes(req.user.organizationId, parsed.data);
         await audit(req.user.organizationId, req.user.id, 'org.ajustes', { meta: parsed.data });
         return ajustes;

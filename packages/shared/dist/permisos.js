@@ -138,6 +138,13 @@ export function puedeVerClientes(o) {
         return esCuentaLucuma(o.email);
     return esCuentaLucuma(o.email) || o.permissions.includes('clientes.gestionar');
 }
+/**
+ * Notas de voz (grabar en la ficha + transcripción): solo en el CRM de Lucuma. En las
+ * organizaciones de clientes no se muestran ni se aceptan grabaciones nuevas.
+ */
+export function notasVozDisponibles(orgSlug) {
+    return orgSlug === ORG_LUCUMA;
+}
 export function esPermiso(x) {
     return PERMISOS_IDS.includes(x);
 }
