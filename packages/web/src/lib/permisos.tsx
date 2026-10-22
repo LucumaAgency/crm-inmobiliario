@@ -34,3 +34,10 @@ export const VerClientesContext = createContext(false);
 export function useVerClientes() {
   return useContext(VerClientesContext);
 }
+
+/** Si la organización tiene notas de voz (solo Lucuma; lo decide el servidor en /me). */
+export const NotasVozContext = createContext(false);
+
+export function useNotasVoz() {
+  return useContext(NotasVozContext);
+}

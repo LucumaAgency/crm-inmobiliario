@@ -15,7 +15,7 @@ import EditarDatosLead from '../components/EditarDatosLead.js';
 import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
 import type { ApiError } from '../lib/api.js';
-import { usePuede, useVerClientes } from '../lib/permisos.js';
+import { useNotasVoz, usePuede, useVerClientes } from '../lib/permisos.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Detalle {
@@ -47,6 +47,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   const { id } = useParams();
   const puede = usePuede();
   const soloLectura = !puede('leads.editar');
+  const notasVoz = useNotasVoz();
   const L = useEtiquetas();
   const vertical = useVertical();
   const nombreTipo = (t: string) => (t === 'visita' ? L.visita.toLowerCase() : t);
@@ -355,7 +356,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         puedeEditar={!soloLectura}
       />
 
-      <NotasVoz leadId={lead.id} puedeEditar={!soloLectura} />
+      {notasVoz && <NotasVoz leadId={lead.id} puedeEditar={!soloLectura} />}
 
       <div className="card">
         <strong>Seguimientos</strong>

@@ -19,13 +19,13 @@ import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
 import Clientes from './pages/Clientes.js';
-import { CuentaLucumaContext, PermisosContext, VerClientesContext } from './lib/permisos.js';
+import { CuentaLucumaContext, PermisosContext, VerClientesContext, NotasVozContext } from './lib/permisos.js';
 import { VerticalContext } from './lib/vertical.js';
 import { etiquetas, type Vertical } from '@lucuma-crm/shared';
 import type { Permiso } from '@lucuma-crm/shared';
 
 interface Me {
-  user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string; cuentaLucuma?: boolean; verClientes?: boolean };
+  user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string; cuentaLucuma?: boolean; verClientes?: boolean; notasVoz?: boolean };
   organization: { id: string; name: string; vertical?: string } | null;
   tienePassword: boolean;
 }
@@ -185,6 +185,7 @@ export default function App() {
     <PermisosContext.Provider value={permisos}>
     <CuentaLucumaContext.Provider value={!!data.user.cuentaLucuma}>
     <VerClientesContext.Provider value={verClientes}>
+    <NotasVozContext.Provider value={!!data.user.notasVoz}>
     <VerticalContext.Provider value={vertical}>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
@@ -330,6 +331,7 @@ export default function App() {
       </div>
     </div>
     </VerticalContext.Provider>
+    </NotasVozContext.Provider>
     </VerClientesContext.Provider>
     </CuentaLucumaContext.Provider>
     </PermisosContext.Provider>

@@ -13,7 +13,7 @@ import Roles from './Roles.js';
 import MigracionSperant from './MigracionSperant.js';
 import Diagnostico from './Diagnostico.js';
 import Respaldos from './Respaldos.js';
-import { usePuede } from '../lib/permisos.js';
+import { useNotasVoz, usePuede } from '../lib/permisos.js';
 import { PASSWORD_MIN, type Permiso } from '@lucuma-crm/shared';
 
 interface Site {
@@ -51,7 +51,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   // La sección va en la URL: recargar o compartir el enlace no te devuelve a la primera.
   const [params, setParams] = useSearchParams();
   const puede = usePuede();
-  const visibles = SECCIONES.filter((x) => puede(x.permiso));
+  const notasVoz = useNotasVoz();
+  const visibles = SECCIONES.filter((x) => puede(x.permiso) && (x.id !== 'voz' || notasVoz));
   const seccion = visibles.some((x) => x.id === params.get('seccion'))
     ? params.get('seccion')!
     : (visibles[0]?.id ?? 'embudo');
