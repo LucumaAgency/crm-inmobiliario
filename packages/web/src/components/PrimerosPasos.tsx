@@ -185,7 +185,26 @@ export function TarjetaPrimerosPasos() {
   const abrir = useAbrirGuia();
   const navigate = useNavigate();
   const d = datos.data;
-  if (!d || d.total === 0 || d.oculto || d.completados === d.total) return null;
+  if (!d || d.total === 0) return null;
+  // Sin la tarjeta (oculta o todo hecho) queda un banner discreto para reabrir la guía.
+  if (d.oculto || d.completados === d.total) {
+    return (
+      <div className="pp-banner">
+        <Icono nombre="info" tam={18} />
+        <span className="pp-banner-texto">
+          <strong>¿Necesitas repasar cómo usar el CRM?</strong>{' '}
+          <span className="meta">
+            {d.completados === d.total
+              ? 'Ya completaste los primeros pasos; la guía sigue disponible.'
+              : `Llevas ${d.completados} de ${d.total} primeros pasos.`}
+          </span>
+        </span>
+        <button type="button" className="btn btn-sec" onClick={abrir}>
+          Abrir guía de primeros pasos
+        </button>
+      </div>
+    );
+  }
   const pct = Math.round((d.completados / d.total) * 100);
 
   return (
