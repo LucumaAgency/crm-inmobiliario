@@ -15,6 +15,11 @@ function getTransport() {
       port: env.smtp.port,
       secure: env.smtp.port === 465,
       auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+      // Los valores por defecto de nodemailer llegan a 10 minutos: un SMTP lento dejaba la
+      // cola (y el latido) esperando. Si falla, el job se reintenta.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
   }
   return transport;

@@ -34,6 +34,8 @@ import { avisosCobranza } from '../services/clientes.js';
  */
 const LIMITE_MS = 25_000;
 const MAX_VUELTAS = 20;
+/** Tope duro para contestar al servicio de cron, aunque haya un trabajo a medias. */
+const RESPUESTA_MS = 20_000;
 
 export default async function cronRoutes(app: FastifyInstance) {
   const manejar = async (req: FastifyRequest, reply: { code: (n: number) => { send: (b: unknown) => unknown } }) => {
@@ -49,28 +51,52 @@ export default async function cronRoutes(app: FastifyInstance) {
     const inicio = Date.now();
     let total = 0;
     let vueltas = 0;
-    try {
-      /**
-       * Se procesa en vueltas hasta vaciar la cola, no un solo lote: si se acumularon
-       * cien trabajos durante una caída, un lote de 25 por minuto tardaría cuatro
-       * minutos en drenarlos y las alertas de SLA llegarían tarde igual.
-       */
+    /**
+     * Se procesa en vueltas hasta vaciar la cola, no un solo lote: si se acumularon
+     * cien trabajos durante una caída, un lote de 25 por minuto tardaría cuatro
+     * minutos en drenarlos y las alertas de SLA llegarían tarde igual.
+     */
+    const trabajo = (async () => {
       let tomados = 0;
       do {
         tomados = await procesarCola();
         total += tomados;
         vueltas += 1;
       } while (tomados > 0 && vueltas < MAX_VUELTAS && Date.now() - inicio < LIMITE_MS);
+    })();
+
+    /**
+     * El límite de arriba solo se mira entre vueltas: un trabajo lento (un SMTP que no
+     * contesta, una descarga de Meta) podía dejar la petición abierta minutos y el
+     * servicio de cron la daba por fallida. Ahora se responde a los RESPUESTA_MS pase lo
+     * que pase; lo que siga en curso termina en segundo plano (el proceso sigue vivo).
+     */
+    let cortado = false;
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        trabajo,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(() => { cortado = true; resolve(); }, RESPUESTA_MS);
+        }),
+      ]);
     } catch (err) {
       logError('cron: fallo procesando la cola', err);
       return reply.code(500).send({ error: 'Fallo procesando la cola' });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (cortado) {
+      trabajo
+        .then(() => logLine(`cron: latido respondido a los ${RESPUESTA_MS} ms; terminó en segundo plano tras ${Date.now() - inicio} ms (${total} trabajo(s))`))
+        .catch((err) => logError('cron: fallo procesando la cola (segundo plano)', err));
     }
 
     /**
      * Solo se escribe en el log si hubo trabajo. Un latido por minuto son 1.440 líneas
      * diarias de «no había nada», y un log que nadie puede leer es un log que no existe.
      */
-    if (total > 0) logLine(`cron: ${total} trabajo(s) en ${Date.now() - inicio} ms`);
+    if (total > 0 && !cortado) logLine(`cron: ${total} trabajo(s) en ${Date.now() - inicio} ms`);
 
     /**
      * Respaldo diario. No se espera: generar y subir un ZIP puede tardar más que el corte
@@ -81,7 +107,7 @@ export default async function cronRoutes(app: FastifyInstance) {
     // Avisos de cobranza de las agencias: como mucho una vez por hora (services/clientes.ts).
     void avisosCobranza();
 
-    return { ok: true, jobs: total, ms: Date.now() - inicio, pendiente: vueltas >= MAX_VUELTAS };
+    return { ok: true, jobs: total, ms: Date.now() - inicio, pendiente: cortado || vueltas >= MAX_VUELTAS, enSegundoPlano: cortado };
   };
 
   /**

@@ -335,7 +335,7 @@ export async function descargarMedia(messageId: string): Promise<void> {
     const info = (await llamarCloud(`${media.id}`, token)) as { url?: string; mime_type?: string; file_size?: number };
     if (!info.url) throw new Error('Meta no devolvió la URL del archivo');
     if (info.file_size && info.file_size > MAX_MEDIA_BYTES) throw new Error('Archivo demasiado grande para guardarlo');
-    const res = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new Error(`Descarga ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > MAX_MEDIA_BYTES) throw new Error('Archivo demasiado grande para guardarlo');
@@ -508,7 +508,7 @@ async function subirMedia(phoneNumberId: string, token: string, rutaAbsoluta: st
   form.append('type', mime);
   form.append('file', new Blob([await fs.promises.readFile(rutaAbsoluta)], { type: mime }), filename);
   const url = `https://graph.facebook.com/${env.meta.graphVersion}/${phoneNumberId}/media`;
-  const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+  const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form, signal: AbortSignal.timeout(60_000) });
   const datos = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
   if (!res.ok || !datos.id) {
     throw Object.assign(new Error(`Cloud API ${res.status}: ${datos.error?.message ?? 'no se pudo subir el archivo'}`), { statusCode: res.status });
