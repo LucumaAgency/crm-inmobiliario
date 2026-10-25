@@ -41,6 +41,7 @@ export const submissionResult = z.object({
 export const leadListQuery = z.object({
     q: z.string().optional(),
     stageId: z.string().optional(),
+    /** Id del asesor, o `sin` para los leads sin asignar. */
     ownerId: z.string().optional(),
     projectId: z.string().optional(),
     status: z.enum(['activo', 'ganado', 'perdido', 'spam']).optional(),
@@ -50,6 +51,10 @@ export const leadListQuery = z.object({
     orden: z.enum(['actividad', 'creacion']).default('actividad'),
     /** `sperant`: traídos por la migración; `crm`: creados aquí (capturas, manuales, pruebas). */
     origen: z.enum(['sperant', 'crm']).optional(),
+    /** Canal por el que entró (`Lead.source`). */
+    source: z.enum(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import']).optional(),
+    /** Nivel de interés 1-3, o `sin` para los que aún no tienen nivel. */
+    interes: z.enum(['1', '2', '3', 'sin']).optional(),
 });
 export const activityInput = z.object({
     type: z.enum(['nota', 'llamada', 'whatsapp', 'email', 'visita']),

@@ -142,6 +142,7 @@ export type SubmissionResult = z.infer<typeof submissionResult>;
 export declare const leadListQuery: z.ZodObject<{
     q: z.ZodOptional<z.ZodString>;
     stageId: z.ZodOptional<z.ZodString>;
+    /** Id del asesor, o `sin` para los leads sin asignar. */
     ownerId: z.ZodOptional<z.ZodString>;
     projectId: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodEnum<["activo", "ganado", "perdido", "spam"]>>;
@@ -151,6 +152,10 @@ export declare const leadListQuery: z.ZodObject<{
     orden: z.ZodDefault<z.ZodEnum<["actividad", "creacion"]>>;
     /** `sperant`: traídos por la migración; `crm`: creados aquí (capturas, manuales, pruebas). */
     origen: z.ZodOptional<z.ZodEnum<["sperant", "crm"]>>;
+    /** Canal por el que entró (`Lead.source`). */
+    source: z.ZodOptional<z.ZodEnum<["web_form", "whatsapp", "meta_ads", "manual", "import"]>>;
+    /** Nivel de interés 1-3, o `sin` para los que aún no tienen nivel. */
+    interes: z.ZodOptional<z.ZodEnum<["1", "2", "3", "sin"]>>;
 }, "strip", z.ZodTypeAny, {
     page: number;
     perPage: number;
@@ -161,6 +166,8 @@ export declare const leadListQuery: z.ZodObject<{
     ownerId?: string | undefined;
     projectId?: string | undefined;
     origen?: "sperant" | "crm" | undefined;
+    source?: "web_form" | "whatsapp" | "meta_ads" | "manual" | "import" | undefined;
+    interes?: "1" | "2" | "3" | "sin" | undefined;
 }, {
     status?: "activo" | "ganado" | "perdido" | "spam" | undefined;
     q?: string | undefined;
@@ -171,6 +178,8 @@ export declare const leadListQuery: z.ZodObject<{
     perPage?: number | undefined;
     orden?: "actividad" | "creacion" | undefined;
     origen?: "sperant" | "crm" | undefined;
+    source?: "web_form" | "whatsapp" | "meta_ads" | "manual" | "import" | undefined;
+    interes?: "1" | "2" | "3" | "sin" | undefined;
 }>;
 export declare const activityInput: z.ZodObject<{
     type: z.ZodEnum<["nota", "llamada", "whatsapp", "email", "visita"]>;
@@ -181,16 +190,16 @@ export declare const activityInput: z.ZodObject<{
     /** Qué hay que hacer en el siguiente seguimiento («visita al piloto»). */
     nextBody: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    type: "nota" | "llamada" | "whatsapp" | "email" | "visita";
+    type: "whatsapp" | "nota" | "llamada" | "email" | "visita";
     body?: string | undefined;
     nextDueAt?: string | undefined;
-    nextType?: "nota" | "llamada" | "whatsapp" | "email" | "visita" | undefined;
+    nextType?: "whatsapp" | "nota" | "llamada" | "email" | "visita" | undefined;
     nextBody?: string | undefined;
 }, {
-    type: "nota" | "llamada" | "whatsapp" | "email" | "visita";
+    type: "whatsapp" | "nota" | "llamada" | "email" | "visita";
     body?: string | undefined;
     nextDueAt?: string | undefined;
-    nextType?: "nota" | "llamada" | "whatsapp" | "email" | "visita" | undefined;
+    nextType?: "whatsapp" | "nota" | "llamada" | "email" | "visita" | undefined;
     nextBody?: string | undefined;
 }>;
 /** Seguimiento agendado a mano, sin registrar antes una actividad. */
@@ -199,11 +208,11 @@ export declare const seguimientoInput: z.ZodObject<{
     dueAt: z.ZodString;
     body: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    type: "llamada" | "whatsapp" | "email" | "visita";
+    type: "whatsapp" | "llamada" | "email" | "visita";
     dueAt: string;
     body?: string | undefined;
 }, {
-    type: "llamada" | "whatsapp" | "email" | "visita";
+    type: "whatsapp" | "llamada" | "email" | "visita";
     dueAt: string;
     body?: string | undefined;
 }>;

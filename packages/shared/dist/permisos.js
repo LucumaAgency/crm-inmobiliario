@@ -145,6 +145,14 @@ export function puedeVerClientes(o) {
 export function notasVozDisponibles(orgSlug) {
     return orgSlug === ORG_LUCUMA;
 }
+/**
+ * Organizaciones que migraron desde Sperant: solo en ellas tiene sentido filtrar por
+ * «Importados de Sperant» / «Creados en el CRM».
+ */
+export const ORGS_SPERANT = ['bastion'];
+export function usaSperant(orgSlug) {
+    return ORGS_SPERANT.includes(orgSlug ?? '');
+}
 export function esPermiso(x) {
     return PERMISOS_IDS.includes(x);
 }

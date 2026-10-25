@@ -116,4 +116,10 @@ export declare function puedeVerClientes(o: {
  * organizaciones de clientes no se muestran ni se aceptan grabaciones nuevas.
  */
 export declare function notasVozDisponibles(orgSlug: string | null | undefined): boolean;
+/**
+ * Organizaciones que migraron desde Sperant: solo en ellas tiene sentido filtrar por
+ * «Importados de Sperant» / «Creados en el CRM».
+ */
+export declare const ORGS_SPERANT: string[];
+export declare function usaSperant(orgSlug: string | null | undefined): boolean;
 export declare function esPermiso(x: string): x is Permiso;

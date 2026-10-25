@@ -74,14 +74,14 @@ export declare const formField: z.ZodObject<{
         value: string;
         label: string;
     }[] | undefined;
-    placeholder?: string | undefined;
-    help?: string | undefined;
     source?: {
         type: "units" | "typologies" | "projects";
         onlyAvailable: boolean;
         excludeKinds: string[];
         projectId?: string | undefined;
     } | undefined;
+    placeholder?: string | undefined;
+    help?: string | undefined;
     maxLength?: number | undefined;
     defaultValue?: string | undefined;
 }, {
@@ -92,16 +92,16 @@ export declare const formField: z.ZodObject<{
         value: string;
         label: string;
     }[] | undefined;
-    semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
-    placeholder?: string | undefined;
-    help?: string | undefined;
-    required?: boolean | undefined;
     source?: {
         type: "units" | "typologies" | "projects";
         projectId?: string | undefined;
         onlyAvailable?: boolean | undefined;
         excludeKinds?: string[] | undefined;
     } | undefined;
+    semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
+    placeholder?: string | undefined;
+    help?: string | undefined;
+    required?: boolean | undefined;
     maxLength?: number | undefined;
     defaultValue?: string | undefined;
 }>;
@@ -198,14 +198,14 @@ export declare const formSchema: z.ZodObject<{
             value: string;
             label: string;
         }[] | undefined;
-        placeholder?: string | undefined;
-        help?: string | undefined;
         source?: {
             type: "units" | "typologies" | "projects";
             onlyAvailable: boolean;
             excludeKinds: string[];
             projectId?: string | undefined;
         } | undefined;
+        placeholder?: string | undefined;
+        help?: string | undefined;
         maxLength?: number | undefined;
         defaultValue?: string | undefined;
     }, {
@@ -216,16 +216,16 @@ export declare const formSchema: z.ZodObject<{
             value: string;
             label: string;
         }[] | undefined;
-        semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
-        placeholder?: string | undefined;
-        help?: string | undefined;
-        required?: boolean | undefined;
         source?: {
             type: "units" | "typologies" | "projects";
             projectId?: string | undefined;
             onlyAvailable?: boolean | undefined;
             excludeKinds?: string[] | undefined;
         } | undefined;
+        semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
+        placeholder?: string | undefined;
+        help?: string | undefined;
+        required?: boolean | undefined;
         maxLength?: number | undefined;
         defaultValue?: string | undefined;
     }>, "many">;
@@ -301,14 +301,14 @@ export declare const formSchema: z.ZodObject<{
             value: string;
             label: string;
         }[] | undefined;
-        placeholder?: string | undefined;
-        help?: string | undefined;
         source?: {
             type: "units" | "typologies" | "projects";
             onlyAvailable: boolean;
             excludeKinds: string[];
             projectId?: string | undefined;
         } | undefined;
+        placeholder?: string | undefined;
+        help?: string | undefined;
         maxLength?: number | undefined;
         defaultValue?: string | undefined;
     }[];
@@ -332,16 +332,16 @@ export declare const formSchema: z.ZodObject<{
             value: string;
             label: string;
         }[] | undefined;
-        semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
-        placeholder?: string | undefined;
-        help?: string | undefined;
-        required?: boolean | undefined;
         source?: {
             type: "units" | "typologies" | "projects";
             projectId?: string | undefined;
             onlyAvailable?: boolean | undefined;
             excludeKinds?: string[] | undefined;
         } | undefined;
+        semantic?: "message" | "custom" | "email" | "fname" | "lname" | "phone" | "document" | "unit_interest" | "project_interest" | undefined;
+        placeholder?: string | undefined;
+        help?: string | undefined;
+        required?: boolean | undefined;
         maxLength?: number | undefined;
         defaultValue?: string | undefined;
     }[];
