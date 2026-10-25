@@ -1,11 +1,21 @@
 import { z } from 'zod';
+import { usaSperant } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
-import { audit, requirePermiso } from '../lib/auth.js';
+import { audit, requireAuth, requirePermiso } from '../lib/auth.js';
 import { cifrar, pista } from '../lib/secretos.js';
 import { asesoresSperant, borrarDatos, completarDatos, hayDatos, importar, iniciarExportacion, iniciarImportacion, leerEstado, probar, reasignarPorAsesor, resumen, sugerirMapa, tareaEnCurso, } from '../services/sperant.js';
 export default async function sperantRoutes(app) {
     const guardia = requirePermiso('canales.configurar', 'usuarios.gestionar');
+    // La migración solo existe en las organizaciones que vienen de Sperant (usaSperant).
+    app.addHook('preHandler', async (req, reply) => {
+        await requireAuth(req, reply);
+        if (!req.user)
+            return reply;
+        const org = await prisma.organization.findUnique({ where: { id: req.user.organizationId }, select: { slug: true } });
+        if (!usaSperant(org?.slug))
+            return reply.code(404).send({ error: 'La migración desde Sperant no está disponible.' });
+    });
     /** Estado completo para la pantalla: config, tarea en curso, resumen y mapa sugerido. */
     app.get('/estado', { preHandler: guardia }, async (req) => {
         const org = req.user.organizationId;
