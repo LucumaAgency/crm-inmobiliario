@@ -238,19 +238,22 @@ export async function generarRespaldo(organizationId, variante, destino) {
                 filas = sinCredenciales(t.modelo, filas);
             tablas[t.modelo] = filas;
             conteos[t.modelo] = filas.length;
-            zip.agregar(`datos/${t.modelo}.json`, JSON.stringify(filas), generado);
+            await zip.agregar(`datos/${t.modelo}.json`, JSON.stringify(filas), generado);
         }
         for (const [archivo, contenido] of Object.entries(planillas(tablas)))
-            zip.agregar(`planillas/${archivo}`, contenido, generado);
+            await zip.agregar(`planillas/${archivo}`, contenido, generado);
         let archivos = 0;
         for (const [carpeta, dir] of [['uploads', uploadsDir], ['privados', privadosDir]]) {
             for (const f of recorrer(path.join(dir, organizationId))) {
-                zip.agregar(`archivos/${carpeta}/${organizationId}/${f.rel}`, fs.readFileSync(f.abs), fs.statSync(f.abs).mtime);
+                // Lectura y compresión asíncronas: entre archivo y archivo el servidor sigue atendiendo
+                // (latido, webhooks de Meta, usuarios). Antes todo el ZIP congelaba el proceso.
+                const st = await fs.promises.stat(f.abs);
+                await zip.agregar(`archivos/${carpeta}/${organizationId}/${f.rel}`, await fs.promises.readFile(f.abs), st.mtime);
                 archivos++;
             }
         }
-        zip.agregar('respaldo.json', JSON.stringify({ formato: FORMATO, variante, generadoEl: generado.toISOString(), organizacion: org, conteos, archivos }, null, 2), generado);
-        zip.agregar('LEEME.txt', leeme(org, variante, generado, conteos), generado);
+        await zip.agregar('respaldo.json', JSON.stringify({ formato: FORMATO, variante, generadoEl: generado.toISOString(), organizacion: org, conteos, archivos }, null, 2), generado);
+        await zip.agregar('LEEME.txt', leeme(org, variante, generado, conteos), generado);
         zip.cerrar();
         fs.renameSync(ruta + '.parcial', ruta);
         return { ruta, nombre, bytes: fs.statSync(ruta).size, conteos, archivos };

@@ -5,7 +5,7 @@ export declare class EscritorZip {
     private entradas;
     constructor(ruta: string);
     private escribir;
-    agregar(nombre: string, contenido: Buffer | string, fecha?: Date): void;
+    agregar(nombre: string, contenido: Buffer | string, fecha?: Date): Promise<void>;
     cerrar(): void;
     /** Si algo falla a medio camino: cerrar y borrar, para no dejar un ZIP a medias. */
     descartar(): void;

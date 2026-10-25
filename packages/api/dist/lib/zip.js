@@ -9,6 +9,9 @@
  */
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import { promisify } from 'node:util';
+/** Comprime en el pool de hilos de libuv: un ZIP grande no congela el servidor. */
+const deflateRaw = promisify(zlib.deflateRaw);
 const TABLA_CRC = (() => {
     const t = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {
@@ -20,6 +23,10 @@ const TABLA_CRC = (() => {
     return t;
 })();
 function crc32(buf) {
+    // Node 20.15+ trae CRC32 nativo, decenas de veces más rápido que el bucle en JS.
+    const nativo = zlib.crc32;
+    if (nativo)
+        return nativo(buf) >>> 0;
     let c = 0xffffffff;
     for (let i = 0; i < buf.length; i++)
         c = TABLA_CRC[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
@@ -46,11 +53,11 @@ export class EscritorZip {
         fs.writeSync(this.fd, b);
         this.offset += b.length;
     }
-    agregar(nombre, contenido, fecha = new Date()) {
+    async agregar(nombre, contenido, fecha = new Date()) {
         const datos = typeof contenido === 'string' ? Buffer.from(contenido, 'utf8') : contenido;
         const nombreBuf = Buffer.from(nombre.replace(/\\/g, '/'), 'utf8');
         const comprimir = !YA_COMPRIMIDO.test(nombre) && datos.length > 64;
-        const cuerpo = comprimir ? zlib.deflateRawSync(datos, { level: 6 }) : datos;
+        const cuerpo = comprimir ? await deflateRaw(datos, { level: 6 }) : datos;
         const metodo = comprimir ? 8 : 0;
         const crc = crc32(datos);
         const { hora, fecha: dia } = fechaDos(fecha);
