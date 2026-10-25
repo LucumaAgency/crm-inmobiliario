@@ -14,7 +14,7 @@ import MigracionSperant from './MigracionSperant.js';
 import Diagnostico from './Diagnostico.js';
 import Respaldos from './Respaldos.js';
 import { useNotasVoz, usePuede } from '../lib/permisos.js';
-import { PASSWORD_MIN, type Permiso } from '@lucuma-crm/shared';
+import { PASSWORD_MIN, usaSperant, type Permiso } from '@lucuma-crm/shared';
 
 interface Site {
   id: string;
@@ -52,7 +52,11 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   const [params, setParams] = useSearchParams();
   const puede = usePuede();
   const notasVoz = useNotasVoz();
-  const visibles = SECCIONES.filter((x) => puede(x.permiso) && (x.id !== 'voz' || notasVoz));
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ organization: { slug: string } | null }>('/auth/me') });
+  const conSperant = usaSperant(me.data?.organization?.slug);
+  const visibles = SECCIONES.filter(
+    (x) => puede(x.permiso) && (x.id !== 'voz' || notasVoz) && (x.id !== 'sperant' || conSperant),
+  );
   const seccion = visibles.some((x) => x.id === params.get('seccion'))
     ? params.get('seccion')!
     : (visibles[0]?.id ?? 'embudo');
