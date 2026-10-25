@@ -91,6 +91,8 @@ model User {
   /// Teléfono del asesor: sale en la proforma para que el cliente lo llame.
   phone             String?
   lastLoginAt       DateTime?
+  /// Preferencias propias de la persona (p. ej. si ya vio el asistente de primeros pasos).
+  preferencias      Json?
   createdAt         DateTime     @default(now())
 
   assignedLeads Lead[]       @relation("LeadOwner")

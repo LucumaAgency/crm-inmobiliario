@@ -7,6 +7,7 @@ import Kpi from '../components/Kpi.js';
 import MatrizPuntos from '../components/MatrizPuntos.js';
 import TablaLeads, { type LeadFila } from '../components/TablaLeads.js';
 import NuevoLead from './NuevoLead.js';
+import { TarjetaPrimerosPasos } from '../components/PrimerosPasos.js';
 import {
   PERIODOS,
   duracion,
@@ -44,6 +45,7 @@ export default function Resumen() {
 
   return (
     <>
+      <TarjetaPrimerosPasos />
       <div className="herramientas">
         <label className="control" style={{ margin: 0 }}>
           <Icono nombre="calendario" tam={15} />

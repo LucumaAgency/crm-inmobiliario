@@ -159,7 +159,7 @@ function ListaClientes() {
         <Kpi titulo="Clientes activos" icono="cuenta" tono="solido" valor={clientes.data ? String(activos.length) : '—'} />
         <Kpi titulo="Ingreso mensual" icono="reportes" valor={clientes.data ? corto(mensual) : '—'} nota="mensuales + anuales ÷ 12, sin IGV" />
         <Kpi titulo="Vencido" icono="alerta" valor={clientes.data ? corto(vencido) : '—'} nota="con IGV" />
-        <Kpi titulo="Servicios activos" icono="proyectos" valor={clientes.data ? String(activos.flatMap((c) => c.servicios).filter((s) => s.estado === 'activo').length) : '—'} />
+        <Kpi titulo="Servicios activos" icono="catalogo" valor={clientes.data ? String(activos.flatMap((c) => c.servicios).filter((s) => s.estado === 'activo').length) : '—'} />
       </div>
 
       <div className="card">

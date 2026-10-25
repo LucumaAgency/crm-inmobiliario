@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import ImportarUnidades from './ImportarUnidades.js';
@@ -75,7 +75,12 @@ export default function ProyectoDetail() {
   const qc = useQueryClient();
   const vertical = useVertical();
   const L = useEtiquetas();
-  const [pestana, setPestana] = useState<'tipologias' | 'unidades' | 'datos' | 'paquetes'>(vertical === 'agencia' ? 'paquetes' : 'tipologias');
+  type Pestana = 'tipologias' | 'unidades' | 'datos' | 'paquetes';
+  // ?pestana= abre una pestaña directa (la usa la guía de primeros pasos).
+  const [params] = useSearchParams();
+  const pedida = params.get('pestana') as Pestana | null;
+  const validas: Pestana[] = vertical === 'agencia' ? ['paquetes', 'datos'] : ['tipologias', 'unidades', 'datos'];
+  const [pestana, setPestana] = useState<Pestana>(pedida && validas.includes(pedida) ? pedida : vertical === 'agencia' ? 'paquetes' : 'tipologias');
   const [importando, setImportando] = useState(false);
 
   const proyectos = useQuery({

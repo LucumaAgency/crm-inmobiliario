@@ -19,6 +19,7 @@ import FormularioEditor from './pages/FormularioEditor.js';
 import Ajustes from './pages/Ajustes.js';
 import Cuenta from './pages/Cuenta.js';
 import Clientes from './pages/Clientes.js';
+import { ProveedorGuia, useAbrirGuia } from './components/PrimerosPasos.js';
 import { CuentaLucumaContext, PermisosContext, VerClientesContext, NotasVozContext } from './lib/permisos.js';
 import { VerticalContext } from './lib/vertical.js';
 import { etiquetas, type Vertical } from '@lucuma-crm/shared';
@@ -187,6 +188,7 @@ export default function App() {
     <VerClientesContext.Provider value={verClientes}>
     <NotasVozContext.Provider value={!!data.user.notasVoz}>
     <VerticalContext.Provider value={vertical}>
+    <ProveedorGuia>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
         <div className="lateral-marca">
@@ -241,7 +243,7 @@ export default function App() {
           ))}
           {(vertical !== 'inmobiliaria' || proyectos.data?.length === 0) && (
             <NavLink to="/proyectos" className={enlace}>
-              <Icono nombre="proyectos" />{vertical === 'inmobiliaria' ? 'Ver proyectos' : L.inventario}
+              <Icono nombre={vertical === 'inmobiliaria' ? 'proyectos' : 'catalogo'} />{vertical === 'inmobiliaria' ? 'Ver proyectos' : L.inventario}
             </NavLink>
           )}
 
@@ -266,6 +268,7 @@ export default function App() {
               <NavLink to="/cuenta" role="menuitem">
                 <Icono nombre="cuenta" tam={16} />Mi cuenta
               </NavLink>
+              <BotonGuia onClick={() => setMenuUsuario(false)} />
               <button type="button" role="menuitem" onClick={salir}>
                 <Icono nombre="salir" tam={16} />Cerrar sesión
               </button>
@@ -330,10 +333,21 @@ export default function App() {
         </main>
       </div>
     </div>
+    </ProveedorGuia>
     </VerticalContext.Provider>
     </NotasVozContext.Provider>
     </VerClientesContext.Provider>
     </CuentaLucumaContext.Provider>
     </PermisosContext.Provider>
+  );
+}
+
+/** «Primeros pasos» en el menú de usuario: reabre el asistente. */
+function BotonGuia({ onClick }: { onClick: () => void }) {
+  const abrir = useAbrirGuia();
+  return (
+    <button type="button" role="menuitem" onClick={() => { onClick(); abrir(); }}>
+      <Icono nombre="check" tam={16} />Primeros pasos
+    </button>
   );
 }

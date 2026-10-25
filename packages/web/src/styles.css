@@ -761,3 +761,43 @@ label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px;
 .tabla-comparativa td.sperant { font-weight: 600; }
 .tabla-comparativa tr.aprobada td { background: #F3F7FF; }
 .tabla-comparativa input { width: 16px; height: 16px; margin: 0; accent-color: var(--azul); }
+
+/* --- Primeros pasos (asistente + tarjeta de Resumen) --------------------- */
+.pp-modal { max-width: 520px; }
+.pp-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--azul); }
+.pp-puntos { display: flex; gap: 6px; margin: 10px 0 4px; }
+.pp-punto { flex: 1; height: 4px; border-radius: 2px; border: 0; padding: 0; background: var(--borde); cursor: pointer; }
+.pp-punto.hecho { background: var(--azul-suave); }
+.pp-punto.activo { background: var(--azul); }
+.pp-cuerpo { padding: 14px 0 6px; min-height: 190px; }
+.pp-cuerpo h2 { font-size: 19px; margin: 0 0 8px; }
+.pp-cuerpo p { line-height: 1.55; margin: 0 0 12px; }
+.pp-titulo-paso { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.pp-titulo-paso h2 { margin: 0; }
+.pp-num {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; font-weight: 700; font-size: 14px;
+  background: var(--azul-tinte); color: var(--azul);
+}
+.pp-num.hecho { background: var(--verde-tinte); color: #0B6B35; }
+.pp-num.chico { width: 22px; height: 22px; font-size: 11.5px; }
+.pp-estado { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.pp-pie { display: flex; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--borde-suave); }
+.pp-lista { list-style: none; padding: 0; margin: 0 0 12px; }
+.pp-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--borde-suave); }
+.pp-lista li:last-child { border-bottom: 0; }
+.pp-enlace {
+  display: inline-flex; align-items: center; gap: 9px; background: none; border: 0; padding: 0;
+  color: var(--texto); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.pp-enlace:disabled { cursor: default; }
+.pp-lista li.hecho .pp-enlace { color: var(--tenue); text-decoration: line-through; }
+.pp-ir { font-size: 12.5px; color: var(--azul); font-weight: 600; white-space: nowrap; }
+.pp-tarjeta .pp-acciones { display: flex; gap: 6px; }
+.pp-tarjeta .pp-acciones .btn { padding: 6px 10px; }
+.pp-barra { height: 6px; margin: 12px 16px 4px; background: var(--borde-suave); border-radius: 3px; overflow: hidden; }
+.pp-barra i { display: block; height: 100%; background: var(--azul); border-radius: 3px; transition: width .3s; }
+.pp-lista-tarjeta { padding: 4px 16px 8px; margin: 0; }
+@media (max-width: 520px) {
+  .pp-ir { display: none; }
+}
