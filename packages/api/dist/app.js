@@ -21,6 +21,7 @@ import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
 import metaOAuthRoutes from './routes/meta-oauth.js';
 import cronRoutes from './routes/cron.js';
+import primerosPasosRoutes from './routes/primeros-pasos.js';
 import logRoutes from './routes/logs.js';
 import sperantRoutes from './routes/sperant.js';
 import diagnosticoRoutes from './routes/diagnostico.js';
@@ -130,6 +131,7 @@ export async function buildApp() {
     // de ruido. La ruta ya escribe por su cuenta, pero solo cuando hubo trabajo.
     { prefix: '/api/v1/cron', logLevel: 'silent' });
     await app.register(authRoutes, { prefix: '/api/v1/auth' });
+    await app.register(primerosPasosRoutes, { prefix: '/api/v1/primeros-pasos' });
     await app.register(leadRoutes, { prefix: '/api/v1/leads' });
     await app.register(sperantRoutes, { prefix: '/api/v1/sperant' });
     await app.register(async (scope) => {
