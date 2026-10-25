@@ -154,6 +154,16 @@ export function notasVozDisponibles(orgSlug: string | null | undefined): boolean
   return orgSlug === ORG_LUCUMA;
 }
 
+/**
+ * Organizaciones que migraron desde Sperant: solo en ellas tiene sentido filtrar por
+ * «Importados de Sperant» / «Creados en el CRM».
+ */
+export const ORGS_SPERANT = ['bastion'];
+
+export function usaSperant(orgSlug: string | null | undefined): boolean {
+  return ORGS_SPERANT.includes(orgSlug ?? '');
+}
+
 export function esPermiso(x: string): x is Permiso {
   return (PERMISOS_IDS as string[]).includes(x);
 }

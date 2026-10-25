@@ -7,6 +7,9 @@ import Kpi from '../components/Kpi.js';
 import TablaLeads, { type LeadFila as Lead } from '../components/TablaLeads.js';
 import BorrarLeads from '../components/BorrarLeads.js';
 import { usePuede } from '../lib/permisos.js';
+import { usaSperant } from '@lucuma-crm/shared';
+import { FUENTES } from '../lib/reportes.js';
+import { useNivelesInteres } from '../components/NivelInteres.js';
 
 const POR_PAGINA = 50;
 
@@ -17,10 +20,22 @@ export default function Leads() {
   const [stageId, setStageId] = useState('');
   const [orden, setOrden] = useState<'actividad' | 'creacion'>('actividad');
   const [creando, setCreando] = useState(false);
-  const [origen, setOrigen] = useState<'' | 'sperant' | 'crm'>('');
+  // Un solo desplegable de origen: el canal (`source`) o, en Bastión, si vino de Sperant.
+  const [origen, setOrigen] = useState('');
+  const [interes, setInteres] = useState('');
+  const [ownerId, setOwnerId] = useState('');
   const [pagina, setPagina] = useState(1);
   const puede = usePuede();
   const puedeBorrar = puede('leads.borrar');
+  const veEquipo = puede('leads.ver_todos');
+  const niveles = useNivelesInteres();
+  const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ organization: { slug: string } | null }>('/auth/me') });
+  const conSperant = usaSperant(me.data?.organization?.slug);
+  const usuarios = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get<{ id: string; name: string; active: boolean }[]>('/users'),
+    enabled: veEquipo,
+  });
   // Se guarda el lead entero y no solo el id: la selección sobrevive al cambiar de página.
   const [seleccion, setSeleccion] = useState<Map<string, Lead>>(new Map());
   const [borrando, setBorrando] = useState(false);
@@ -32,13 +47,15 @@ export default function Leads() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/stages'),
   });
   const leads = useQuery({
-    queryKey: ['leads', q, stageId, orden, origen, pagina],
+    queryKey: ['leads', q, stageId, orden, origen, interes, ownerId, pagina],
     queryFn: () =>
       api.get<{ total: number; leads: Lead[] }>(
         `/leads?${new URLSearchParams({
           ...(q ? { q } : {}),
           ...(stageId ? { stageId } : {}),
-          ...(origen ? { origen } : {}),
+          ...(origen === 'sperant' || origen === 'crm' ? { origen } : origen ? { source: origen } : {}),
+          ...(interes ? { interes } : {}),
+          ...(ownerId ? { ownerId } : {}),
           orden,
           page: String(pagina),
           perPage: String(POR_PAGINA),
@@ -111,15 +128,38 @@ export default function Leads() {
         <label className="control" style={{ margin: 0 }}>
           <select
             value={origen}
-            onChange={(e) => filtrar(setOrigen)(e.target.value as typeof origen)}
+            onChange={(e) => filtrar(setOrigen)(e.target.value)}
             aria-label="Origen"
           >
             <option value="">Todos los orígenes</option>
-            <option value="crm">Creados en el CRM</option>
-            <option value="sperant">Importados de Sperant</option>
+            {Object.entries(FUENTES).map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+            {conSperant && (
+              <>
+                <option value="crm">Creados en el CRM</option>
+                <option value="sperant">Importados de Sperant</option>
+              </>
+            )}
           </select>
           <Icono nombre="abajo" tam={14} />
         </label>
+        <label className="control" style={{ margin: 0 }}>
+          <select value={interes} onChange={(e) => filtrar(setInteres)(e.target.value)} aria-label="Nivel de interés">
+            <option value="">Todo nivel de interés</option>
+            {[3, 2, 1].map((n) => <option key={n} value={String(n)}>{niveles[n - 1]}</option>)}
+            <option value="sin">Sin nivel</option>
+          </select>
+          <Icono nombre="abajo" tam={14} />
+        </label>
+        {veEquipo && (
+          <label className="control" style={{ margin: 0 }}>
+            <select value={ownerId} onChange={(e) => filtrar(setOwnerId)(e.target.value)} aria-label="Asesor">
+              <option value="">Todos los asesores</option>
+              {usuarios.data?.filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              <option value="sin">Sin asignar</option>
+            </select>
+            <Icono nombre="abajo" tam={14} />
+          </label>
+        )}
         <span className="empuja" />
         <button type="button" className="btn" onClick={() => setCreando(true)}>
           <Icono nombre="mas" tam={15} />Nuevo lead

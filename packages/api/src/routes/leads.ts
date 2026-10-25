@@ -54,10 +54,15 @@ export default async function leadRoutes(app: FastifyInstance) {
     const q = leadListQuery.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'Filtros inválidos' });
     const user = req.user!;
-    const { page, perPage, q: texto, orden, origen, ...filtros } = q.data;
+    const { page, perPage, q: texto, orden, origen, interes, ownerId, ...filtros } = q.data;
 
-    const where: Record<string, unknown> = { ...scopeForUser(user) };
+    const where: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(filtros)) if (v) where[k] = v;
+    if (ownerId) where.ownerId = ownerId === 'sin' ? null : ownerId;
+    if (interes) where.interestLevel = interes === 'sin' ? null : Number(interes);
+    // El alcance va al final: un asesor que mande `ownerId` de otro en la URL no debe
+    // poder pisar su restricción de «solo mis leads».
+    Object.assign(where, scopeForUser(user));
     // La migración marca cada lead con `attribution.sperant` (services/sperant.ts).
     if (origen === 'sperant') where.attribution = { path: '$.sperant', not: Prisma.AnyNull };
     if (origen === 'crm') {
