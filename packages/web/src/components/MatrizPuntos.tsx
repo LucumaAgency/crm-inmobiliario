@@ -147,7 +147,7 @@ export default function MatrizPuntos({
                 <i style={{ background: 'var(--azul)' }} /><b>{punto.actual}</b>{etiqueta}
               </div>
               <div className="t-fila">
-                <i style={{ background: '#B7C3D6' }} /><b>{punto.previo}</b>{etiquetaPrevio}
+                <i style={{ background: 'var(--matriz-prev-fuerte)' }} /><b>{punto.previo}</b>{etiquetaPrevio}
               </div>
             </div>
           )}
@@ -156,7 +156,7 @@ export default function MatrizPuntos({
       <div className="fila" style={{ marginTop: 12 }}>
         <div className="leyenda">
           <span><i style={{ background: 'var(--azul)' }} />{etiqueta}</span>
-          <span><i style={{ background: '#D5DDEA' }} />{etiquetaPrevio}</span>
+          <span><i style={{ background: 'var(--matriz-prev)' }} />{etiquetaPrevio}</span>
         </div>
         <button
           type="button"

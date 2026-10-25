@@ -12,6 +12,15 @@
       rel="stylesheet"
     />
     <title>Lucuma CRM</title>
+    <script>
+      // Tema guardado (lib/tema.ts), antes de pintar para no parpadear en claro.
+      try {
+        var t = localStorage.getItem('lcrm-tema');
+        if (t === 'oscuro' || t === 'auto') document.documentElement.setAttribute('data-tema', t);
+        if (t === 'oscuro' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches))
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#141920');
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

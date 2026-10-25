@@ -3,6 +3,7 @@ import { useEffect, useState as useStateReact } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { ding, setSonidoActivo, sonidoActivo } from '../lib/sonido.js';
+import { guardarTema, temaGuardado, type Tema } from '../lib/tema.js';
 
 const MINIMO = 10;
 
@@ -41,6 +42,7 @@ export default function Cuenta({ tienePassword }: { tienePassword: boolean }) {
   return (
     <>
     <Telefono />
+    <Apariencia />
     <Sonido />
     <div className="card" style={{ maxWidth: 440 }}>
       <strong>{tienePassword ? 'Cambiar contraseña' : 'Crear contraseña'}</strong>
@@ -130,6 +132,39 @@ function Sonido() {
         <span><strong>Sonar al recibir mensajes</strong></span>
       </label>
       <button type="button" className="enlace-btn" onClick={() => ding(true)}>Probar sonido</button>
+    </div>
+  );
+}
+
+const TEMAS: { id: Tema; texto: string }[] = [
+  { id: 'claro', texto: 'Claro' },
+  { id: 'oscuro', texto: 'Noche' },
+  { id: 'auto', texto: 'Según el sistema' },
+];
+
+function Apariencia() {
+  const [tema, setTema] = useStateReact<Tema>(temaGuardado());
+  return (
+    <div className="card" style={{ maxWidth: 440 }}>
+      <strong>Apariencia</strong>
+      <p className="meta" style={{ marginTop: 6 }}>
+        La versión noche cansa menos la vista con poca luz. «Según el sistema» cambia sola con el modo oscuro del
+        celular o la computadora. Se guarda en este navegador.
+      </p>
+      <div className="segmentado" role="radiogroup" aria-label="Apariencia">
+        {TEMAS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={tema === t.id}
+            className={tema === t.id ? 'activo' : ''}
+            onClick={() => { setTema(t.id); guardarTema(t.id); }}
+          >
+            {t.texto}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -199,6 +199,11 @@ export function TarjetaPrimerosPasos() {
               : `Llevas ${d.completados} de ${d.total} primeros pasos.`}
           </span>
         </span>
+        {d.completados < d.total && (
+          <button type="button" className="btn btn-sec" onClick={() => accion.mutate('mostrar')}>
+            Mostrar mi avance
+          </button>
+        )}
         <button type="button" className="btn btn-sec" onClick={abrir}>
           Abrir guía de primeros pasos
         </button>

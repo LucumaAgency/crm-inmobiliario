@@ -201,7 +201,7 @@ export default function EtapasEditor() {
       </div>
 
       {borrando && (
-        <div className="card" style={{ background: 'var(--ambar-tinte)', borderColor: '#f3dfae', marginTop: 12 }}>
+        <div className="card" style={{ background: 'var(--ambar-tinte)', borderColor: 'var(--ambar-borde)', marginTop: 12 }}>
           <strong>«{borrando.name}» tiene {borrando._count.leads} leads</strong>
           <p className="meta" style={{ marginTop: 4 }}>
             Antes de eliminarla, elige a qué etapa pasan. Quedará anotado en el historial de cada lead.

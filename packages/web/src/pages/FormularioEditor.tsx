@@ -140,7 +140,7 @@ export default function FormularioEditor() {
         </p>
 
         {schema.fields.map((f, i) => (
-          <div key={i} className="card" style={{ background: '#fafbfc', marginTop: 10 }}>
+          <div key={i} className="card" style={{ background: 'var(--superficie-2)', marginTop: 10 }}>
             <div className="fila">
               <input
                 value={f.label}

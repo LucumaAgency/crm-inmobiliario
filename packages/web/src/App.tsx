@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, matchPath, useLocation, useNavigate }
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './lib/api.js';
 import Icono from './components/Icono.js';
+import { esOscuroAhora, guardarTema } from './lib/tema.js';
 import { ding, prepararSonido } from './lib/sonido.js';
 import Login from './pages/Login.js';
 import AuthCallback from './pages/AuthCallback.js';
@@ -269,6 +270,7 @@ export default function App() {
                 <Icono nombre="cuenta" tam={16} />Mi cuenta
               </NavLink>
               <BotonGuia onClick={() => setMenuUsuario(false)} />
+              <BotonTema />
               <button type="button" role="menuitem" onClick={salir}>
                 <Icono nombre="salir" tam={16} />Cerrar sesión
               </button>
@@ -348,6 +350,20 @@ function BotonGuia({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" role="menuitem" onClick={() => { onClick(); abrir(); }}>
       <Icono nombre="check" tam={16} />Primeros pasos
+    </button>
+  );
+}
+
+/** Cambio rápido claro ↔ noche desde el menú (el detalle, con «según el sistema», en Mi cuenta). */
+function BotonTema() {
+  const [oscuro, setOscuro] = useState(esOscuroAhora());
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => { guardarTema(oscuro ? 'claro' : 'oscuro'); setOscuro(!oscuro); }}
+    >
+      <Icono nombre={oscuro ? 'sol' : 'luna'} tam={16} />{oscuro ? 'Versión clara' : 'Versión noche'}
     </button>
   );
 }

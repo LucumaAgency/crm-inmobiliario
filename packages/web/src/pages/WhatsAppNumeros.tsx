@@ -116,7 +116,7 @@ export default function WhatsAppNumeros() {
             className="card"
             style={{
               marginTop: 8,
-              background: actual ? '#f4f7fd' : '#fafbfc',
+              background: actual ? 'var(--superficie-azul)' : 'var(--superficie-2)',
               borderColor: actual ? 'var(--acento, #174FCA)' : undefined,
             }}
           >
@@ -161,7 +161,7 @@ export default function WhatsAppNumeros() {
       {numeros.data?.length === 0 && <p className="meta">No hay ningún número conectado.</p>}
 
       {numeros.data?.map((n) => (
-        <div key={n.id} className="card" style={{ background: '#fafbfc', marginTop: 10 }}>
+        <div key={n.id} className="card" style={{ background: 'var(--superficie-2)', marginTop: 10 }}>
           <div className="fila">
             <span className="nombre">{n.displayNumber}</span>
             {esNumeroDePrueba(n.displayNumber) && (

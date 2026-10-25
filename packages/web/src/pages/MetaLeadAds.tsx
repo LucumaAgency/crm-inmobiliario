@@ -173,7 +173,7 @@ export default function MetaLeadAds() {
         </p>
 
         {retorno === 'ok' && (
-          <div className="card" style={{ marginTop: 10, borderColor: '#10b981' }}>
+          <div className="card" style={{ marginTop: 10, borderColor: 'var(--verde)' }}>
             <strong>Página conectada: {(params.get('conectadas') ?? '').split('|').filter(Boolean).join(', ')}</strong>
             <p className="meta" style={{ marginTop: 6 }}>
               El CRM ya tiene el token y quedó suscrito a los formularios instantáneos. Pulsa
@@ -196,7 +196,7 @@ export default function MetaLeadAds() {
           </div>
         )}
         {retorno === 'error' && (
-          <div className="card" style={{ marginTop: 10, borderColor: '#dc2626' }}>
+          <div className="card" style={{ marginTop: 10, borderColor: 'var(--rojo)' }}>
             <p className="error">No se pudo conectar con Facebook: {params.get('detalle')}</p>
             <div className="acciones" style={{ marginTop: 8 }}>
               <button className="btn btn-sec" onClick={cerrarRetorno}>Cerrar</button>
@@ -205,7 +205,7 @@ export default function MetaLeadAds() {
         )}
 
         {oauth.data?.disponible && (
-          <div className="card" style={{ background: '#f4f7fd', marginTop: 10 }}>
+          <div className="card" style={{ background: 'var(--superficie-azul)', marginTop: 10 }}>
             <strong>Conectar una página</strong>
             <p className="meta" style={{ marginTop: 6 }}>
               Se abre una ventana de Facebook donde eliges la página y aceptas los permisos.
@@ -239,7 +239,7 @@ export default function MetaLeadAds() {
         )}
 
         {paginas.data?.map((p) => (
-          <div key={p.id} className="card" style={{ background: '#fafbfc', marginTop: 10 }}>
+          <div key={p.id} className="card" style={{ background: 'var(--superficie-2)', marginTop: 10 }}>
             <div className="fila">
               <span className="nombre">{p.pageName}</span>
               <span className={p.active ? 'chip' : 'chip chip-gris'}>
@@ -274,7 +274,7 @@ export default function MetaLeadAds() {
             )}
 
             {diagnostico?.id === p.id && (
-              <div className="card" style={{ marginTop: 8, borderColor: diagnostico.datos.valido ? '#10b981' : '#dc2626' }}>
+              <div className="card" style={{ marginTop: 8, borderColor: diagnostico.datos.valido ? 'var(--verde)' : 'var(--rojo)' }}>
                 {diagnostico.datos.error && <p className="error">{diagnostico.datos.error}</p>}
                 <p className="meta" style={{ margin: 0 }}>
                   Token {diagnostico.datos.valido ? 'válido' : 'NO válido'}
@@ -378,7 +378,7 @@ export default function MetaLeadAds() {
             </div>
 
             {prueba?.id === p.id && (
-              <div className="card" style={{ marginTop: 10, borderColor: prueba.resultado.ok ? '#10b981' : '#dc2626' }}>
+              <div className="card" style={{ marginTop: 10, borderColor: prueba.resultado.ok ? 'var(--verde)' : 'var(--rojo)' }}>
                 {prueba.resultado.ok ? (
                   <>
                     <strong>Conexión correcta: {prueba.resultado.pageName}</strong>

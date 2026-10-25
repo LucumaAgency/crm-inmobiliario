@@ -57,7 +57,7 @@ export default function AjustesVoz() {
       )}
 
       {a?.transcribirVoz && (faltaOpenai || !a.servidor.claude) && (
-        <div className="card" style={{ background: 'var(--ambar-tinte)', borderColor: '#f3dfae', marginTop: 12, marginBottom: 0 }}>
+        <div className="card" style={{ background: 'var(--ambar-tinte)', borderColor: 'var(--ambar-borde)', marginTop: 12, marginBottom: 0 }}>
           <strong>Falta configurar el servidor</strong>
           <p className="meta" style={{ marginTop: 4, marginBottom: 0 }}>
             {faltaOpenai && <>Sin <code className="codigo">OPENAI_API_KEY</code> las notas no se transcriben. </>}

@@ -160,7 +160,7 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
           </p>
 
           {sites.data?.map((s) => (
-            <div key={s.id} className="card" style={{ background: '#fafbfc', marginTop: 10 }}>
+            <div key={s.id} className="card" style={{ background: 'var(--superficie-2)', marginTop: 10 }}>
               <div className="fila">
                 <span className="nombre">{s.name}</span>
                 <span className={s.active ? 'chip' : 'chip chip-gris'}>
@@ -182,7 +182,7 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
           ))}
 
           {secretNueva && (
-            <div className="card" style={{ borderColor: '#10b981', marginTop: 10 }}>
+            <div className="card" style={{ borderColor: 'var(--verde)', marginTop: 10 }}>
               <strong>Secret key nueva</strong>
               <p className="meta">
                 Cópiala ahora: no se vuelve a mostrar. Va en los ajustes del plugin.
