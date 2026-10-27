@@ -13,6 +13,7 @@ import Roles from './Roles.js';
 import MigracionSperant from './MigracionSperant.js';
 import Diagnostico from './Diagnostico.js';
 import Respaldos from './Respaldos.js';
+import RepartoLeads from './RepartoLeads.js';
 import { useNotasVoz, usePuede } from '../lib/permisos.js';
 import { PASSWORD_MIN, usaSperant, type Permiso } from '@lucuma-crm/shared';
 
@@ -220,6 +221,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
           </button>
         </div>
       )}
+
+      {seccion === 'usuarios' && <RepartoLeads />}
 
       {seccion === 'usuarios' && (
         <div className="card">

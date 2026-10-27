@@ -37,6 +37,12 @@ export interface AjustesOrg {
    * tipologías y unidades se traen (Bastión: 2 = Domus).
    */
   sperant: { tokenCifrado: string | null; sperantProjectId: number | null };
+  /**
+   * Usuario que recibe todos los leads nuevos (formulario, WhatsApp, Meta, alta manual).
+   * Null = reparto automático entre los asesores activos. Si ese usuario se desactiva, se
+   * vuelve solo al reparto (services/assign.ts).
+   */
+  asesorPorDefecto: string | null;
 }
 
 export const PROFORMA_NOTA_DEFECTO =
@@ -60,6 +66,7 @@ const POR_DEFECTO: AjustesOrg = {
   proformaValidezDias: 3,
   proformaNota: PROFORMA_NOTA_DEFECTO,
   sperant: { tokenCifrado: null, sperantProjectId: null },
+  asesorPorDefecto: null,
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {
