@@ -32,6 +32,12 @@ export interface AjustesOrg {
         tokenCifrado: string | null;
         sperantProjectId: number | null;
     };
+    /**
+     * Usuario que recibe todos los leads nuevos (formulario, WhatsApp, Meta, alta manual).
+     * Null = reparto automático entre los asesores activos. Si ese usuario se desactiva, se
+     * vuelve solo al reparto (services/assign.ts).
+     */
+    asesorPorDefecto: string | null;
 }
 export declare const PROFORMA_NOTA_DEFECTO = "La presente proforma tiene una validez de tres (03) d\u00EDas calendario desde la fecha de su emisi\u00F3n, no pudiendo el cliente efectuar reclamo alguno fuera del tiempo previamente estipulado, estando los precios de venta sujetos a variaci\u00F3n sin previo aviso.";
 export declare const MOTIVOS_PERDIDA_DEFECTO: string[];

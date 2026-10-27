@@ -1,8 +1,12 @@
 /**
  * Asignación en el momento de la captura. Un lead sin dueño es un lead perdido.
- * Fase 1: round robin entre los asesores activos de la organización.
+ * Si la organización eligió un asesor por defecto (Ajustes → Usuarios) y sigue activo, va
+ * a él; si no, round robin entre los asesores activos.
  */
-export declare function pickOwner(organizationId: string): Promise<string | null>;
+export declare function pickOwner(organizationId: string): Promise<{
+    userId: string;
+    reason: string;
+} | null>;
 /**
  * Asigna un lead a un asesor.
  *

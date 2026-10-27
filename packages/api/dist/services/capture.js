@@ -152,7 +152,7 @@ export async function captureLead(input, schema, ctx) {
     if (esNuevo && !spam) {
         const owner = await pickOwner(ctx.organizationId);
         if (owner)
-            await assignLead(leadId, owner, 'round_robin');
+            await assignLead(leadId, owner.userId, owner.reason);
         // SLA de primer contacto: se revisa a los 15 minutos.
         await enqueue('sla.check', { leadId }, new Date(Date.now() + 15 * 60 * 1000));
     }

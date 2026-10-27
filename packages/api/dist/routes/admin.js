@@ -227,6 +227,29 @@ export default async function adminRoutes(app) {
         await audit(req.user.organizationId, req.user.id, 'org.ajustes', { meta: parsed.data });
         return ajustes;
     });
+    // ------------------------------------------------------ reparto de leads
+    /** A quién van los leads nuevos: un usuario fijo o el reparto automático entre asesores. */
+    app.get('/reparto', { preHandler: usuarios }, async (req) => {
+        const { asesorPorDefecto } = await leerAjustes(req.user.organizationId);
+        return { asesorPorDefecto };
+    });
+    app.put('/reparto', { preHandler: usuarios }, async (req, reply) => {
+        const parsed = z.object({ asesorPorDefecto: z.string().min(1).nullable() }).strict().safeParse(req.body);
+        if (!parsed.success)
+            return reply.code(400).send({ error: 'Datos inválidos' });
+        const { asesorPorDefecto } = parsed.data;
+        if (asesorPorDefecto) {
+            const u = await prisma.user.findFirst({
+                where: { id: asesorPorDefecto, organizationId: req.user.organizationId, active: true },
+                select: { id: true },
+            });
+            if (!u)
+                return reply.code(400).send({ error: 'Ese usuario no existe o está desactivado' });
+        }
+        await guardarAjustes(req.user.organizationId, { asesorPorDefecto });
+        await audit(req.user.organizationId, req.user.id, 'org.reparto', { meta: { asesorPorDefecto }, ip: req.ip });
+        return { asesorPorDefecto };
+    });
     // ---------------------------------------------------------- proyectos
     app.get('/projects', async (req) => prisma.project.findMany({
         where: { organizationId: req.user.organizationId },

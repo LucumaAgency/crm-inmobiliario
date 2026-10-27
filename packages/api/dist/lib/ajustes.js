@@ -23,6 +23,7 @@ const POR_DEFECTO = {
     proformaValidezDias: 3,
     proformaNota: PROFORMA_NOTA_DEFECTO,
     sperant: { tokenCifrado: null, sperantProjectId: null },
+    asesorPorDefecto: null,
 };
 export async function leerAjustes(organizationId) {
     const org = await prisma.organization.findUnique({

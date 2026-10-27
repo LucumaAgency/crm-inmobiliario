@@ -1,9 +1,24 @@
 import { prisma } from '../db.js';
+import { leerAjustes } from '../lib/ajustes.js';
 /**
  * Asignación en el momento de la captura. Un lead sin dueño es un lead perdido.
- * Fase 1: round robin entre los asesores activos de la organización.
+ * Si la organización eligió un asesor por defecto (Ajustes → Usuarios) y sigue activo, va
+ * a él; si no, round robin entre los asesores activos.
  */
 export async function pickOwner(organizationId) {
+    const { asesorPorDefecto } = await leerAjustes(organizationId);
+    if (asesorPorDefecto) {
+        const fijo = await prisma.user.findFirst({
+            where: { id: asesorPorDefecto, organizationId, active: true },
+            select: { id: true },
+        });
+        if (fijo)
+            return { userId: fijo.id, reason: 'por_defecto' };
+    }
+    const id = await roundRobin(organizationId);
+    return id ? { userId: id, reason: 'round_robin' } : null;
+}
+async function roundRobin(organizationId) {
     const asesores = await prisma.user.findMany({
         where: { organizationId, active: true, role: 'asesor' },
         select: { id: true },
