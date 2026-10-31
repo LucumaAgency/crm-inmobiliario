@@ -39,6 +39,11 @@ export const FUENTES: Record<string, string> = {
   meta_ads: 'Meta Lead Ads',
   manual: 'Alta manual',
   import: 'Importación',
+  // Alta manual de una clínica: «¿Cómo llegó?» (docs/29 §6).
+  llamada: 'Llamada (Google o web)',
+  referido: 'Referido',
+  clinica: 'Derivado por la clínica',
+  paciente: 'Ya era paciente',
 };
 
 /** Minutos en la unidad que se lee mejor: 12 min, 3,5 h, 2 d. */

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import SelectorInteres from '../components/SelectorInteres.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
-import { REDES, type CampoRed } from '@lucuma-crm/shared';
+import { ORIGENES_MANUALES_CLINICA, REDES, type CampoRed } from '@lucuma-crm/shared';
 
 interface Props {
   onCerrar: () => void;
@@ -24,8 +24,13 @@ export default function NuevoLead({ onCerrar }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const L = useEtiquetas();
-  const agencia = useVertical() === 'agencia';
+  const vertical = useVertical();
+  const agencia = vertical === 'agencia';
+  const clinica = vertical === 'clinica';
   const [company, setCompany] = useState('');
+  // Clínica: el origen decide si el paciente cuenta para el cobro (docs/29 §6), así que se
+  // pregunta siempre y no se asume.
+  const [origen, setOrigen] = useState('');
 
   const [fname, setFname] = useState('');
   const [lname, setLname] = useState('');
@@ -57,7 +62,7 @@ export default function NuevoLead({ onCerrar }: Props) {
         company: agencia ? company.trim() || undefined : undefined,
         typologyIds: projectId && typologyIds.length ? typologyIds : undefined,
         unitIds: projectId && unitIds.length ? unitIds : undefined,
-        source: 'manual',
+        source: clinica ? origen : 'manual',
       }),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['leads'] });
@@ -71,13 +76,13 @@ export default function NuevoLead({ onCerrar }: Props) {
   // clave de identidad y no se reconoce a la persona si vuelve; se avisa, pero no se exige:
   // hay leads que solo dejan su Instagram.
   const sinIdentidad = !phone.trim() && !email.trim();
-  const invalido = !fname.trim() || !projectId;
+  const invalido = !fname.trim() || !projectId || (clinica && !origen);
 
   return (
     <div className="modal-fondo" onClick={onCerrar}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-cab">
-          <h2>Nuevo lead</h2>
+          <h2>{clinica ? 'Nuevo paciente' : 'Nuevo lead'}</h2>
           <button type="button" className="cerrar" onClick={onCerrar} aria-label="Cerrar">×</button>
         </div>
 
@@ -146,7 +151,17 @@ export default function NuevoLead({ onCerrar }: Props) {
             </div>
           </div>
 
-          {projectId && (
+          {clinica && (
+            <>
+              <label htmlFor="nl-origen">¿Cómo llegó? *</label>
+              <select id="nl-origen" value={origen} onChange={(e) => setOrigen(e.target.value)}>
+                <option value="">Elige…</option>
+                {ORIGENES_MANUALES_CLINICA.map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
+              </select>
+            </>
+          )}
+
+          {projectId && !clinica && (
             <SelectorInteres
               projectId={projectId}
               typologyIds={typologyIds}
@@ -188,7 +203,7 @@ export default function NuevoLead({ onCerrar }: Props) {
 
           <div className="acciones" style={{ marginTop: 16 }}>
             <button type="submit" className="btn" disabled={invalido || crear.isPending}>
-              {crear.isPending ? 'Guardando…' : 'Crear lead'}
+              {crear.isPending ? 'Guardando…' : clinica ? 'Crear paciente' : 'Crear lead'}
             </button>
             <button type="button" className="btn btn-sec" onClick={onCerrar}>Cancelar</button>
           </div>

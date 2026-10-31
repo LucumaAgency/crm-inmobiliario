@@ -7,8 +7,9 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import type { Sede } from '@lucuma-crm/shared';
 
-export interface AjustesOperacion { motivosPerdida: string[]; nivelesInteres: [string, string, string] }
+export interface AjustesOperacion { motivosPerdida: string[]; nivelesInteres: [string, string, string]; sedes?: Sede[] }
 
 const PUNTOS: Record<number, string> = { 1: '●', 2: '●●', 3: '●●●' };
 const POR_DEFECTO: [string, string, string] = ['Frío', 'Tibio', 'Caliente'];

@@ -248,6 +248,8 @@ model Unit {
 
   leads     Lead[]
   intereses LeadUnitInterest[]
+  /// Leads a los que se les hizo este procedimiento (vertical clínica).
+  procedimientos Lead[] @relation("LeadProcedure")
 
   @@unique([projectId, code])
   @@index([projectId, status])
@@ -346,6 +348,14 @@ model Lead {
   /// uno de los motivos configurados por la organización.
   lostReason    String?
 
+  /// Vertical clínica (docs/29): sede a la que se derivó al paciente (nombre tal cual está en
+  /// Ajustes → Sedes), procedimiento que se le hizo al pasar a la etapa ganada y cuándo.
+  /// `wonAt` se llena en cualquier vertical al entrar a una etapa ganada (null al reabrir).
+  referredTo  String?
+  procedureId String?
+  procedure   Unit?     @relation("LeadProcedure", fields: [procedureId], references: [id], onDelete: SetNull)
+  wonAt       DateTime?
+
   // JSON: se guardan y se leen enteros, no se filtran.
   attribution Json? // utm primera visita + último clic, gclid, fbclid, referrer, landing
   consent     Json? // texto aceptado, versión, fecha, IP  (Ley 29733)
@@ -371,6 +381,7 @@ model Lead {
   @@index([organizationId, projectId])
   @@index([organizationId, stageId])
   @@index([organizationId, interestLevel])
+  @@index([organizationId, wonAt])
   @@map("leads")
 }
 

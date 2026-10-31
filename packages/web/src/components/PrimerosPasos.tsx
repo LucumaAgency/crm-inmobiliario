@@ -107,7 +107,9 @@ export function AsistentePrimerosPasos({ datos, onCerrar }: { datos: DatosPrimer
             <h2 id="pp-titulo">Bienvenido a tu CRM</h2>
             <p>
               Te guiamos para dejarlo listo en {datos.pasos.length} pasos.{' '}
-              {agencia
+              {datos.vertical === 'clinica'
+                ? 'Primero tus especialidades, procedimientos y sedes, luego tus canales, y al final tu primer paciente.'
+                : agencia
                 ? 'Primero tus servicios y paquetes (con ellos armas propuestas), luego tu equipo y tus canales, y al final tu primer lead.'
                 : 'Primero tu proyecto, sus tipologías y unidades (con ellos armas proformas), luego tu equipo y tus canales, y al final tu primer lead.'}
             </p>

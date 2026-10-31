@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
-import { REDES, activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, notasVozDisponibles, seguimientoInput, seguimientoPatch, type CampoRed } from '@lucuma-crm/shared';
+import { ETAPA_DERIVADO, ORIGENES_MANUALES_CLINICA, REDES, activityInput, etiquetas, leadListQuery, normalizeDocument, normalizeEmail, normalizePhonePE, notasVozDisponibles, seguimientoInput, seguimientoPatch, type CampoRed } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { audit, requireAuth, requirePermiso, scopeForUser, tiene } from '../lib/auth.js';
 import { assignLead } from '../services/assign.js';
@@ -271,7 +271,7 @@ export default async function leadRoutes(app: FastifyInstance) {
     const etapas = await prisma.stage.findMany({
       where: { organizationId: user.organizationId },
       orderBy: { position: 'asc' },
-      select: { id: true, name: true, color: true, isWon: true, isLost: true },
+      select: { id: true, name: true, slug: true, color: true, isWon: true, isLost: true },
     });
     const leads = await prisma.lead.findMany({
         where,
@@ -448,6 +448,7 @@ export default async function leadRoutes(app: FastifyInstance) {
         project: true,
         unit: true,
         stage: true,
+        procedure: { select: { id: true, code: true, extra: true, project: { select: { name: true } } } },
         owner: { select: { id: true, name: true, email: true } },
         ...includeIntereses,
         activities: {
@@ -956,7 +957,7 @@ export default async function leadRoutes(app: FastifyInstance) {
         email: texto(200),
         document: texto(20),
         documentType: z.enum(['DNI', 'CE', 'RUC', 'PAS']).optional(),
-        source: z.enum(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import']).optional(),
+        source: z.enum([...new Set(['web_form', 'whatsapp', 'meta_ads', 'manual', 'import', ...ORIGENES_MANUALES_CLINICA.map((o) => o.valor)])] as [string, ...string[]]).optional(),
         message: texto(5000),
         ...Object.fromEntries(REDES.map((r) => [r.campo, texto(191)])),
         company: texto(191),
@@ -1084,6 +1085,10 @@ export default async function leadRoutes(app: FastifyInstance) {
       interestLevel?: number | null;
       /** Motivo al mover a una etapa perdida. Obligatorio en ese caso. */
       reason?: string;
+      /** Clínica: sede al mover a «Derivado a clínica». Obligatoria en ese caso. */
+      referredTo?: string;
+      /** Clínica: procedimiento realizado al mover a la etapa ganada. Obligatorio en ese caso. */
+      procedureId?: string;
     };
   }>(
     '/:id',
@@ -1096,7 +1101,7 @@ export default async function leadRoutes(app: FastifyInstance) {
       });
       if (!lead) return reply.code(404).send({ error: 'Lead no encontrado' });
 
-      const { stageId, status, ownerId, projectId, typologyIds, unitIds, interestLevel, reason } = req.body ?? {};
+      const { stageId, status, ownerId, projectId, typologyIds, unitIds, interestLevel, reason, referredTo, procedureId } = req.body ?? {};
 
       if (interestLevel !== undefined && interestLevel !== null && ![1, 2, 3].includes(interestLevel)) {
         return reply.code(400).send({ error: 'Nivel de interés inválido' });
@@ -1135,6 +1140,8 @@ export default async function leadRoutes(app: FastifyInstance) {
        */
       let estadoPorEtapa: 'activo' | 'ganado' | 'perdido' | undefined;
       let motivoPerdida: string | null | undefined;
+      let sedeDerivada: string | undefined;
+      let procedimiento: string | undefined;
       if (stageId && stageId !== lead.stageId) {
         const etapa = await prisma.stage.findFirst({
           where: { id: stageId, organizationId: user.organizationId },
@@ -1144,6 +1151,31 @@ export default async function leadRoutes(app: FastifyInstance) {
         if (etapa.isLost && !motivo) {
           return reply.code(400).send({ error: 'Indica el motivo por el que se perdió el lead' });
         }
+        /**
+         * Clínica (docs/29): derivar exige la sede (sale del reporte y del seguimiento
+         * «¿Se atendió?»), y atendido exige el procedimiento: es lo que decide si la
+         * atención fue cirugía y, con el origen, si se cobra.
+         */
+        const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { vertical: true } });
+        const clinica = org?.vertical === 'clinica';
+        let detalle = '';
+        if (clinica && etapa.slug === ETAPA_DERIVADO) {
+          const { sedes } = await leerAjustes(user.organizationId);
+          const sede = sedes.find((x) => x.nombre === (referredTo ?? '').trim());
+          if (!sede) {
+            return reply.code(400).send({ error: sedes.length ? 'Elige la sede a la que se derivó' : 'Primero registra tus sedes en Ajustes → Sedes' });
+          }
+          sedeDerivada = sede.nombre;
+          detalle = ` · ${sede.nombre}`;
+        }
+        if (clinica && etapa.isWon) {
+          const proc = procedureId
+            ? await prisma.unit.findFirst({ where: { id: procedureId, project: { organizationId: user.organizationId } } })
+            : null;
+          if (!proc) return reply.code(400).send({ error: 'Indica qué procedimiento se le hizo' });
+          procedimiento = proc.id;
+          detalle = ` · ${proc.code}${(proc.extra as { cirugia?: boolean } | null)?.cirugia ? ' (cirugía)' : ''}`;
+        }
         estadoPorEtapa = etapa.isLost ? 'perdido' : etapa.isWon ? 'ganado' : 'activo';
         motivoPerdida = etapa.isLost ? motivo.slice(0, 500) : null;
         await prisma.activity.create({
@@ -1151,10 +1183,30 @@ export default async function leadRoutes(app: FastifyInstance) {
             leadId: lead.id,
             userId: user.id,
             type: 'cambio_etapa',
-            body: `Etapa → ${etapa.name}${etapa.isLost ? ` · motivo: ${motivo}` : motivo ? ` · ${motivo}` : ''}`,
-            meta: { fromStageId: lead.stageId, toStageId: etapa.id, reason: motivo || null } as never,
+            body: `Etapa → ${etapa.name}${detalle}${etapa.isLost ? ` · motivo: ${motivo}` : motivo ? ` · ${motivo}` : ''}`,
+            meta: { fromStageId: lead.stageId, toStageId: etapa.id, reason: motivo || null, referredTo: sedeDerivada ?? null, procedureId: procedimiento ?? null } as never,
           },
         });
+        if (clinica && (etapa.isWon || etapa.isLost)) {
+          // El paciente ya se resolvió: el «¿Se atendió?» pendiente de la derivación sobra.
+          await prisma.activity.updateMany({
+            where: { leadId: lead.id, doneAt: null, dueAt: { not: null }, meta: { path: '$.derivacion', equals: true } },
+            data: { doneAt: new Date() },
+          });
+        }
+        if (sedeDerivada) {
+          // Recordatorio para cerrar el ciclo: la atención pasa en la clínica, fuera del CRM.
+          await prisma.activity.create({
+            data: {
+              leadId: lead.id,
+              userId: user.id,
+              type: 'llamada',
+              body: `¿Se atendió en ${sedeDerivada}? Si se atendió, pásalo a la etapa de atendidos con el procedimiento.`,
+              dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              meta: { derivacion: true } as never,
+            },
+          });
+        }
       }
 
       const cambiaInteres = interestLevel !== undefined && interestLevel !== lead.interestLevel;
@@ -1216,6 +1268,11 @@ export default async function leadRoutes(app: FastifyInstance) {
           stageId: stageId ?? undefined,
           status: ((status ?? estadoPorEtapa) as never) ?? undefined,
           lostReason: motivoPerdida,
+          referredTo: sedeDerivada,
+          // Ganado: guarda cuándo y (clínica) qué se hizo. Salir de ganado lo limpia: un lead
+          // reabierto no cuenta como cierre del mes.
+          wonAt: estadoPorEtapa === 'ganado' ? new Date() : estadoPorEtapa ? null : undefined,
+          procedureId: estadoPorEtapa === 'ganado' ? procedimiento : estadoPorEtapa ? null : undefined,
           interestLevel: cambiaInteres ? interestLevel : undefined,
           projectId: cambiaProyecto ? proyectoFinal : undefined,
           // La «última unidad consultada» deja de tener sentido si el proyecto cambia.

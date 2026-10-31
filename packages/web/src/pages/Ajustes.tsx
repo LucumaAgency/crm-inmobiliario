@@ -9,6 +9,8 @@ import Registro from './Registro.js';
 import EtapasEditor from './EtapasEditor.js';
 import AjustesVoz from './AjustesVoz.js';
 import AjustesEmbudo from './AjustesEmbudo.js';
+import AjustesSedes from './AjustesSedes.js';
+import { useVertical } from '../lib/vertical.js';
 import Roles from './Roles.js';
 import MigracionSperant from './MigracionSperant.js';
 import Diagnostico from './Diagnostico.js';
@@ -34,6 +36,7 @@ const ROLES: Record<string, string> = {
 
 const SECCIONES: { id: string; texto: string; permiso: Permiso }[] = [
   { id: 'embudo', texto: 'Embudo', permiso: 'embudo.configurar' },
+  { id: 'sedes', texto: 'Sedes', permiso: 'embudo.configurar' },
   { id: 'sitios', texto: 'Sitios web', permiso: 'canales.configurar' },
   { id: 'usuarios', texto: 'Usuarios', permiso: 'usuarios.gestionar' },
   { id: 'roles', texto: 'Roles', permiso: 'usuarios.gestionar' },
@@ -55,8 +58,9 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
   const notasVoz = useNotasVoz();
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<{ organization: { slug: string } | null }>('/auth/me') });
   const conSperant = usaSperant(me.data?.organization?.slug);
+  const clinica = useVertical() === 'clinica';
   const visibles = SECCIONES.filter(
-    (x) => puede(x.permiso) && (x.id !== 'voz' || notasVoz) && (x.id !== 'sperant' || conSperant),
+    (x) => puede(x.permiso) && (x.id !== 'voz' || notasVoz) && (x.id !== 'sperant' || conSperant) && (x.id !== 'sedes' || clinica),
   );
   const seccion = visibles.some((x) => x.id === params.get('seccion'))
     ? params.get('seccion')!
@@ -383,6 +387,8 @@ export default function Ajustes({ rol: _rol }: { rol: string }) {
           </form>
         </div>
       )}
+
+      {seccion === 'sedes' && <AjustesSedes />}
 
       {seccion === 'meta' && <MetaLeadAds />}
 

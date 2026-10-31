@@ -9,8 +9,10 @@ import Proformas from '../components/Proformas.js';
 import SelectorInteres from '../components/SelectorInteres.js';
 import { SelectorInteres as SelectorNivel } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
+import DatoEtapaClinica from '../components/DatoEtapaClinica.js';
+import { useAjustesOperacion } from '../components/NivelInteres.js';
 import BorrarLeads from '../components/BorrarLeads.js';
-import { REDES, enlaceRed, type CampoRed } from '@lucuma-crm/shared';
+import { ETAPA_DERIVADO, REDES, enlaceRed, esOrigenPropio, type CampoRed, type Sede } from '@lucuma-crm/shared';
 import EditarDatosLead from '../components/EditarDatosLead.js';
 import DatosSperant from '../components/DatosSperant.js';
 import { FUENTES } from '../lib/reportes.js';
@@ -27,6 +29,9 @@ interface Detalle {
   status: string;
   interestLevel: number | null;
   lostReason: string | null;
+  referredTo?: string | null;
+  wonAt?: string | null;
+  procedure?: { id: string; code: string; extra: { cirugia?: boolean } | null; project: { name: string } } | null;
   attribution: Record<string, unknown> | null;
   sperantPareja?: { id: string; nombre: string } | null;
   otrosLeads?: { id: string; status: string; lostReason: string | null; createdAt: string; updatedAt: string; project: { name: string } | null; stage: { name: string } | null; owner: { name: string } | null }[];
@@ -72,9 +77,13 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   });
   const stages = useQuery({
     queryKey: ['stages'],
-    queryFn: () => api.get<{ id: string; name: string; isLost: boolean; isWon: boolean }[]>('/stages'),
+    queryFn: () => api.get<{ id: string; name: string; slug: string; isLost: boolean; isWon: boolean }[]>('/stages'),
   });
   const [etapaPerdida, setEtapaPerdida] = useState<{ id: string; name: string } | null>(null);
+  // Clínica: derivar pide la sede y atendido pide el procedimiento (docs/29).
+  const [etapaClinica, setEtapaClinica] = useState<{ id: string; name: string; modo: 'sede' | 'procedimiento' } | null>(null);
+  const clinica = vertical === 'clinica';
+  const operacion = useAjustesOperacion();
 
   const registrar = useMutation({
     mutationFn: () =>
@@ -131,9 +140,10 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
   });
 
   const cambiarEtapa = useMutation({
-    mutationFn: (v: { stageId: string; reason?: string }) => api.patch(`/leads/${id}`, v),
+    mutationFn: (v: { stageId: string; reason?: string; referredTo?: string; procedureId?: string }) => api.patch(`/leads/${id}`, v),
     onSuccess: () => {
       setEtapaPerdida(null);
+      setEtapaClinica(null);
       refrescar();
       qc.invalidateQueries({ queryKey: ['tablero'] });
     },
@@ -151,6 +161,8 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
     const etapa = stages.data?.find((s) => s.id === stageId);
     if (!etapa) return;
     if (etapa.isLost) setEtapaPerdida({ id: etapa.id, name: etapa.name });
+    else if (clinica && etapa.slug === ETAPA_DERIVADO) setEtapaClinica({ id: etapa.id, name: etapa.name, modo: 'sede' });
+    else if (clinica && etapa.isWon) setEtapaClinica({ id: etapa.id, name: etapa.name, modo: 'procedimiento' });
     else cambiarEtapa.mutate({ stageId });
   }
 
@@ -162,8 +174,11 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
     .sort((a, b) => a.dueAt!.localeCompare(b.dueAt!));
   const wa = whatsappUrl(
     lead.contact.phone,
-    `Hola ${lead.contact.fname}, te escribo de ${lead.project?.name ?? 'la inmobiliaria'} por tu consulta.`
+    clinica
+      ? `Hola ${lead.contact.fname}, te escribo por tu consulta${lead.project ? ` sobre ${lead.project.name.toLowerCase()}` : ''}.`
+      : `Hola ${lead.contact.fname}, te escribo de ${lead.project?.name ?? 'la inmobiliaria'} por tu consulta.`
   );
+  const sede = clinica && lead.referredTo ? operacion.data?.sedes?.find((x) => x.nombre === lead.referredTo) ?? null : null;
 
   return (
     <>
@@ -230,7 +245,17 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             {lead.status === 'perdido' && lead.lostReason && (
               <p className="meta" style={{ marginTop: 6 }}>Perdido: {lead.lostReason}</p>
             )}
-            {lead.status === 'ganado' && <ConvertirEnCliente leadId={lead.id} />}
+            {lead.status === 'ganado' && !clinica && <ConvertirEnCliente leadId={lead.id} />}
+            {clinica && lead.referredTo && (
+              <p className="meta" style={{ marginTop: 6 }}>Derivado a <strong>{lead.referredTo}</strong></p>
+            )}
+            {clinica && lead.status === 'ganado' && lead.procedure && (
+              <p className="meta" style={{ marginTop: 4 }}>
+                Atendido: <strong>{lead.procedure.code}</strong>
+                {lead.procedure.extra?.cirugia ? ' (cirugía)' : ''}
+                {lead.procedure.extra?.cirugia && esOrigenPropio(lead.source) ? ' · cuenta para el reporte de cirugías' : ''}
+              </p>
+            )}
           </div>
           <div>
             <label>Nivel de interés</label>
@@ -241,7 +266,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             />
           </div>
         </div>
-        {cambiarEtapa.isError && !etapaPerdida && (
+        {cambiarEtapa.isError && !etapaPerdida && !etapaClinica && (
           <p className="error">{(cambiarEtapa.error as ApiError).message}</p>
         )}
 
@@ -301,7 +326,7 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
             ) : (
               lead.project && (
                 <p className="meta" style={{ marginTop: 6 }}>
-                  {L.usaTipologias ? 'Sin tipologías ni unidades marcadas.' : 'Sin paquetes marcados.'} Anota aquí lo que compara el cliente: es el
+                  {L.usaTipologias ? 'Sin tipologías ni unidades marcadas.' : `Sin ${L.unidades.toLowerCase()} marcados.`} Anota aquí lo que compara el cliente: es el
                   insumo de la siguiente llamada.
                 </p>
               )
@@ -349,15 +374,19 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         )}
       </div>
 
+      {!soloLectura && sede && <EnviarSede leadId={lead.id} nombre={lead.contact.fname} sede={sede} />}
+
       {!soloLectura && <ChatWhatsApp leadId={lead.id} />}
 
-      <Proformas
-        leadId={lead.id}
-        projectId={lead.project?.id ?? null}
-        unitIdsInteres={lead.unitInterests.filter((u) => u.unit.status === 'disponible').map((u) => u.unitId)}
-        tieneCorreo={Boolean(lead.contact.email)}
-        puedeEditar={!soloLectura}
-      />
+      {L.usaDocumento && (
+        <Proformas
+          leadId={lead.id}
+          projectId={lead.project?.id ?? null}
+          unitIdsInteres={lead.unitInterests.filter((u) => u.unit.status === 'disponible').map((u) => u.unitId)}
+          tieneCorreo={Boolean(lead.contact.email)}
+          puedeEditar={!soloLectura}
+        />
+      )}
 
       {notasVoz && <NotasVoz leadId={lead.id} puedeEditar={!soloLectura} />}
 
@@ -459,6 +488,24 @@ export default function LeadDetail({ rol: _rol }: { rol: string }) {
         </div>
       )}
 
+      {etapaClinica && (
+        <DatoEtapaClinica
+          modo={etapaClinica.modo}
+          nombre={nombre}
+          etapa={etapaClinica.name}
+          pendiente={cambiarEtapa.isPending}
+          error={cambiarEtapa.isError ? (cambiarEtapa.error as ApiError).message : null}
+          onConfirmar={(v) =>
+            cambiarEtapa.mutate(
+              etapaClinica.modo === 'sede'
+                ? { stageId: etapaClinica.id, referredTo: v }
+                : { stageId: etapaClinica.id, procedureId: v }
+            )
+          }
+          onCancelar={() => { setEtapaClinica(null); cambiarEtapa.reset(); }}
+        />
+      )}
+
       {etapaPerdida && (
         <MotivoPerdida
           nombre={nombre}
@@ -538,6 +585,38 @@ function ConvertirEnCliente({ leadId }: { leadId: string }) {
         {convertir.isPending ? 'Convirtiendo…' : 'Convertir en cliente'}
       </button>
       {convertir.isError && (convertir.error as ApiError).status !== 409 && <p className="error">{(convertir.error as ApiError).message}</p>}
+    </div>
+  );
+}
+
+/**
+ * Clínica: manda al paciente los datos de la sede a la que se le derivó (dirección, teléfono
+ * de citas, enlace) por el WhatsApp del CRM. Fuera de la ventana de 24 h WhatsApp no deja
+ * mandar texto libre y el servidor lo dice: ahí toca una plantilla desde el chat.
+ */
+function EnviarSede({ leadId, nombre, sede }: { leadId: string; nombre: string; sede: Sede }) {
+  const qc = useQueryClient();
+  const texto = [
+    `Hola ${nombre}, estos son los datos para tu cita en ${sede.nombre}:`,
+    sede.direccion ? `Dirección: ${sede.direccion}` : null,
+    sede.telefonoCitas ? `Teléfono para citas: ${sede.telefonoCitas}` : null,
+    sede.enlace ? sede.enlace : null,
+  ].filter(Boolean).join('\n');
+  const enviar = useMutation({
+    mutationFn: () => api.post(`/leads/${leadId}/whatsapp`, { text: texto }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wa', leadId] }),
+  });
+  return (
+    <div className="card">
+      <div className="fila">
+        <strong>Datos de {sede.nombre}</strong>
+        <button type="button" className="btn btn-sec" style={{ padding: '5px 10px', fontSize: 12 }}
+          disabled={enviar.isPending || enviar.isSuccess} onClick={() => enviar.mutate()}>
+          {enviar.isSuccess ? 'Enviado' : enviar.isPending ? 'Enviando…' : 'Enviar por WhatsApp'}
+        </button>
+      </div>
+      <pre className="meta" style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', fontFamily: 'inherit' }}>{texto}</pre>
+      {enviar.isError && <p className="error">{(enviar.error as ApiError).message}</p>}
     </div>
   );
 }

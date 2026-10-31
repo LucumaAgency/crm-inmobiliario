@@ -67,7 +67,9 @@ export default function Proyectos() {
       {proyectos.isLoading && <div className="vacio">Cargando…</div>}
       {proyectos.data?.length === 0 && (
         <div className="vacio">
-          {vertical === 'agencia'
+          {vertical === 'clinica'
+            ? 'Todavía no hay especialidades. Crea la primera y cárgale sus procedimientos con precio.'
+            : vertical === 'agencia'
             ? 'Todavía no hay servicios. Crea el primero y cárgale sus paquetes con precio.'
             : 'Todavía no hay proyectos. Crea el primero para cargar sus tipologías y unidades.'}
         </div>
@@ -118,6 +120,7 @@ export default function Proyectos() {
               />
               <p className="meta">Solo minúsculas, números y guiones. Se propone desde el nombre.</p>
 
+              {vertical !== 'clinica' && (
               <div className="rejilla-2">
                 <div>
                   <label htmlFor="p-code">{vertical === 'agencia' ? 'Modalidad' : 'Código interno'}</label>
@@ -130,6 +133,7 @@ export default function Proyectos() {
                   </div>
                 )}
               </div>
+              )}
 
               {crear.isError && <p className="error">{(crear.error as Error).message}</p>}
 

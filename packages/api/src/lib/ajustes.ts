@@ -5,6 +5,7 @@
  * existiera no tiene nada guardado y tiene que comportarse de forma razonable igual.
  */
 import { prisma } from '../db.js';
+import type { Sede } from '@lucuma-crm/shared';
 
 export interface AjustesOrg {
   /**
@@ -43,6 +44,11 @@ export interface AjustesOrg {
    * vuelve solo al reparto (services/assign.ts).
    */
   asesorPorDefecto: string | null;
+  /**
+   * Vertical clínica: sedes a las que se deriva pacientes. Al mover un lead a «Derivado a
+   * clínica» se elige una; sus datos se pueden mandar por WhatsApp desde la ficha.
+   */
+  sedes: Sede[];
 }
 
 export const PROFORMA_NOTA_DEFECTO =
@@ -58,6 +64,16 @@ export const MOTIVOS_PERDIDA_DEFECTO = [
   'Solo estaba consultando',
 ];
 
+/** Motivos de pérdida con los que nace una organización clínica (docs/29 §3). */
+export const MOTIVOS_PERDIDA_CLINICA = [
+  'Precio fuera de su presupuesto',
+  'Se atendió con otro médico',
+  'Su seguro no lo cubría',
+  'No corresponde a la especialidad',
+  'Dejó de responder',
+  'Solo estaba consultando',
+];
+
 const POR_DEFECTO: AjustesOrg = {
   transcribirVoz: false,
   motivosPerdida: MOTIVOS_PERDIDA_DEFECTO,
@@ -67,6 +83,7 @@ const POR_DEFECTO: AjustesOrg = {
   proformaNota: PROFORMA_NOTA_DEFECTO,
   sperant: { tokenCifrado: null, sperantProjectId: null },
   asesorPorDefecto: null,
+  sedes: [],
 };
 
 export async function leerAjustes(organizationId: string): Promise<AjustesOrg> {

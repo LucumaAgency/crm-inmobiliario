@@ -6,10 +6,12 @@ import { desde } from '../lib/format.js';
 import Icono from '../components/Icono.js';
 import { ChipInteres } from '../components/NivelInteres.js';
 import MotivoPerdida from '../components/MotivoPerdida.js';
+import DatoEtapaClinica from '../components/DatoEtapaClinica.js';
+import { ETAPA_DERIVADO } from '@lucuma-crm/shared';
 import { usePuede } from '../lib/permisos.js';
-import { useEtiquetas } from '../lib/vertical.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
-interface Etapa { id: string; name: string; color: string | null; isWon: boolean; isLost: boolean }
+interface Etapa { id: string; name: string; slug?: string; color: string | null; isWon: boolean; isLost: boolean }
 interface Tarjeta {
   id: string;
   stageId: string | null;
@@ -48,6 +50,9 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   const [pidiendoMotivo, setPidiendoMotivo] = useState<{ lead: Tarjeta; etapa: Etapa } | null>(null);
+  // Clínica: soltar en «Derivado a clínica» pide la sede; en la ganada, el procedimiento.
+  const clinica = useVertical() === 'clinica';
+  const [pidiendoClinica, setPidiendoClinica] = useState<{ lead: Tarjeta; etapa: Etapa; modo: 'sede' | 'procedimiento' } | null>(null);
   const puedeMover = puede('leads.editar');
   const puedeFiltrarAsesor = puede('leads.ver_todos');
 
@@ -75,8 +80,8 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
   });
 
   const mover = useMutation({
-    mutationFn: (v: { leadId: string; stageId: string; reason?: string }) =>
-      api.patch(`/leads/${v.leadId}`, { stageId: v.stageId, reason: v.reason }),
+    mutationFn: (v: { leadId: string; stageId: string; reason?: string; referredTo?: string; procedureId?: string }) =>
+      api.patch(`/leads/${v.leadId}`, { stageId: v.stageId, reason: v.reason, referredTo: v.referredTo, procedureId: v.procedureId }),
     // Optimista: la tarjeta cambia de columna al soltar; si el servidor falla, vuelve.
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: ['tablero'] });
@@ -96,7 +101,7 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
     onError: (_e, _v, ctx) => {
       if (ctx?.previo) qc.setQueryData(['tablero', projectId, ownerId], ctx.previo);
     },
-    onSuccess: () => setPidiendoMotivo(null),
+    onSuccess: () => { setPidiendoMotivo(null); setPidiendoClinica(null); },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['tablero'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
@@ -118,6 +123,10 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
     if (!puedeMover || lead.stageId === etapa.id) return;
     if (etapa.isLost) {
       setPidiendoMotivo({ lead, etapa });
+      return;
+    }
+    if (clinica && (etapa.slug === ETAPA_DERIVADO || etapa.isWon)) {
+      setPidiendoClinica({ lead, etapa, modo: etapa.isWon ? 'procedimiento' : 'sede' });
       return;
     }
     mover.mutate({ leadId: lead.id, stageId: etapa.id });
@@ -157,7 +166,7 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
       </div>
 
       {datos.isLoading && <div className="vacio">Cargando tablero…</div>}
-      {mover.isError && !pidiendoMotivo && (
+      {mover.isError && !pidiendoMotivo && !pidiendoClinica && (
         <p className="error">{(mover.error as ApiError).message}</p>
       )}
 
@@ -192,7 +201,7 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
                 </header>
                 {cerrada && tarjetas.length === 0 && (
                   <p className="meta columna-nota">
-                    {etapa.isWon ? 'Suelta aquí los que compraron.' : 'Suelta aquí los que se pierden; se pide el motivo.'}
+                    {etapa.isWon ? (clinica ? 'Suelta aquí los que se atendieron; se pide el procedimiento.' : 'Suelta aquí los que compraron.') : 'Suelta aquí los que se pierden; se pide el motivo.'}
                   </p>
                 )}
                 <div className="columna-cuerpo">
@@ -241,6 +250,24 @@ export default function Tablero({ rol: _rol }: { rol: string }) {
             </section>
           )}
         </div>
+      )}
+
+      {pidiendoClinica && (
+        <DatoEtapaClinica
+          modo={pidiendoClinica.modo}
+          nombre={`${pidiendoClinica.lead.contact.fname} ${pidiendoClinica.lead.contact.lname ?? ''}`.trim()}
+          etapa={pidiendoClinica.etapa.name}
+          pendiente={mover.isPending}
+          error={mover.isError ? (mover.error as ApiError).message : null}
+          onConfirmar={(v) =>
+            mover.mutate({
+              leadId: pidiendoClinica.lead.id,
+              stageId: pidiendoClinica.etapa.id,
+              ...(pidiendoClinica.modo === 'sede' ? { referredTo: v } : { procedureId: v }),
+            })
+          }
+          onCancelar={() => { setPidiendoClinica(null); mover.reset(); }}
+        />
       )}
 
       {pidiendoMotivo && (

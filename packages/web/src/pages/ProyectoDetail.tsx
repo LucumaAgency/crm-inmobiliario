@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import ImportarUnidades from './ImportarUnidades.js';
 import PaquetesServicio from './PaquetesServicio.js';
+import ProcedimientosEspecialidad from './ProcedimientosEspecialidad.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
 
 interface Tipologia {
@@ -75,12 +76,13 @@ export default function ProyectoDetail() {
   const qc = useQueryClient();
   const vertical = useVertical();
   const L = useEtiquetas();
-  type Pestana = 'tipologias' | 'unidades' | 'datos' | 'paquetes';
+  type Pestana = 'tipologias' | 'unidades' | 'datos' | 'paquetes' | 'procedimientos';
   // ?pestana= abre una pestaña directa (la usa la guía de primeros pasos).
   const [params] = useSearchParams();
   const pedida = params.get('pestana') as Pestana | null;
-  const validas: Pestana[] = vertical === 'agencia' ? ['paquetes', 'datos'] : ['tipologias', 'unidades', 'datos'];
-  const [pestana, setPestana] = useState<Pestana>(pedida && validas.includes(pedida) ? pedida : vertical === 'agencia' ? 'paquetes' : 'tipologias');
+  const validas: Pestana[] =
+    vertical === 'clinica' ? ['procedimientos'] : vertical === 'agencia' ? ['paquetes', 'datos'] : ['tipologias', 'unidades', 'datos'];
+  const [pestana, setPestana] = useState<Pestana>(pedida && validas.includes(pedida) ? pedida : validas[0]!);
   const [importando, setImportando] = useState(false);
 
   const proyectos = useQuery({
@@ -222,11 +224,15 @@ export default function ProyectoDetail() {
     <>
       <div className="barra-acciones">
         <div style={{ flex: 1 }}>
-          <Link to="/proyectos" className="meta">← Proyectos</Link>
-          <h2 style={{ margin: '4px 0 0', fontSize: 20 }}>{proyecto?.name ?? 'Proyecto'}</h2>
+          <Link to="/proyectos" className="meta">← {L.proyectos}</Link>
+          <h2 style={{ margin: '4px 0 0', fontSize: 20 }}>{proyecto?.name ?? L.proyecto}</h2>
         </div>
       </div>
 
+      {vertical === 'clinica' ? (
+        <ProcedimientosEspecialidad projectId={id} />
+      ) : (
+      <>
       <div className="stats">
         {vertical !== 'agencia' && <div className="stat"><div className="n">{tipologias.data?.length ?? '—'}</div><div className="t">Tipologías</div></div>}
         <div className="stat"><div className="n">{unidades.data?.length ?? '—'}</div><div className="t">{L.unidades}</div></div>
@@ -512,6 +518,8 @@ export default function ProyectoDetail() {
             </form>
           </div>
         </>
+      )}
+      </>
       )}
     </>
   );

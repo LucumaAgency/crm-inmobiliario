@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
-import { useEtiquetas } from '../lib/vertical.js';
+import { useEtiquetas, useVertical } from '../lib/vertical.js';
+import { fecha } from '../lib/format.js';
 import Icono from '../components/Icono.js';
 import { KpiContenido } from '../components/Kpi.js';
 import MatrizPuntos from '../components/MatrizPuntos.js';
@@ -52,6 +54,7 @@ function Barras({
 
 export default function Reportes() {
   const L = useEtiquetas();
+  const vertical = useVertical();
   const [dias, setDias] = useState(30);
   const [proyecto, setProyecto] = useState('');
   const [metrica, setMetrica] = useState<Metrica>('leads');
@@ -255,6 +258,86 @@ export default function Reportes() {
           />
         </div>
       </section>
+
+      {vertical === 'clinica' && <AtendidosDelMes />}
     </>
+  );
+}
+
+interface Atendidos {
+  mes: string;
+  atendidos: number;
+  cirugias: number;
+  cobrables: number;
+  filas: {
+    id: string; nombre: string; source: string; origenPropio: boolean; wonAt: string; sede: string | null;
+    procedimiento: string | null; especialidad: string | null; cirugia: boolean; cobrable: boolean;
+  }[];
+}
+
+/** Últimos 12 meses en formato AAAA-MM, del actual hacia atrás (hora de Lima). */
+function ultimosMeses(): string[] {
+  const hoy = new Date(Date.now() - 5 * 3600 * 1000);
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
+    return d.toISOString().slice(0, 7);
+  });
+}
+
+const nombreMes = (m: string) =>
+  new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m}-01T00:00:00Z`));
+
+/**
+ * Clínica (docs/29 §6): pacientes atendidos en el mes y, entre ellos, las cirugías que
+ * llegaron por canales de Lucuma. Es el sustento del cobro por paciente.
+ */
+function AtendidosDelMes() {
+  const meses = ultimosMeses();
+  const [mes, setMes] = useState(meses[0]!);
+  const q = useQuery({ queryKey: ['atendidos', mes], queryFn: () => api.get<Atendidos>(`/reportes/atendidos?mes=${mes}`) });
+  const d = q.data;
+  return (
+    <section className="panel" style={{ marginTop: 16 }}>
+      <div className="panel-cab">
+        <h2 className="titulo-panel">Atendidos del mes</h2>
+        <label className="control" style={{ margin: 0 }}>
+          <Icono nombre="calendario" tam={15} />
+          <select value={mes} onChange={(e) => setMes(e.target.value)} aria-label="Mes">
+            {meses.map((m) => <option key={m} value={m}>{nombreMes(m)}</option>)}
+          </select>
+          <Icono nombre="abajo" tam={14} />
+        </label>
+      </div>
+      <div className="panel-cuerpo">
+        <p className="meta" style={{ marginTop: 0 }}>
+          Cuenta por la fecha en que pasó a atendido. «Por canales digitales» = llegó por la web,
+          WhatsApp, Meta o llamó desde Google; no cuentan referidos ni pacientes de la clínica.
+        </p>
+        <div className="stats">
+          <div className="stat"><div className="n">{d?.atendidos ?? '—'}</div><div className="t">Atendidos</div></div>
+          <div className="stat"><div className="n">{d?.cirugias ?? '—'}</div><div className="t">Cirugías</div></div>
+          <div className="stat"><div className="n">{d?.cobrables ?? '—'}</div><div className="t">Cirugías por canales digitales</div></div>
+        </div>
+        {d && d.filas.length === 0 && <div className="vacio" style={{ padding: 20 }}>Sin pacientes atendidos en {nombreMes(mes)}.</div>}
+        {d && d.filas.length > 0 && (
+          <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
+            <thead><tr><th>Paciente</th><th>Atendido</th><th>Procedimiento</th><th>Sede</th><th>Origen</th><th>Cuenta</th></tr></thead>
+            <tbody>
+              {d.filas.map((f) => (
+                <tr key={f.id}>
+                  <td className="t-titulo"><Link to={`/leads/${f.id}`}>{f.nombre}</Link></td>
+                  <td data-label="Atendido">{fecha(f.wonAt)}</td>
+                  <td data-label="Procedimiento">{f.procedimiento ?? '—'}{f.cirugia ? ' · cirugía' : ''}</td>
+                  <td data-label="Sede">{f.sede ?? '—'}</td>
+                  <td data-label="Origen">{FUENTES[f.source] ?? f.source}</td>
+                  <td data-label="Cuenta">{f.cobrable ? 'Sí' : 'No'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {q.isError && <p className="error">{(q.error as Error).message}</p>}
+      </div>
+    </section>
   );
 }
