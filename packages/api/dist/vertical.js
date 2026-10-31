@@ -1,13 +1,13 @@
 /**
  * Cambia el vertical de una organización.
  *
- *   npm run vertical:prod -- <slug> <inmobiliaria|agencia>
+ *   npm run vertical:prod -- <slug> <inmobiliaria|agencia|clinica>
  */
 import { prisma } from './db.js';
 import { esVertical } from '@lucuma-crm/shared';
 const [slug, vertical] = process.argv.slice(2);
 if (!slug || !vertical || !esVertical(vertical)) {
-    console.error('Uso: npm run vertical:prod -- <slug> <inmobiliaria|agencia>');
+    console.error('Uso: npm run vertical:prod -- <slug> <inmobiliaria|agencia|clinica>');
     process.exit(1);
 }
 const org = await prisma.organization.findUnique({ where: { slug } });

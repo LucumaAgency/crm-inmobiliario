@@ -1,3 +1,4 @@
+import type { Sede } from '@lucuma-crm/shared';
 export interface AjustesOrg {
     /**
      * Transcribir las notas de voz con OpenAI y proponer la actividad con Claude.
@@ -38,8 +39,15 @@ export interface AjustesOrg {
      * vuelve solo al reparto (services/assign.ts).
      */
     asesorPorDefecto: string | null;
+    /**
+     * Vertical clínica: sedes a las que se deriva pacientes. Al mover un lead a «Derivado a
+     * clínica» se elige una; sus datos se pueden mandar por WhatsApp desde la ficha.
+     */
+    sedes: Sede[];
 }
 export declare const PROFORMA_NOTA_DEFECTO = "La presente proforma tiene una validez de tres (03) d\u00EDas calendario desde la fecha de su emisi\u00F3n, no pudiendo el cliente efectuar reclamo alguno fuera del tiempo previamente estipulado, estando los precios de venta sujetos a variaci\u00F3n sin previo aviso.";
 export declare const MOTIVOS_PERDIDA_DEFECTO: string[];
+/** Motivos de pérdida con los que nace una organización clínica (docs/29 §3). */
+export declare const MOTIVOS_PERDIDA_CLINICA: string[];
 export declare function leerAjustes(organizationId: string): Promise<AjustesOrg>;
 export declare function guardarAjustes(organizationId: string, cambios: Partial<AjustesOrg>): Promise<AjustesOrg>;

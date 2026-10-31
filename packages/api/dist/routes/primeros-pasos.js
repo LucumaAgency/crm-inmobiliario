@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { esCuentaLucuma, etiquetas } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
+import { leerAjustes } from '../lib/ajustes.js';
 import { requireAuth, scopeForUser, tiene } from '../lib/auth.js';
 /** Fecha en que se publicó la guía. */
 const GUIA_DESDE = new Date('2026-10-25T00:00:00-05:00');
@@ -16,6 +17,7 @@ export default async function primerosPasosRoutes(app) {
         ]);
         const L = etiquetas(org.vertical);
         const agencia = org.vertical === 'agencia';
+        const clinica = org.vertical === 'clinica';
         const enProyecto = { project: { organizationId: orgId } };
         const [proyecto, proyectos, tipologias, unidades, conDatos, equipo, sitios, paginas, numeros, leads, seguimientos] = await Promise.all([
             prisma.project.findFirst({ where: { organizationId: orgId, active: true }, orderBy: { createdAt: 'asc' }, select: { id: true } }),
@@ -32,7 +34,36 @@ export default async function primerosPasosRoutes(app) {
         ]);
         const ficha = (pestana) => (proyecto ? `/proyectos/${proyecto.id}?pestana=${pestana}` : '/proyectos');
         const pasos = [];
-        if (puede('inventario.editar')) {
+        if (puede('inventario.editar') && clinica) {
+            pasos.push({
+                id: 'proyecto',
+                titulo: 'Crea tus especialidades',
+                texto: `Cada especialidad (por ejemplo «${L.ejemploProyecto}») agrupa sus procedimientos. Cada paciente se asocia a una especialidad.`,
+                enlace: '/proyectos',
+                accion: 'Ir a Especialidades',
+                hecho: proyectos > 0,
+            });
+            pasos.push({
+                id: 'unidades',
+                titulo: 'Carga tus procedimientos y precios',
+                texto: 'Consulta, cirugías, controles: cada uno con su precio. Marca cuáles son cirugía; al pasar un paciente a «Atendido» eliges qué se le hizo.',
+                enlace: ficha('procedimientos'),
+                accion: 'Ir a Procedimientos',
+                hecho: unidades > 0,
+            });
+        }
+        if (puede('embudo.configurar') && clinica) {
+            const { sedes } = await leerAjustes(orgId);
+            pasos.push({
+                id: 'sedes',
+                titulo: 'Registra tus sedes',
+                texto: 'Las clínicas donde atiendes, con dirección y teléfono de citas. Al derivar a un paciente eliges la sede y le mandas esos datos por WhatsApp.',
+                enlace: '/ajustes?seccion=sedes',
+                accion: 'Ir a Sedes',
+                hecho: sedes.length > 0,
+            });
+        }
+        if (puede('inventario.editar') && !clinica) {
             pasos.push({
                 id: 'proyecto',
                 titulo: agencia ? 'Crea tus servicios' : 'Crea tu primer proyecto',
@@ -72,7 +103,8 @@ export default async function primerosPasosRoutes(app) {
                 hecho: conDatos > 0,
             });
         }
-        if (puede('usuarios.gestionar')) {
+        // Clínica: el médico responde solo (docs/29 §1), no hay equipo que invitar.
+        if (puede('usuarios.gestionar') && !clinica) {
             pasos.push({
                 id: 'equipo',
                 titulo: 'Invita a tu equipo',

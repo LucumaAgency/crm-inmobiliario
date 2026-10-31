@@ -1,7 +1,7 @@
 /**
  * Crea una organización nueva con sus etapas por defecto y su primer administrador.
  *
- *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia]
+ *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia|clinica]
  *   npm run org:prod -- lucuma "Lucuma Agency" dev@lucumaagency.com MiClave123
  *
  * El slug es el subdominio (`lucuma.<CRM_BASE_DOMAIN>`): minúsculas, números y guiones.
@@ -13,8 +13,9 @@
  */
 import { prisma } from './db.js';
 import { generarPassword, hashPassword } from './lib/password.js';
-import { esVertical } from '@lucuma-crm/shared';
-const ETAPAS = [
+import { ETAPA_DERIVADO, esVertical } from '@lucuma-crm/shared';
+import { MOTIVOS_PERDIDA_CLINICA } from './lib/ajustes.js';
+const ETAPAS_COMERCIAL = [
     { slug: 'por-contactar', name: 'Por contactar', position: 1, color: '#94a3b8' },
     { slug: 'contactado', name: 'Contactado', position: 2, color: '#3b82f6' },
     { slug: 'reunion-agendada', name: 'Reunión agendada', position: 3, color: '#8b5cf6' },
@@ -23,13 +24,24 @@ const ETAPAS = [
     { slug: 'ganado', name: 'Ganado', position: 6, color: '#059669', isWon: true },
     { slug: 'perdido', name: 'Perdido', position: 7, color: '#ef4444', isLost: true },
 ];
+/**
+ * Clínica (docs/29 §3): el médico informa, deriva a una sede y el paciente se atiende allá.
+ * «Derivado a clínica» pide la sede; «Atendido» pide el procedimiento que se hizo.
+ */
+const ETAPAS_CLINICA = [
+    { slug: 'por-contactar', name: 'Por contactar', position: 1, color: '#94a3b8' },
+    { slug: 'informado', name: 'Informado', position: 2, color: '#3b82f6' },
+    { slug: ETAPA_DERIVADO, name: 'Derivado a clínica', position: 3, color: '#8b5cf6' },
+    { slug: 'atendido', name: 'Atendido', position: 4, color: '#059669', isWon: true },
+    { slug: 'perdido', name: 'Perdido', position: 5, color: '#ef4444', isLost: true },
+];
 async function main() {
     const args = process.argv.slice(2);
     const iv = args.indexOf('--vertical');
     const vertical = iv >= 0 ? args.splice(iv, 2)[1] : 'inmobiliaria';
     const [slug, nombre, correo, dada] = args;
     if (!esVertical(vertical ?? '')) {
-        console.error('--vertical debe ser inmobiliaria o agencia');
+        console.error('--vertical debe ser inmobiliaria, agencia o clinica');
         process.exit(1);
     }
     if (!slug || !nombre || !correo) {
@@ -45,7 +57,15 @@ async function main() {
         process.exit(1);
     }
     const password = dada || generarPassword();
-    const org = await prisma.organization.create({ data: { name: nombre, slug, vertical } });
+    const ETAPAS = vertical === 'clinica' ? ETAPAS_CLINICA : ETAPAS_COMERCIAL;
+    const org = await prisma.organization.create({
+        data: {
+            name: nombre,
+            slug,
+            vertical,
+            ...(vertical === 'clinica' ? { settings: { motivosPerdida: MOTIVOS_PERDIDA_CLINICA } } : {}),
+        },
+    });
     for (const e of ETAPAS)
         await prisma.stage.create({ data: { ...e, organizationId: org.id } });
     const admin = await prisma.user.create({

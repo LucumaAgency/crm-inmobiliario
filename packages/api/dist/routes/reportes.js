@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import { requireAuth, requirePermiso, scopeForUser } from '../lib/auth.js';
+import { esCobrableClinica, esOrigenPropio } from '@lucuma-crm/shared';
 /** Lima no tiene horario de verano: el día comercial es UTC-5 todo el año. */
 const OFFSET_LIMA_MS = -5 * 60 * 60 * 1000;
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -139,6 +140,53 @@ export default async function reportesRoutes(app) {
             porFuente,
             porEtapa,
             porProyecto,
+        };
+    });
+    /**
+     * Atendidos del mes (vertical clínica, docs/29 §6): sustento del cobro por paciente. Cuenta
+     * por la fecha en que se marcó atendido (`wonAt`), no por la de entrada: un paciente que
+     * escribió en octubre y se operó en noviembre es de noviembre.
+     */
+    app.get('/atendidos', async (req, reply) => {
+        const user = req.user;
+        const mes = /^\d{4}-\d{2}$/.test(req.query.mes ?? '') ? req.query.mes : diaLima(new Date()).slice(0, 7);
+        const [a, m] = mes.split('-').map(Number);
+        const desde = new Date(Date.UTC(a, m - 1, 1) - OFFSET_LIMA_MS);
+        const hasta = new Date(Date.UTC(a, m, 1) - OFFSET_LIMA_MS);
+        if (m < 1 || m > 12)
+            return reply.code(400).send({ error: 'Mes inválido' });
+        const leads = await prisma.lead.findMany({
+            where: { ...scopeForUser(user), status: 'ganado', wonAt: { gte: desde, lt: hasta } },
+            select: {
+                id: true,
+                source: true,
+                wonAt: true,
+                createdAt: true,
+                referredTo: true,
+                contact: { select: { fname: true, lname: true } },
+                procedure: { select: { code: true, extra: true, project: { select: { name: true } } } },
+            },
+            orderBy: { wonAt: 'asc' },
+        });
+        const filas = leads.map((l) => ({
+            id: l.id,
+            nombre: `${l.contact.fname} ${l.contact.lname ?? ''}`.trim(),
+            source: l.source,
+            origenPropio: esOrigenPropio(l.source),
+            wonAt: l.wonAt,
+            createdAt: l.createdAt,
+            sede: l.referredTo,
+            procedimiento: l.procedure ? `${l.procedure.code}` : null,
+            especialidad: l.procedure?.project.name ?? null,
+            cirugia: !!l.procedure?.extra?.cirugia,
+            cobrable: esCobrableClinica(l),
+        }));
+        return {
+            mes,
+            atendidos: filas.length,
+            cirugias: filas.filter((f) => f.cirugia).length,
+            cobrables: filas.filter((f) => f.cobrable).length,
+            filas,
         };
     });
 }

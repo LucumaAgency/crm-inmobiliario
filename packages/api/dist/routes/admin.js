@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PERMISOS_IDS, REDES, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, notasVozDisponibles, passwordSchema } from '@lucuma-crm/shared';
+import { ORIGENES_MANUALES_CLINICA, PERMISOS_IDS, REDES, ROLES_BASE, esCuentaLucuma, esPermiso, formSchema, notasVozDisponibles, passwordSchema } from '@lucuma-crm/shared';
 import { prisma } from '../db.js';
 import { borrarSiHuerfano, guardar, urlPublica } from '../lib/media.js';
 import { audit, olvidarPermisos, requireAuth, requirePermiso, tiene } from '../lib/auth.js';
@@ -202,7 +202,7 @@ export default async function adminRoutes(app) {
     /** Lo que cualquier usuario necesita de los ajustes para operar (el asesor mueve leads a perdido). */
     app.get('/ajustes/operacion', async (req) => {
         const a = await leerAjustes(req.user.organizationId);
-        return { motivosPerdida: a.motivosPerdida, nivelesInteres: a.nivelesInteres };
+        return { motivosPerdida: a.motivosPerdida, nivelesInteres: a.nivelesInteres, sedes: a.sedes };
     });
     app.patch('/ajustes', { preHandler: embudo }, async (req, reply) => {
         const parsed = z
@@ -213,6 +213,16 @@ export default async function adminRoutes(app) {
             nivelesInteres: z.tuple([z.string().trim().min(1).max(30), z.string().trim().min(1).max(30), z.string().trim().min(1).max(30)]).optional(),
             proformaValidezDias: z.number().int().min(1).max(90).optional(),
             proformaNota: z.string().trim().max(1000).optional(),
+            sedes: z
+                .array(z.object({
+                nombre: z.string().trim().min(1).max(120),
+                direccion: z.string().trim().max(200).nullable().optional(),
+                telefonoCitas: z.string().trim().max(40).nullable().optional(),
+                enlace: z.string().trim().max(300).nullable().optional(),
+            }))
+                .max(20)
+                .refine((l) => new Set(l.map((x) => x.nombre.toLowerCase())).size === l.length, { message: 'Hay dos sedes con el mismo nombre' })
+                .optional(),
         })
             .strict()
             .safeParse(req.body);
@@ -255,6 +265,16 @@ export default async function adminRoutes(app) {
         where: { organizationId: req.user.organizationId },
         include: { _count: { select: { units: true, leads: true } } },
         orderBy: { name: 'asc' },
+    }));
+    /**
+     * Todo el catálogo en una lista (procedimientos de todas las especialidades). Lo usa la
+     * clínica al marcar un paciente como atendido: elige qué se le hizo sin pasar por cada
+     * especialidad. Lectura para cualquier usuario: quien mueve leads lo necesita.
+     */
+    app.get('/catalogo/unidades', async (req) => prisma.unit.findMany({
+        where: { project: { organizationId: req.user.organizationId, active: true } },
+        select: { id: true, code: true, price: true, currency: true, extra: true, project: { select: { id: true, name: true } } },
+        orderBy: [{ project: { name: 'asc' } }, { code: 'asc' }],
     }));
     const projectInput = z.object({
         name: z.string().min(1),
@@ -1275,7 +1295,9 @@ export default async function adminRoutes(app) {
             company: z.string().max(191).optional(),
             typologyIds: z.array(z.string()).optional(),
             unitIds: z.array(z.string()).optional(),
-            source: z.string().default('manual'),
+            // Solo orígenes de alta manual: un alta a mano no puede hacerse pasar por formulario web
+            // o WhatsApp, que en la clínica son los que cuentan para el cobro (docs/29 §6).
+            source: z.enum([...new Set(['manual', ...ORIGENES_MANUALES_CLINICA.map((o) => o.valor)])]).default('manual'),
         })
             .safeParse(req.body);
         if (!parsed.success)
