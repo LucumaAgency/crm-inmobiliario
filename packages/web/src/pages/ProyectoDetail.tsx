@@ -6,6 +6,7 @@ import ImportarUnidades from './ImportarUnidades.js';
 import PaquetesServicio from './PaquetesServicio.js';
 import ProcedimientosEspecialidad from './ProcedimientosEspecialidad.js';
 import { useEtiquetas, useVertical } from '../lib/vertical.js';
+import { usePuede } from '../lib/permisos.js';
 
 interface Tipologia {
   id: string;
@@ -71,11 +72,84 @@ const TIPOS: Record<string, string> = {
 
 const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
 
+const formatoPrecio = (moneda: string, v: string | number) =>
+  `${moneda} ${Number(v).toLocaleString('es-PE', { maximumFractionDigits: 2 })}`;
+
+/**
+ * Precio de lista de una unidad, editable en la misma fila. Solo se ofrece a quien tiene
+ * `inventario.precios`; el servidor vuelve a comprobarlo y deja el cambio en el registro.
+ * Se pide confirmación con el antes y el después porque es un dato que ve todo el equipo
+ * y sale en las proformas nuevas (las ya emitidas guardan su propio precio).
+ */
+function PrecioUnidad({ u, editable, onGuardado }: { u: Unidad; editable: boolean; onGuardado: () => void }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState('');
+  const guardar = useMutation({
+    mutationFn: (precio: number | null) => api.patch(`/units/${u.id}`, { price: precio }),
+    onSuccess: () => { setEditando(false); onGuardado(); },
+  });
+
+  const actual = u.price ? formatoPrecio(u.currency, u.price) : '—';
+  if (!editable) return <>{actual}</>;
+
+  if (!editando) {
+    return (
+      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {actual}
+        <button
+          type="button"
+          className="btn btn-sec"
+          style={{ padding: '2px 8px', fontSize: 12 }}
+          onClick={() => { setValor(u.price ? String(Number(u.price)) : ''); guardar.reset(); setEditando(true); }}
+        >
+          Cambiar
+        </button>
+      </span>
+    );
+  }
+
+  const confirmar = () => {
+    const limpio = valor.replace(/[^0-9.,]/g, '').replace(',', '.');
+    const nuevo = limpio === '' ? null : Number(limpio);
+    if (nuevo !== null && (!Number.isFinite(nuevo) || nuevo <= 0)) return;
+    if (String(nuevo ?? '') === String(u.price == null ? '' : Number(u.price))) { setEditando(false); return; }
+    const texto = nuevo === null ? 'sin precio' : formatoPrecio(u.currency, nuevo);
+    if (!window.confirm(`Unidad ${u.code}: ${actual} → ${texto}. ¿Cambiar el precio de lista?`)) return;
+    guardar.mutate(nuevo);
+  };
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); confirmar(); }}
+      style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
+    >
+      <span className="meta">{u.currency}</span>
+      <input
+        autoFocus
+        inputMode="decimal"
+        aria-label={`Precio de la unidad ${u.code}`}
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setEditando(false); }}
+        style={{ width: 120 }}
+      />
+      <button type="submit" className="btn" style={{ padding: '4px 10px', fontSize: 13 }} disabled={guardar.isPending}>
+        {guardar.isPending ? 'Guardando…' : 'Guardar'}
+      </button>
+      <button type="button" className="btn btn-sec" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => setEditando(false)}>
+        Cancelar
+      </button>
+      {guardar.isError && <span className="error" style={{ width: '100%' }}>{(guardar.error as Error).message}</span>}
+    </form>
+  );
+}
+
 export default function ProyectoDetail() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
   const vertical = useVertical();
   const L = useEtiquetas();
+  const puede = usePuede();
   type Pestana = 'tipologias' | 'unidades' | 'datos' | 'paquetes' | 'procedimientos';
   // ?pestana= abre una pestaña directa (la usa la guía de primeros pasos).
   const [params] = useSearchParams();
@@ -452,7 +526,7 @@ export default function ProyectoDetail() {
                         </td>
                         <td data-label="Piso">{u.floor ?? '—'}</td>
                         <td data-label="Detalle" className="meta">{detalleUnidad(u)}</td>
-                        <td data-label="Precio">{u.price ? `${u.currency} ${u.price}` : '—'}</td>
+                        <td data-label="Precio"><PrecioUnidad u={u} editable={puede('inventario.precios')} onGuardado={refrescar} /></td>
                         <td data-label="Tipo">{TIPOS[u.kind] ?? u.kind}</td>
                         <td data-label="Estado">
                           <select
