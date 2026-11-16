@@ -40,12 +40,12 @@ export declare function topeDescuento(userId: string, organizationId: string): P
 export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     number: string;
     id: string;
-    organizationId: string;
     createdAt: Date;
     projectId: string;
     currency: string;
-    year: number;
     leadId: string;
+    organizationId: string;
+    year: number;
     createdById: string | null;
     seq: number;
     client: import("@prisma/client/runtime/library").JsonValue;

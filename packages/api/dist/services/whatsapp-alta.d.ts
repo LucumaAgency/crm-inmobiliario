@@ -27,18 +27,18 @@ export declare function verPase(token: string): Promise<({
     };
 } & {
     id: string;
-    organizationId: string;
     createdAt: Date;
-    userId: string;
     projectId: string | null;
+    organizationId: string;
     abrirLeads: boolean;
     ownerUserId: string | null;
+    userId: string;
     tokenHash: string;
+    modo: string;
+    volverA: string;
     expiresAt: Date;
     usedAt: Date | null;
     resultado: import("@prisma/client/runtime/library").JsonValue | null;
-    modo: string;
-    volverA: string;
 }) | null>;
 /** Estado de coexistencia que reporta Meta. Lo usan «Probar conexión» y el diagnóstico. */
 export declare function estadoEnMeta(waNumberId: string): Promise<{
