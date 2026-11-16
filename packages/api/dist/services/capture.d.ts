@@ -15,6 +15,11 @@ export interface CaptureContext {
      * deduplicar, y el contacto de la conversación es el único ancla.
      */
     contactId?: string;
+    /**
+     * Asesor al que va el lead nuevo sin pasar por el reparto. Lo usa WhatsApp cuando el
+     * número es de un asesor (coexistencia): el cliente le escribió a él.
+     */
+    ownerId?: string | null;
 }
 export interface CaptureResult {
     leadId: string;

@@ -150,7 +150,13 @@ export async function captureLead(input, schema, ctx) {
     // Asignación y SLA fuera de la transacción: encolar dispara el procesado de la cola
     // (services/cola.ts), y no debe ocurrir con el bloqueo del contacto tomado.
     if (esNuevo && !spam) {
-        const owner = await pickOwner(ctx.organizationId);
+        const fijo = ctx.ownerId
+            ? await prisma.user.findFirst({
+                where: { id: ctx.ownerId, organizationId: ctx.organizationId, active: true },
+                select: { id: true },
+            })
+            : null;
+        const owner = fijo ? { userId: fijo.id, reason: 'numero_whatsapp' } : await pickOwner(ctx.organizationId);
         if (owner)
             await assignLead(leadId, owner.userId, owner.reason);
         // SLA de primer contacto: se revisa a los 15 minutos.

@@ -184,6 +184,7 @@ export declare function enviarTexto(datos: EnvioTexto): Promise<{
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
+    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -211,6 +212,7 @@ export declare function enviarDocumento(datos: {
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
+    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -243,6 +245,7 @@ export declare function enviarAdjunto(datos: {
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
+    via: string | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
@@ -259,6 +262,7 @@ export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
     userId: string | null;
+    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -286,6 +290,30 @@ export declare function plantillasDe(phoneNumberId: string): Promise<{
     templates: unknown[];
     error?: undefined;
 }>;
+/**
+ * Conversación del contacto con este número, creándola si hace falta.
+ *
+ * El contacto se busca por teléfono normalizado, la misma llave que usa `captureLead`:
+ * quien escribió por el formulario web y después por WhatsApp tiene que ser una sola
+ * persona en el CRM, no dos.
+ */
+export declare function conversacionDe(numero: {
+    id: string;
+    organizationId: string;
+}, waId: string, conNumero: boolean, nombre?: string): Promise<{
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    leadId: string | null;
+    organizationId: string;
+    lastInboundAt: Date | null;
+    waNumberId: string;
+    contactId: string;
+    waId: string;
+    windowExpiresAt: Date | null;
+    lastOutboundAt: Date | null;
+    unread: number;
+}>;
 /** Texto y tipo de un mensaje entrante. Lo que no es texto se anota, no se descarga. */
 export declare function interpretar(m: MensajeEntrante): {
     texto: string | undefined;
@@ -301,4 +329,5 @@ export declare function interpretar(m: MensajeEntrante): {
  * Doc: developers.facebook.com/documentation/business-messaging/whatsapp/business-scoped-user-ids/
  */
 export declare function esBsuid(waId: string): boolean;
+export declare function llamarCloud(ruta: string, token: string, cuerpo?: unknown): Promise<unknown>;
 export {};

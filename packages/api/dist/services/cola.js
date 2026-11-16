@@ -26,6 +26,7 @@ import { logError, logLine } from '../lib/log.js';
 import { backoffMinutes } from '../lib/jobs.js';
 import { newLeadEmail, sendMail, waInboundEmail } from '../lib/mail.js';
 import { leadUrl } from './capture.js';
+import { urlDeOrganizacion } from '../lib/tenant.js';
 const EJECUTOR_ID = randomUUID();
 const LOCK_VENCIDO_MIN = 10;
 async function tomarLote() {
@@ -81,6 +82,11 @@ async function procesar(job) {
             const { descargarMedia } = await import('./whatsapp.js');
             return descargarMedia(String(job.payload.messageId));
         }
+        case 'wa.coex.sync': {
+            // Contactos e historial de un número en coexistencia: 24 h de plazo desde el alta.
+            const { sincronizarCoexistencia } = await import('./whatsapp-alta.js');
+            return sincronizarCoexistencia(String(job.payload.waNumberId));
+        }
         case 'voz.procesar': {
             const { procesarNotaVoz } = await import('./notas-voz.js');
             return procesarNotaVoz(String(job.payload.notaId));
@@ -98,6 +104,9 @@ async function procesar(job) {
 async function enviarEmail(payload) {
     if (payload.kind === 'wa_inbound')
         return avisarMensajeEntrante(String(payload.conversationId));
+    if (payload.kind === 'wa_desconectado') {
+        return avisarNumeroDesconectado(String(payload.waNumberId), String(payload.detalle ?? ''));
+    }
     if (payload.kind !== 'new_lead')
         return;
     const lead = await prisma.lead.findUnique({
@@ -192,6 +201,43 @@ async function avisarMensajeEntrante(conversationId) {
         url: leadUrl(c.lead.id, c.lead.organization?.slug),
     });
     await sendMail({ to: c.lead.owner.email, ...mail });
+}
+/**
+ * Un número de WhatsApp dejó de entregar chats al CRM (el asesor lo desconectó en la app,
+ * o Meta lo hizo por inactividad). Sin este correo nadie se entera hasta que un cliente
+ * reclama que no le contestaron.
+ */
+async function avisarNumeroDesconectado(waNumberId, detalle) {
+    const n = await prisma.waNumber.findUnique({
+        where: { id: waNumberId },
+        include: {
+            owner: { select: { email: true, active: true } },
+            organization: {
+                select: {
+                    slug: true,
+                    users: { where: { active: true, role: { in: ['gerente', 'admin_lucuma'] } }, select: { email: true } },
+                },
+            },
+        },
+    });
+    if (!n)
+        return;
+    const destinos = new Set(n.organization.users.map((u) => u.email));
+    if (n.owner?.active && n.owner.email)
+        destinos.add(n.owner.email);
+    if (!destinos.size)
+        return;
+    const url = `${urlDeOrganizacion(n.organization.slug)}/ajustes?seccion=whatsapp`;
+    for (const to of destinos) {
+        await sendMail({
+            to,
+            subject: `WhatsApp ${n.displayNumber} se desconectó del CRM`,
+            html: `<p>El número <strong>${n.displayNumber}</strong> dejó de enviar sus chats al CRM.</p>` +
+                `<p>${detalle}</p>` +
+                `<p>Los chats que ya estaban se quedan. Para volver a recibir los nuevos, entra a ` +
+                `<a href="${url}">Ajustes → WhatsApp</a> y pulsa «Conectar WhatsApp».</p>`,
+        });
+    }
 }
 /** SLA de primer contacto: la conversión cae en picada después de la primera hora. */
 async function revisarSla(payload) {

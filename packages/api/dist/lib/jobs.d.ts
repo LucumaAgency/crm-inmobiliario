@@ -1,4 +1,4 @@
-export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lead.fetch' | 'wa.send' | 'wa.media.fetch' | 'voz.procesar' | 'conversion.push' | 'retention.purge';
+export type JobType = 'email.send' | 'webhook.deliver' | 'sla.check' | 'meta.lead.fetch' | 'wa.send' | 'wa.media.fetch' | 'wa.coex.sync' | 'voz.procesar' | 'conversion.push' | 'retention.purge';
 /**
  * Encola un trabajo.
  *

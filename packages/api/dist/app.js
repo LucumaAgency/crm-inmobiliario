@@ -20,6 +20,8 @@ import leadRoutes from './routes/leads.js';
 import adminRoutes from './routes/admin.js';
 import metaRoutes from './routes/meta.js';
 import metaOAuthRoutes from './routes/meta-oauth.js';
+import whatsappAltaRoutes from './routes/whatsapp-alta.js';
+import paginaConectarWhatsApp from './routes/pagina-conectar-whatsapp.js';
 import cronRoutes from './routes/cron.js';
 import primerosPasosRoutes from './routes/primeros-pasos.js';
 import logRoutes from './routes/logs.js';
@@ -119,6 +121,10 @@ export async function buildApp() {
     // Botón «Conectar con Facebook». Ámbito aparte: son navegaciones del navegador con
     // sesión, no avisos firmados, y no deben heredar el parser crudo del webhook.
     await app.register(metaOAuthRoutes, { prefix: '/api/v1/meta/oauth' });
+    // Botón «Conectar WhatsApp»: el pase se emite en el subdominio y la página puente vive
+    // en el dominio base, el único autorizado en Meta para el SDK.
+    await app.register(whatsappAltaRoutes, { prefix: '/api/v1/whatsapp/alta' });
+    await app.register(paginaConectarWhatsApp);
     /**
      * Latido de la cola, llamado por un cron externo. Límite propio y holgado: es una ruta
      * sin sesión, y su tráfico legítimo es una llamada por minuto.

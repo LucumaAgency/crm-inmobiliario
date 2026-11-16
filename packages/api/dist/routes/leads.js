@@ -508,11 +508,14 @@ export default async function leadRoutes(app) {
             orderBy: { updatedAt: 'desc' },
             include: {
                 waNumber: { select: { displayNumber: true, active: true } },
-                messages: { orderBy: { createdAt: 'asc' }, take: 200 },
+                // Los 200 MÁS RECIENTES: con el historial de coexistencia (hasta 180 días) una
+                // conversación pasa de 200 fácil, y en orden ascendente se veían los más viejos.
+                messages: { orderBy: { createdAt: 'desc' }, take: 200 },
             },
         });
         if (!conversacion)
             return { conversacion: null, ventanaAbierta: false };
+        conversacion.messages.reverse();
         // Mensajes con archivo que aún no se bajó (anteriores a esta función o fallidos por
         // red): se vuelve a intentar al abrir la ficha, de a pocos.
         const pendientes = conversacion.messages.filter((m) => {

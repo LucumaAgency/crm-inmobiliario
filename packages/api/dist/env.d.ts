@@ -42,6 +42,14 @@ export declare const env: {
          */
         appId: string;
         loginConfigId: string;
+        /**
+         * Botón «Conectar WhatsApp» (Embedded Signup). Es OTRA configuración de Facebook Login
+         * for Business, variante «WhatsApp Embedded Signup», producto WhatsApp Cloud API
+         * (en la app de Lucuma: 1008677625070396). Sin ella el botón no aparece y queda el alta
+         * a mano. El SDK solo abre el registro desde los dominios autorizados en Meta, que es
+         * solo `APP_URL` (crm.…): por eso el alta pasa siempre por ahí. Ver `services/whatsapp-alta.ts`.
+         */
+        waConfigId: string;
     };
     /**
      * Notas de voz: OpenAI transcribe, Claude resume. Las dos son opcionales: sin la de

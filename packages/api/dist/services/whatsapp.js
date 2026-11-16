@@ -139,6 +139,7 @@ async function recibirUno(numero, valor, mensaje) {
         }, null, {
             organizationId: numero.organizationId,
             projectId: numero.projectId,
+            ownerId: numero.ownerUserId,
             source: mensaje.referral ? 'whatsapp_ctwa' : 'whatsapp',
             // Sin número no hay llave de deduplicación: el lead cuelga del contacto de la
             // conversación, que ya existe. Con número, captureLead lo resuelve por teléfono.
@@ -571,7 +572,7 @@ async function cargarConversacion(id) {
  * quien escribió por el formulario web y después por WhatsApp tiene que ser una sola
  * persona en el CRM, no dos.
  */
-async function conversacionDe(numero, waId, conNumero, nombre) {
+export async function conversacionDe(numero, waId, conNumero, nombre) {
     const existente = await prisma.waConversation.findUnique({
         where: { waNumberId_waId: { waNumberId: numero.id, waId } },
     });
@@ -756,7 +757,7 @@ function resumenPlantilla(nombre, variables) {
     const v = (variables ?? []).filter(Boolean);
     return v.length ? `[plantilla ${nombre}] ${v.join(' · ')}` : `[plantilla ${nombre}]`;
 }
-async function llamarCloud(ruta, token, cuerpo) {
+export async function llamarCloud(ruta, token, cuerpo) {
     const url = `https://graph.facebook.com/${env.meta.graphVersion}/${ruta}`;
     const control = new AbortController();
     const corte = setTimeout(() => control.abort(), 15_000);
