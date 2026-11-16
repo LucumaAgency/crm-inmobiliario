@@ -22,6 +22,8 @@ interface Mensaje {
   error: string | null;
   createdAt: string;
   sentAt: string | null;
+  /** telefono = el asesor lo escribió en la app (coexistencia); historial = importado al conectar. */
+  via?: string | null;
 }
 
 interface Respuesta {
@@ -168,6 +170,8 @@ export default function ChatWhatsApp({ leadId }: { leadId: string }) {
                 day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
               })}
               {m.direction === 'saliente' && ` · ${ACUSE[m.status]}`}
+              {m.via === 'telefono' && ' · desde el celular'}
+              {m.via === 'historial' && ' · historial'}
             </div>
             {m.error && <div className="error">{m.error}</div>}
           </div>

@@ -1,12 +1,14 @@
 /**
  * Números de WhatsApp Business conectados, dentro de Ajustes.
  *
- * El aviso de arriba no es relleno: migrar un número a la Cloud API lo saca de la app de
- * WhatsApp del teléfono, y es el error que más caro sale en este canal porque no tiene
- * vuelta atrás inmediata.
+ * Desde nov-2026 el camino normal es el botón «Conectar WhatsApp» (alta incrustada de
+ * Meta): el cliente conecta su número sin copiar IDs ni tokens, y puede elegir
+ * coexistencia (el número sigue en la app del celular). El alta a mano con token queda
+ * plegada como opción avanzada. Ver api/src/services/whatsapp-alta.ts.
  */
 import { useState } from 'react';
 import type React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 
@@ -21,6 +23,62 @@ interface Numero {
   lastInboundAt: string | null;
   lastError: string | null;
   tokenHint: string | null;
+  origen: string;
+  coexistencia: boolean;
+  ownerUserId: string | null;
+  owner: { id: string; name: string } | null;
+  onboardedAt: string | null;
+  syncContactosAt: string | null;
+  syncHistorialAt: string | null;
+  syncError: string | null;
+  historialEstado: string | null;
+  historialProgreso: number | null;
+}
+
+const ESTADO_HISTORIAL: Record<string, string> = {
+  pendiente: 'historial por pedir',
+  en_curso: 'historial llegando',
+  completo: 'historial completo',
+  rechazado: 'historial no compartido',
+};
+
+/** Lo que ve el gerente al volver de la página de Meta. Se muestra una vez. */
+function RetornoAlta() {
+  const [params, setParams] = useSearchParams();
+  const wa = params.get('wa');
+  if (!wa) return null;
+  const cerrar = () => {
+    const p = new URLSearchParams(params);
+    for (const k of ['wa', 'numero', 'coex', 'avisos', 'detalle']) p.delete(k);
+    setParams(p, { replace: true });
+  };
+  const avisos = (params.get('avisos') ?? '').split(' | ').filter(Boolean);
+  return (
+    <div
+      className="card"
+      style={{ marginTop: 10, background: wa === 'ok' ? 'var(--verde-tinte)' : 'var(--rojo-tinte)' }}
+    >
+      {wa === 'ok' ? (
+        <>
+          <strong>{params.get('numero')} quedó conectado.</strong>
+          <p className="meta" style={{ marginTop: 4 }}>
+            {params.get('coex') === '1'
+              ? 'Sigue funcionando en la app del celular y sus chats entran al CRM. El CRM ya pidió a Meta los contactos y el historial: llegan en los próximos minutos u horas.'
+              : 'El número vive ahora en el CRM. Prueba escribirle desde otro teléfono.'}
+          </p>
+          {avisos.map((a) => <p key={a} className="error">{a}</p>)}
+        </>
+      ) : (
+        <>
+          <strong>No se pudo conectar el número.</strong>
+          <p className="meta" style={{ marginTop: 4 }}>{params.get('detalle') || 'Sin detalle.'}</p>
+        </>
+      )}
+      <div className="acciones">
+        <button className="btn btn-sec" onClick={cerrar}>Entendido</button>
+      </div>
+    </div>
+  );
 }
 
 /** Los números de prueba de Meta son estadounidenses del prefijo ficticio 555. */
@@ -39,6 +97,30 @@ export default function WhatsAppNumeros() {
   const [tokenNuevo, setTokenNuevo] = useState<Record<string, string>>({});
 
   const numeros = useQuery({ queryKey: ['wa-numbers'], queryFn: () => api.get<Numero[]>('/whatsapp/numbers') });
+  const alta = useQuery({
+    queryKey: ['wa-alta-estado'],
+    queryFn: () => api.get<{ disponible: boolean }>('/whatsapp/alta/estado'),
+  });
+  const usuarios = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get<{ id: string; name: string; role: string; active: boolean }[]>('/users'),
+  });
+  const asesores = (usuarios.data ?? []).filter((u) => u.active);
+  const [modoAlta, setModoAlta] = useState<'coexistencia' | 'nuevo'>('coexistencia');
+  const [duenoAlta, setDuenoAlta] = useState('');
+  const [proyectoAlta, setProyectoAlta] = useState('');
+  const [manualAbierto, setManualAbierto] = useState(false);
+
+  const pedirPase = useMutation({
+    mutationFn: () =>
+      api.post<{ url: string }>('/whatsapp/alta/pase', {
+        modo: modoAlta,
+        ownerUserId: duenoAlta || null,
+        projectId: proyectoAlta || null,
+      }),
+    // La página de Meta vive en el dominio base del CRM (el único autorizado en Meta).
+    onSuccess: (r) => { window.location.href = r.url; },
+  });
   const proyectos = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get<{ id: string; name: string }[]>('/projects'),
@@ -92,10 +174,10 @@ export default function WhatsAppNumeros() {
     <div className="card">
       <strong>WhatsApp</strong>
       <p className="meta" style={{ marginTop: 6 }}>
-        Un número de WhatsApp vive en la app del celular <strong>o</strong> en el CRM, nunca en
-        los dos. Es una regla de Meta, igual para cualquier CRM. Por eso hay tres formas de
-        trabajar, y se puede empezar por la primera y pasar a la segunda cuando el equipo quiera.
+        Hay tres formas de trabajar con WhatsApp. Se puede empezar por la primera y pasar a otra
+        cuando el equipo quiera.
       </p>
+      <RetornoAlta />
 
       {/*
         Las tres formas se muestran siempre, con la actual marcada. Antes había solo un párrafo
@@ -110,7 +192,9 @@ export default function WhatsAppNumeros() {
          * del público puede escribirle. Marcarlo como modo 2 hacía creer que el canal ya
          * estaba operando.
          */
-        const conNumero = (numeros.data ?? []).some((n) => n.active && !esNumeroDePrueba(n.displayNumber));
+        const reales = (numeros.data ?? []).filter((n) => n.active && !esNumeroDePrueba(n.displayNumber));
+        const conCoexistencia = reales.some((n) => n.coexistencia);
+        const conNumero = reales.some((n) => !n.coexistencia);
         const Modo = ({ actual, titulo, children }: { actual: boolean; titulo: string; children: React.ReactNode }) => (
           <div
             className="card"
@@ -129,10 +213,13 @@ export default function WhatsAppNumeros() {
         );
         return (
           <>
-            <Modo actual={!conNumero} titulo="1 · Cada asesor desde su celular">
-              El CRM capta los leads por web y Facebook, y el asesor los escribe desde su propio
-              WhatsApp con el botón de la ficha. Lo que se registra es la actividad, no el chat:
-              la conversación se queda en el celular del asesor. No hace falta conectar nada.
+            <Modo actual={!conNumero || conCoexistencia} titulo="1 · Cada asesor desde su celular">
+              El asesor sigue escribiendo desde WhatsApp Business en su celular. Si conecta su
+              número con «Conectar WhatsApp» (coexistencia), sus chats entran a la ficha de cada
+              lead, lo que escribe desde el teléfono también, y los leads que le escriben le
+              llegan a él. Sin conectar, solo se registra la actividad, no el chat. Mejor un
+              número de trabajo por asesor: con coexistencia entran todos los chats 1 a 1 del
+              número, también los personales.
             </Modo>
             <Modo actual={conNumero} titulo="2 · Un número de la empresa dentro del CRM">
               Un número comercial (en los anuncios, la web y el letrero) cuyos chats entran como
@@ -151,12 +238,55 @@ export default function WhatsAppNumeros() {
         );
       })()}
 
-      <p className="meta" style={{ marginTop: 10 }}>
-        <strong>Antes de conectar un número:</strong> al pasarlo a la API deja de funcionar en la
-        app del celular y no hay vuelta atrás inmediata. Nunca el número de un asesor. Si el
-        equipo atiende hoy desde sus celulares, acuerden quién escribe por dónde para no
-        contactar al mismo cliente dos veces.
-      </p>
+      {alta.data?.disponible && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <strong>Conectar WhatsApp</strong>
+          <p className="meta" style={{ marginTop: 4 }}>
+            Se abre una ventana de Meta donde inicias sesión con Facebook y eliges el número. No
+            hace falta copiar IDs ni tokens.
+          </p>
+          <label htmlFor="alta-modo">Qué número vas a conectar</label>
+          <select id="alta-modo" value={modoAlta} onChange={(e) => setModoAlta(e.target.value as 'coexistencia' | 'nuevo')}>
+            <option value="coexistencia">El de la app WhatsApp Business de un celular (sigue funcionando ahí)</option>
+            <option value="nuevo">Un número nuevo que vivirá solo en el CRM</option>
+          </select>
+          {modoAlta === 'coexistencia' ? (
+            <p className="meta" style={{ marginTop: 6 }}>
+              Ten a mano el celular: Meta pide escanear un código desde la app. Se cierran WhatsApp
+              Web y escritorio (se pueden volver a vincular; WhatsApp para Windows no es
+              compatible), y si el celular no abre WhatsApp en unos 14 días Meta desconecta el
+              número. Al terminar, el CRM trae solo los contactos y el historial (hasta 6 meses) de los clientes que ya son leads.
+            </p>
+          ) : (
+            <p className="meta" style={{ marginTop: 6 }}>
+              Si ese número está hoy en la app de un celular, deja de funcionar ahí. Para el
+              número de un asesor, usa la opción de arriba.
+            </p>
+          )}
+          <div className="rejilla-2">
+            <div>
+              <label htmlFor="alta-dueno">Asesor dueño del número</label>
+              <select id="alta-dueno" value={duenoAlta} onChange={(e) => setDuenoAlta(e.target.value)}>
+                <option value="">Ninguno: reparto normal</option>
+                {asesores.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="alta-proy">Proyecto por defecto</label>
+              <select id="alta-proy" value={proyectoAlta} onChange={(e) => setProyectoAlta(e.target.value)}>
+                <option value="">Sin proyecto</option>
+                {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {pedirPase.isError && <p className="error">{(pedirPase.error as Error).message}</p>}
+          <div className="acciones">
+            <button className="btn" onClick={() => pedirPase.mutate()} disabled={pedirPase.isPending}>
+              {pedirPase.isPending ? 'Abriendo Meta…' : 'Conectar WhatsApp'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {numeros.data?.length === 0 && <p className="meta">No hay ningún número conectado.</p>}
 
@@ -170,6 +300,17 @@ export default function WhatsAppNumeros() {
               </span>
             )}
             <span className={n.active ? 'chip' : 'chip chip-gris'}>{n.active ? 'activo' : 'pausado'}</span>
+            {n.coexistencia && (
+              <span className="chip chip-verde" title="Sigue en la app WhatsApp Business del celular y además entra al CRM.">
+                también en el celular
+              </span>
+            )}
+            {n.coexistencia && n.historialEstado && (
+              <span className={n.historialEstado === 'rechazado' ? 'chip chip-alerta' : 'chip chip-gris'}>
+                {ESTADO_HISTORIAL[n.historialEstado] ?? n.historialEstado}
+                {n.historialEstado === 'en_curso' && n.historialProgreso != null ? ` ${n.historialProgreso}%` : ''}
+              </span>
+            )}
           </div>
           <p className="meta">
             Token: {n.tokenHint ?? 'no se pudo leer'} ·{' '}
@@ -178,6 +319,16 @@ export default function WhatsAppNumeros() {
               : 'sin mensajes todavía'}
           </p>
           {n.lastError && <p className="error">Último error de Meta: {n.lastError}</p>}
+          {n.syncError && <p className="error">Sincronización: {n.syncError}</p>}
+
+          <label>Asesor dueño del número</label>
+          <select
+            value={n.ownerUserId ?? ''}
+            onChange={(e) => actualizar.mutate({ id: n.id, datos: { ownerUserId: e.target.value || null } })}
+          >
+            <option value="">Ninguno: los leads se reparten</option>
+            {asesores.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
 
           <label>Proyecto por defecto</label>
           <select
@@ -188,18 +339,22 @@ export default function WhatsAppNumeros() {
             {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
 
-          <label htmlFor={`token-${n.id}`}>Reemplazar el token</label>
-          <input
-            id={`token-${n.id}`}
-            type="password"
-            placeholder="Pegar un token nuevo"
-            value={tokenNuevo[n.id] ?? ''}
-            onChange={(e) => setTokenNuevo((t) => ({ ...t, [n.id]: e.target.value }))}
-          />
+          {n.origen === 'manual' && (
+            <>
+              <label htmlFor={`token-${n.id}`}>Reemplazar el token</label>
+              <input
+                id={`token-${n.id}`}
+                type="password"
+                placeholder="Pegar un token nuevo"
+                value={tokenNuevo[n.id] ?? ''}
+                onChange={(e) => setTokenNuevo((t) => ({ ...t, [n.id]: e.target.value }))}
+              />
+            </>
+          )}
 
           <div className="acciones" style={{ marginTop: 12 }}>
             {/* Guardar explícito: con `onBlur` la prueba se adelantaba al guardado. */}
-            <button
+            {n.origen === 'manual' && <button
               className="btn btn-sec"
               disabled={!(tokenNuevo[n.id] ?? '').trim() || actualizar.isPending}
               onClick={() =>
@@ -215,7 +370,7 @@ export default function WhatsAppNumeros() {
               }
             >
               {actualizar.isPending ? 'Guardando…' : 'Guardar token y probar'}
-            </button>
+            </button>}
             <button
               className="btn btn-sec"
               onClick={() => probar.mutate(n.id)}
@@ -232,7 +387,10 @@ export default function WhatsAppNumeros() {
             <button
               className="btn btn-sec"
               onClick={() => {
-                if (confirm(`¿Desconectar ${n.displayNumber}? El historial de chats se queda.`)) {
+                const extra = n.coexistencia
+                  ? ' Esto solo lo quita del CRM: para cortar el acceso de Meta, en la app ve a Ajustes → Cuenta → Plataforma empresarial → Desconectar.'
+                  : '';
+                if (confirm(`¿Desconectar ${n.displayNumber}? El historial de chats se queda.${extra}`)) {
                   desconectar.mutate(n.id);
                 }
               }}
@@ -244,10 +402,21 @@ export default function WhatsAppNumeros() {
         </div>
       ))}
 
+      {alta.data?.disponible && !manualAbierto ? (
+        <p className="meta" style={{ marginTop: 14 }}>
+          <button type="button" className="btn btn-sec" onClick={() => setManualAbierto(true)}>
+            Conectar a mano con token (avanzado)
+          </button>
+        </p>
+      ) : (
       <form
         style={{ marginTop: 14, borderTop: '1px solid var(--borde)', paddingTop: 12 }}
         onSubmit={(e) => { e.preventDefault(); conectar.mutate(); }}
       >
+        <p className="meta">
+          <strong>Alta a mano:</strong> el número pasa a la API y deja de funcionar en la app del
+          celular. Nunca el número de un asesor (para eso, «Conectar WhatsApp» con coexistencia).
+        </p>
         <div className="rejilla-2">
           <div>
             <label htmlFor="w-pnid">ID del número (phone number ID)</label>
@@ -278,6 +447,7 @@ export default function WhatsAppNumeros() {
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 }

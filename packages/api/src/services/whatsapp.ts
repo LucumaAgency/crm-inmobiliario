@@ -142,7 +142,7 @@ export async function recibirMensajes(valor: ValorMensajes): Promise<void> {
 }
 
 async function recibirUno(
-  numero: { id: string; organizationId: string; projectId: string | null; phoneNumberId: string },
+  numero: { id: string; organizationId: string; projectId: string | null; phoneNumberId: string; ownerUserId: string | null },
   valor: ValorMensajes,
   mensaje: MensajeEntrante
 ) {
@@ -223,6 +223,7 @@ async function recibirUno(
       {
         organizationId: numero.organizationId,
         projectId: numero.projectId,
+        ownerId: numero.ownerUserId,
         source: mensaje.referral ? 'whatsapp_ctwa' : 'whatsapp',
         // Sin número no hay llave de deduplicación: el lead cuelga del contacto de la
         // conversación, que ya existe. Con número, captureLead lo resuelve por teléfono.
@@ -716,7 +717,7 @@ async function cargarConversacion(id: string) {
  * quien escribió por el formulario web y después por WhatsApp tiene que ser una sola
  * persona en el CRM, no dos.
  */
-async function conversacionDe(
+export async function conversacionDe(
   numero: { id: string; organizationId: string },
   waId: string,
   conNumero: boolean,
@@ -919,7 +920,7 @@ function resumenPlantilla(nombre: string, variables?: string[]) {
   return v.length ? `[plantilla ${nombre}] ${v.join(' · ')}` : `[plantilla ${nombre}]`;
 }
 
-async function llamarCloud(ruta: string, token: string, cuerpo?: unknown): Promise<unknown> {
+export async function llamarCloud(ruta: string, token: string, cuerpo?: unknown): Promise<unknown> {
   const url = `https://graph.facebook.com/${env.meta.graphVersion}/${ruta}`;
   const control = new AbortController();
   const corte = setTimeout(() => control.abort(), 15_000);

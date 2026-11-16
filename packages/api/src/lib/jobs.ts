@@ -7,6 +7,7 @@ export type JobType =
   | 'meta.lead.fetch'
   | 'wa.send'
   | 'wa.media.fetch'
+  | 'wa.coex.sync'
   | 'voz.procesar'
   | 'conversion.push'
   | 'retention.purge';

@@ -36,6 +36,7 @@ model Organization {
   metaLeads        MetaLead[]
   waNumbers        WaNumber[]
   waConversations  WaConversation[]
+  waAltas          WaAlta[]
   notasVoz         NotaVoz[]
   clientes         Cliente[]
   clienteServicios ClienteServicio[]
@@ -102,6 +103,8 @@ model User {
   loginTokens   LoginToken[]
   auditEntries  AuditLog[]
   waMessages    WaMessage[]
+  // Números de WhatsApp (coexistencia) que son de este asesor: sus leads le llegan a él.
+  waNumerosPropios WaNumber[] @relation("WaNumberOwner")
   notasVoz      NotaVoz[]
 
   @@unique([organizationId, email])
@@ -664,6 +667,28 @@ model WaNumber {
   active         Boolean      @default(true)
   lastInboundAt  DateTime?
   lastError      String?      @db.Text
+
+  // ---- Alta incrustada (Embedded Signup) y coexistencia. docs/27 y docs/WHATSAPP.md.
+  // manual = token pegado en Ajustes; embedded_signup = botón «Conectar WhatsApp».
+  origen         String       @default("manual")
+  // El número sigue en la app WhatsApp Business del celular y además en la API.
+  coexistencia   Boolean      @default(false)
+  // Asesor dueño del número (coexistencia: un número por asesor). Los leads que entran
+  // por aquí se le asignan a él en vez del reparto. Null = número de la empresa.
+  ownerUserId    String?
+  owner          User?        @relation("WaNumberOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  // PIN de verificación en dos pasos con el que el CRM registró el número (alta de
+  // número nuevo). Cifrado. Sin él no se puede volver a registrar.
+  pinEnc         String?      @db.Text
+  onboardedAt    DateTime?
+  // Sincronización de coexistencia: se pide UNA vez por tipo y antes de 24 h del alta.
+  syncContactosAt  DateTime?
+  syncHistorialAt  DateTime?
+  syncRequestIds   Json?
+  syncError        String?    @db.Text
+  // pendiente | en_curso | completo | rechazado (el asesor no compartió el historial)
+  historialEstado  String?
+  historialProgreso Int?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -742,6 +767,9 @@ model WaMessage {
   // Quien lo envio desde el CRM. Null en los entrantes.
   userId         String?
   user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Por dónde llegó un saliente que no salió del CRM: telefono (smb_message_echoes,
+  // el asesor escribió desde la app) | historial (importado al conectar). Null = normal.
+  via            String?
   // El payload de Meta tal cual, por si el mapeo se queda corto.
   raw            Json?
   sentAt         DateTime?
@@ -749,6 +777,34 @@ model WaMessage {
 
   @@index([conversationId, createdAt])
   @@map("wa_messages")
+}
+
+// Pase de un solo uso para el botón «Conectar WhatsApp».
+//
+// El SDK de Facebook solo abre el registro desde dominios autorizados en Meta, y para no
+// tocar Meta con cada cliente nuevo el alta se hace siempre desde el dominio base del CRM
+// (crm.…). Ese dominio no tiene la sesión del cliente (la cookie es del subdominio), así
+// que el subdominio emite este pase: dice de qué organización es, quién lo pidió y a dónde
+// volver. Se guarda solo el hash; vence en minutos y se quema al usarse.
+model WaAlta {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  tokenHash      String       @unique
+  // coexistencia | nuevo
+  modo           String
+  ownerUserId    String?
+  projectId      String?
+  volverA        String       @db.VarChar(255)
+  expiresAt      DateTime
+  usedAt         DateTime?
+  // Lo que pasó: número conectado o error. Para soporte.
+  resultado      Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("wa_altas")
 }
 
 // ------------------------------------------------------------- jobs y webhooks

@@ -21,6 +21,16 @@ import { env } from '../env.js';
 import { logError, logLine } from '../lib/log.js';
 import { registrarAviso } from '../services/meta.js';
 import { recibirMensajes, type ValorMensajes } from '../services/whatsapp.js';
+import {
+  recibirContactos,
+  recibirCuenta,
+  recibirEcos,
+  recibirHistorial,
+  type ValorContactos,
+  type ValorCuenta,
+  type ValorEcos,
+  type ValorHistorial,
+} from '../services/whatsapp-coexistencia.js';
 
 /** Cuerpo del aviso, según la documentación de Meta. */
 interface CuerpoWebhook {
@@ -106,11 +116,31 @@ export default async function metaRoutes(app: FastifyInstance) {
     if (cuerpo.object === 'whatsapp_business_account') {
       for (const entrada of cuerpo.entry ?? []) {
         for (const cambio of entrada.changes ?? []) {
-          if (cambio.field !== 'messages' || !cambio.value) continue;
+          if (!cambio.value) continue;
           try {
-            await recibirMensajes(cambio.value);
+            // Los cuatro de abajo son de la coexistencia (docs/27): hay que suscribirlos
+            // en el panel de la app, además de `messages`.
+            switch (cambio.field) {
+              case 'messages':
+                await recibirMensajes(cambio.value);
+                break;
+              case 'smb_message_echoes':
+                await recibirEcos(cambio.value as ValorEcos);
+                break;
+              case 'history':
+                await recibirHistorial(cambio.value as ValorHistorial);
+                break;
+              case 'smb_app_state_sync':
+                await recibirContactos(cambio.value as ValorContactos);
+                break;
+              case 'account_update':
+                await recibirCuenta(entrada.id, cambio.value as ValorCuenta);
+                break;
+              default:
+                logLine(`wa: aviso de campo ${cambio.field} sin manejar, ignorado`);
+            }
           } catch (err) {
-            logError('wa: no se pudo procesar el aviso', err);
+            logError(`wa: no se pudo procesar el aviso ${cambio.field}`, err);
           }
         }
       }

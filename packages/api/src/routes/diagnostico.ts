@@ -169,7 +169,7 @@ export default async function diagnosticoRoutes(app: FastifyInstance) {
     // WhatsApp: qué números tiene ESTA organización y qué tipos de mensaje llegan. De los
     // «no soportados» va el tipo original y el código de Meta, nunca el contenido.
     const [numeros, tiposMensaje, raros] = await Promise.all([
-      prisma.waNumber.findMany({ where: { organizationId: o }, select: { id: true, displayNumber: true, phoneNumberId: true, active: true, projectId: true, createdAt: true } }),
+      prisma.waNumber.findMany({ where: { organizationId: o }, select: { id: true, displayNumber: true, phoneNumberId: true, active: true, projectId: true, createdAt: true, origen: true, coexistencia: true, ownerUserId: true, onboardedAt: true, syncContactosAt: true, syncHistorialAt: true, syncRequestIds: true, syncError: true, historialEstado: true, historialProgreso: true, lastError: true } }),
       prisma.waMessage.groupBy({ by: ['direction', 'type'], where: { conversation: { organizationId: o } }, _count: { _all: true } }),
       prisma.waMessage.findMany({
         where: { conversation: { organizationId: o }, type: 'unsupported' },

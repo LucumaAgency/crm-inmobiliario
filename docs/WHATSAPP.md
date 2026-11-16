@@ -3,6 +3,11 @@
 Los chats que abre el cliente entran al CRM como leads, con la campaña del anuncio si
 vinieron de un Click-to-WhatsApp, y el asesor responde desde la ficha del lead.
 
+> **Desde 2026-11-16 existe la coexistencia** (sección «Alta incrustada y coexistencia»):
+> un número puede seguir en la app WhatsApp Business del celular y además entrar al CRM. Lo
+> que sigue sobre «deja de funcionar en la app» vale para el alta a mano y para el modo
+> «número nuevo», no para la coexistencia.
+
 ## La decisión que hay que tomar antes de escribir una línea
 
 Un número en la Cloud API **deja de funcionar en la app de WhatsApp del teléfono**. No es
@@ -154,15 +159,14 @@ subieron utilidad y autenticación):
 
 | Categoría | Qué es | USD por mensaje |
 |---|---|---|
-| Servicio | Responder dentro de las 24 h a quien escribió | **1.000 gratis al mes por número**, luego 0,02 a 0,03 |
+| Servicio | Responder dentro de las 24 h a quien escribió | **Gratis, sin tope** (desde nov-2024; antes eran 1.000 al mes) |
 | Utilidad | Recordatorio de visita, envío de cotización, confirmación de algo que la persona pidió | 0,02 a 0,03 |
 | Autenticación | Códigos de verificación | 0,02 a 0,03 |
 | Marketing | Primer acercamiento comercial, promociones, remarketing | 0,07 |
 
 Lo que importa para el CRM:
 
-- **Responder es gratis en la práctica.** 1.000 mensajes de servicio al mes no se agotan con
-  30 o 40 leads mensuales.
+- **Responder es gratis.** Los mensajes de servicio dentro de la ventana no se cobran.
 - **Se paga cuando el CRM escribe primero** o cuando la ventana ya cerró: ahí va plantilla.
 - **Caso Bastión** (30-40 leads al mes, unos 20 cargados a mano donde el asesor inicia):
   20 primeros mensajes × 0,03 a 0,07 = **USD 0,60 a 1,40 al mes**. El resto escribe primero
@@ -246,7 +250,68 @@ Sobre la misma app que ya usa Meta Lead Ads:
 3. Sacar el **phone number ID**, el **WABA ID** y un **token de larga duración**.
 4. En el CRM, **Ajustes → WhatsApp**, conectar el número y probar la conexión.
 
-### Alta de un número real, paso a paso (hasta que exista el alta incrustada)
+## Alta incrustada y coexistencia (desde 2026-11-16)
+
+Lucuma es **Tech Provider** de WhatsApp (App Review aprobado el 2026-11-16). El cliente
+conecta su número solo, con el botón **«Conectar WhatsApp»** en Ajustes → WhatsApp. Código:
+`services/whatsapp-alta.ts`, `services/whatsapp-coexistencia.ts`,
+`routes/whatsapp-alta.ts`, `routes/pagina-conectar-whatsapp.ts`. Diseño y decisiones:
+`docs/27-WHATSAPP-KOMMO-Y-COEXISTENCIA.md` en la carpeta del proyecto.
+
+### Configuración (una vez, ya hecha en la app de Lucuma)
+
+- Configuración de Facebook Login for Business **«CRM WhatsApp alta clientes»**, variante
+  WhatsApp Embedded Signup, producto solo WhatsApp Cloud API, activo cuentas de WhatsApp con
+  tarea *Manage*, token de usuario del sistema que no caduca. ID **1008677625070396** →
+  variable `META_WA_CONFIG_ID`. (La otra configuración, «CRM Lead Ads» 1858751565295672,
+  es la de Lead Ads: no tocarla.)
+- Dominio autorizado del SDK de JavaScript: **solo `https://crm.pruebalucuma.site`**.
+- Webhook: además de `messages`, suscribir `smb_message_echoes`, `history`,
+  `smb_app_state_sync` y `account_update` (Casos de uso → WhatsApp → Configuración).
+
+### Cómo funciona
+
+1. En el subdominio del cliente, el gerente elige el modo (número del celular o número
+   nuevo), el **asesor dueño** y el proyecto, y pulsa «Conectar WhatsApp».
+2. El CRM emite un **pase** de un solo uso (`wa_altas`, 20 minutos, se guarda solo el hash)
+   y manda a `https://crm.pruebalucuma.site/conectar-whatsapp#pase=…`. La página puente
+   existe porque Meta solo abre el registro desde dominios autorizados y la sesión del
+   cliente vive en su subdominio. El pase va en el fragmento: no llega a logs ni a terceros.
+3. La página carga el SDK de Facebook y abre `FB.login` con la configuración. En
+   coexistencia añade `featureType: "whatsapp_business_app_onboarding"`. Meta pide escanear
+   un QR desde la app del celular.
+4. Con el código (vive 30 s) el servidor: lo canjea por el token del negocio, resuelve WABA
+   y número (en coexistencia Meta solo manda `waba_id`), suscribe la app a la WABA,
+   **registra con PIN solo si es número nuevo** (en coexistencia no se registra) y guarda
+   el `WaNumber` con token y PIN cifrados.
+5. Vuelve a Ajustes → WhatsApp del subdominio con el resultado.
+6. Coexistencia: el job `wa.coex.sync` pide a Meta contactos e historial
+   (`POST /<phone_number_id>/smb_app_data`, una vez por tipo y **antes de 24 h**; se
+   reintenta con backoff y después de 24 h solo deja el aviso).
+
+### Qué hace cada webhook nuevo
+
+| Campo | Qué hace el CRM |
+|---|---|
+| `smb_message_echoes` | Lo que el asesor escribe desde el teléfono entra a la ficha como saliente «desde el celular» (`wa_messages.via = telefono`), con el asesor dueño como autor. Cuenta como primer contacto (SLA) y pone en cero los no leídos. Editar y borrar cambian el mensaje original. |
+| `history` | Hasta 180 días, por trozos. **Solo** chats de contactos que ya son leads; el resto se descarta y no crea contactos. Sin duplicar (`wamid`), con la fecha original, sin abrir ventana ni sumar no leídos. Error 2593109 = el asesor no compartió el historial. |
+| `smb_app_state_sync` | Completa el nombre de contactos que siguen como «Contacto de WhatsApp». Nunca crea contactos ni pisa un nombre escrito en el CRM. |
+| `account_update` | `PARTNER_REMOVED` (desconectó en la app, o Meta por ~14 días sin abrir WhatsApp), `ACCOUNT_DELETED` y `ACCOUNT_OFFBOARDED` apagan el número y mandan correo a gerentes y al dueño. `ACCOUNT_RECONNECTED` reactiva solo lo apagado por cambio de teléfono. |
+
+Los leads que entran por un número con **asesor dueño** se le asignan a él, sin reparto.
+
+### Límites de la coexistencia
+
+- WhatsApp Business 2.24.17 o más nueva; un número con antigüedad y uso real.
+- Se cierran WhatsApp Web y escritorio (se vuelven a vincular; Windows no es compatible).
+  Se desactivan difusiones, mensajes temporales y ver una vez. Grupos y llamadas no se
+  sincronizan.
+- Lo que el asesor manda desde la app es gratis y no abre la ventana de 24 h.
+- Con coexistencia entran **todos** los chats 1 a 1 del número: solo números de trabajo.
+- Desconectar en el CRM no corta el acceso de Meta: eso se hace en la app, Ajustes → Cuenta
+  → Plataforma empresarial → Desconectar.
+
+### Alta de un número real a mano (alternativa avanzada)
 
 Hoy el alta la hacemos nosotros con el cliente en una llamada de unos 20 minutos. Cuando
 seamos Tech Provider con Embedded Signup, el cliente pulsará «Conectar WhatsApp» y elegirá

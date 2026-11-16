@@ -1143,9 +1143,12 @@ export default async function adminRoutes(app: FastifyInstance) {
     const numeros = await prisma.waNumber.findMany({
       where: { organizationId: req.user!.organizationId },
       orderBy: { createdAt: 'desc' },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true } },
+      },
     });
-    return numeros.map(({ accessTokenEnc, ...n }) => ({ ...n, tokenHint: pista(accessTokenEnc) }));
+    return numeros.map(({ accessTokenEnc, pinEnc: _pin, ...n }) => ({ ...n, tokenHint: pista(accessTokenEnc) }));
   });
 
   const numeroWa = z.object({
@@ -1184,7 +1187,7 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>('/whatsapp/numbers/:id', { preHandler: canales }, async (req, reply) => {
     const parsed = numeroWa.partial().omit({ phoneNumberId: true })
-      .extend({ active: z.boolean().optional() }).safeParse(req.body);
+      .extend({ active: z.boolean().optional(), ownerUserId: z.string().nullable().optional() }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
 
     const numero = await prisma.waNumber.findFirst({
@@ -1192,7 +1195,14 @@ export default async function adminRoutes(app: FastifyInstance) {
     });
     if (!numero) return reply.code(404).send({ error: 'Número no encontrado' });
 
-    const { accessToken, projectId, ...resto } = parsed.data;
+    const { accessToken, projectId, ownerUserId, ...resto } = parsed.data;
+    if (ownerUserId) {
+      const ok = await prisma.user.findFirst({
+        where: { id: ownerUserId, organizationId: req.user!.organizationId, active: true },
+        select: { id: true },
+      });
+      if (!ok) return reply.code(400).send({ error: 'Ese asesor no existe o está desactivado.' });
+    }
     const actualizado = await prisma.waNumber.update({
       where: { id: numero.id },
       data: {
@@ -1201,9 +1211,10 @@ export default async function adminRoutes(app: FastifyInstance) {
           ? { projectId: await proyectoValido(req.user!.organizationId, projectId) }
           : {}),
         ...(accessToken ? { accessTokenEnc: cifrar(accessToken), lastError: null } : {}),
+        ...(ownerUserId !== undefined ? { ownerUserId } : {}),
       },
     });
-    const { accessTokenEnc, ...salida } = actualizado;
+    const { accessTokenEnc, pinEnc: _pin, ...salida } = actualizado;
     return { ...salida, tokenHint: pista(accessTokenEnc) };
   });
 
