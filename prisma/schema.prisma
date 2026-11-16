@@ -673,6 +673,10 @@ model WaNumber {
   origen         String       @default("manual")
   // El número sigue en la app WhatsApp Business del celular y además en la API.
   coexistencia   Boolean      @default(false)
+  // false = el número no abre leads con chats nuevos: solo guarda los de contactos que ya
+  // son leads (y los que llegan de un anuncio Click-to-WhatsApp). Pensado para el número
+  // general de una empresa en coexistencia, donde escriben clientes, proveedores y otros.
+  abrirLeads     Boolean      @default(true)
   // Asesor dueño del número (coexistencia: un número por asesor). Los leads que entran
   // por aquí se le asignan a él en vez del reparto. Null = número de la empresa.
   ownerUserId    String?
@@ -794,6 +798,7 @@ model WaAlta {
   tokenHash      String       @unique
   // coexistencia | nuevo
   modo           String
+  abrirLeads     Boolean      @default(true)
   ownerUserId    String?
   projectId      String?
   volverA        String       @db.VarChar(255)

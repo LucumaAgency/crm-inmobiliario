@@ -300,6 +300,12 @@ conecta su número solo, con el botón **«Conectar WhatsApp»** en Ajustes → 
 
 Los leads que entran por un número con **asesor dueño** se le asignan a él, sin reparto.
 
+**Interruptor «Chats nuevos de personas que no son leads»** (`wa_numbers.abrirLeads`, se elige
+al conectar y se cambia en la tarjeta del número). En «No se guardan», pensado para el número
+general de una empresa: un mensaje o eco de alguien sin lead en la organización se descarta
+antes de crear contacto o conversación; quien ya es lead (activo o no) queda colgado de su
+último lead sin abrir otro; quien llega de un anuncio Click-to-WhatsApp sí abre lead.
+
 ### Límites de la coexistencia
 
 - WhatsApp Business 2.24.17 o más nueva; un número con antigüedad y uso real.

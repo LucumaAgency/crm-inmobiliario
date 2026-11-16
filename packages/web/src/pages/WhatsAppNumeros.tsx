@@ -25,6 +25,7 @@ interface Numero {
   tokenHint: string | null;
   origen: string;
   coexistencia: boolean;
+  abrirLeads: boolean;
   ownerUserId: string | null;
   owner: { id: string; name: string } | null;
   onboardedAt: string | null;
@@ -109,12 +110,14 @@ export default function WhatsAppNumeros() {
   const [modoAlta, setModoAlta] = useState<'coexistencia' | 'nuevo'>('coexistencia');
   const [duenoAlta, setDuenoAlta] = useState('');
   const [proyectoAlta, setProyectoAlta] = useState('');
+  const [abrirLeadsAlta, setAbrirLeadsAlta] = useState(true);
   const [manualAbierto, setManualAbierto] = useState(false);
 
   const pedirPase = useMutation({
     mutationFn: () =>
       api.post<{ url: string }>('/whatsapp/alta/pase', {
         modo: modoAlta,
+        abrirLeads: abrirLeadsAlta,
         ownerUserId: duenoAlta || null,
         projectId: proyectoAlta || null,
       }),
@@ -279,6 +282,19 @@ export default function WhatsAppNumeros() {
               </select>
             </div>
           </div>
+          <label htmlFor="alta-leads">Chats nuevos de personas que no son leads</label>
+          <select
+            id="alta-leads"
+            value={abrirLeadsAlta ? 'si' : 'no'}
+            onChange={(e) => setAbrirLeadsAlta(e.target.value === 'si')}
+          >
+            <option value="si">Abren un lead (número de ventas)</option>
+            <option value="no">No se guardan: solo chats de quien ya es lead (número general)</option>
+          </select>
+          <p className="meta" style={{ marginTop: 4 }}>
+            Elige «No se guardan» si a ese número escriben también clientes actuales, proveedores o
+            conocidos. Igual entran como lead los que llegan desde un anuncio de WhatsApp.
+          </p>
           {pedirPase.isError && <p className="error">{(pedirPase.error as Error).message}</p>}
           <div className="acciones">
             <button className="btn" onClick={() => pedirPase.mutate()} disabled={pedirPase.isPending}>
@@ -320,6 +336,15 @@ export default function WhatsAppNumeros() {
           </p>
           {n.lastError && <p className="error">Último error de Meta: {n.lastError}</p>}
           {n.syncError && <p className="error">Sincronización: {n.syncError}</p>}
+
+          <label>Chats nuevos de personas que no son leads</label>
+          <select
+            value={n.abrirLeads ? 'si' : 'no'}
+            onChange={(e) => actualizar.mutate({ id: n.id, datos: { abrirLeads: e.target.value === 'si' } })}
+          >
+            <option value="si">Abren un lead</option>
+            <option value="no">No se guardan (solo chats de quien ya es lead o viene de un anuncio)</option>
+          </select>
 
           <label>Asesor dueño del número</label>
           <select

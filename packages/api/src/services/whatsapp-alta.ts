@@ -65,6 +65,7 @@ export async function crearPase(datos: {
   organizationId: string;
   userId: string;
   modo: ModoAlta;
+  abrirLeads: boolean;
   ownerUserId: string | null;
   projectId: string | null;
   volverA: string;
@@ -77,6 +78,7 @@ export async function crearPase(datos: {
       userId: datos.userId,
       tokenHash: hashDe(token),
       modo: datos.modo,
+      abrirLeads: datos.abrirLeads,
       ownerUserId: datos.ownerUserId,
       projectId: datos.projectId,
       volverA: datos.volverA.replace(/\/$/, ''),
@@ -327,6 +329,7 @@ export async function completarAlta(d: DatosCompletar): Promise<ResultadoAlta> {
       active: true,
       origen: 'embedded_signup',
       coexistencia,
+      abrirLeads: pase.abrirLeads,
       ownerUserId,
       pinEnc,
       onboardedAt: ahora,

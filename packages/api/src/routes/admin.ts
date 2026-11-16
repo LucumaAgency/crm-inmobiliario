@@ -1187,7 +1187,11 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>('/whatsapp/numbers/:id', { preHandler: canales }, async (req, reply) => {
     const parsed = numeroWa.partial().omit({ phoneNumberId: true })
-      .extend({ active: z.boolean().optional(), ownerUserId: z.string().nullable().optional() }).safeParse(req.body);
+      .extend({
+        active: z.boolean().optional(),
+        ownerUserId: z.string().nullable().optional(),
+        abrirLeads: z.boolean().optional(),
+      }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
 
     const numero = await prisma.waNumber.findFirst({

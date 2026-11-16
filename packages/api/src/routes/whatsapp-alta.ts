@@ -38,6 +38,7 @@ export default async function whatsappAltaRoutes(app: FastifyInstance) {
 
     const cuerpoPase = z.object({
       modo: z.enum(['coexistencia', 'nuevo']),
+      abrirLeads: z.boolean().optional(),
       ownerUserId: z.string().nullable().optional(),
       projectId: z.string().nullable().optional(),
     });
@@ -49,7 +50,7 @@ export default async function whatsappAltaRoutes(app: FastifyInstance) {
       const parsed = cuerpoPase.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: 'Datos inválidos' });
       const u = req.user!;
-      const { modo, ownerUserId, projectId } = parsed.data;
+      const { modo, abrirLeads, ownerUserId, projectId } = parsed.data;
 
       if (ownerUserId) {
         const ok = await prisma.user.findFirst({
@@ -67,6 +68,7 @@ export default async function whatsappAltaRoutes(app: FastifyInstance) {
         organizationId: u.organizationId,
         userId: u.id,
         modo,
+        abrirLeads: abrirLeads ?? true,
         ownerUserId: ownerUserId ?? null,
         projectId: projectId ?? null,
         volverA: baseUrlDePeticion(req),

@@ -20,7 +20,7 @@ import { prisma } from '../db.js';
 import { logError, logLine } from '../lib/log.js';
 import { enqueue } from '../lib/jobs.js';
 import { partirNombre } from '../lib/nombres.js';
-import { conversacionDe, interpretar } from './whatsapp.js';
+import { conversacionDe, interpretar, leadConocido } from './whatsapp.js';
 
 type MensajeMeta = Parameters<typeof interpretar>[0];
 
@@ -132,7 +132,7 @@ export async function recibirEcos(valor: ValorEcos): Promise<void> {
 }
 
 async function recibirEco(
-  numero: { id: string; organizationId: string; ownerUserId: string | null },
+  numero: { id: string; organizationId: string; ownerUserId: string | null; abrirLeads: boolean },
   eco: Eco
 ) {
   if (!eco.id) return;
@@ -168,6 +168,12 @@ async function recibirEco(
   const waId = eco.to ?? eco.to_user_id;
   if (!waId) {
     logLine(`wa: eco sin destinatario, ignorado (${eco.id})`);
+    return;
+  }
+
+  // Número que no abre leads: lo que el asesor escribe a quien no es lead no se guarda.
+  if (!numero.abrirLeads && !(await leadConocido(numero, waId, Boolean(eco.to)))) {
+    logLine(`wa: eco a un contacto sin lead en un número que no abre leads, descartado (${eco.id})`);
     return;
   }
 
