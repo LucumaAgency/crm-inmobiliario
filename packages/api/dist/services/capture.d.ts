@@ -41,21 +41,21 @@ export type DatosContacto = {
 /** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
 export declare function buscarContacto(organizationId: string, d: DatosContacto): Promise<{
     id: string;
-    createdAt: Date;
-    updatedAt: Date;
     organizationId: string;
-    instagram: string | null;
-    facebook: string | null;
-    fname: string;
-    lname: string | null;
+    createdAt: Date;
     email: string | null;
     phone: string | null;
+    updatedAt: Date;
+    fname: string;
+    lname: string | null;
     document: string | null;
-    documentType: string | null;
-    company: string | null;
+    instagram: string | null;
+    facebook: string | null;
     tiktok: string | null;
     linkedin: string | null;
     website: string | null;
+    company: string | null;
+    documentType: string | null;
 } | null>;
 /**
  * Identidad del contacto.
@@ -69,21 +69,21 @@ export declare function buscarContacto(organizationId: string, d: DatosContacto)
  */
 export declare function upsertContacto(organizationId: string, d: DatosContacto): Promise<{
     id: string;
-    createdAt: Date;
-    updatedAt: Date;
     organizationId: string;
-    instagram: string | null;
-    facebook: string | null;
-    fname: string;
-    lname: string | null;
+    createdAt: Date;
     email: string | null;
     phone: string | null;
+    updatedAt: Date;
+    fname: string;
+    lname: string | null;
     document: string | null;
-    documentType: string | null;
-    company: string | null;
+    instagram: string | null;
+    facebook: string | null;
     tiktok: string | null;
     linkedin: string | null;
     website: string | null;
+    company: string | null;
+    documentType: string | null;
 }>;
 /**
  * Enlace a la ficha del lead.

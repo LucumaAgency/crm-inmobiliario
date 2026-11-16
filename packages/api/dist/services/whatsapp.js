@@ -96,6 +96,17 @@ async function recibirUno(numero, valor, mensaje) {
     const perfil = valor.contacts?.find((c) => c.wa_id === waId || c.user_id === waId);
     const { texto, tipo, media } = interpretar(mensaje);
     const recibidoEn = mensaje.timestamp ? new Date(Number(mensaje.timestamp) * 1000) : new Date();
+    /**
+     * Número que no abre leads (`abrirLeads: false`): solo se guarda el chat de quien ya es
+     * lead, o de quien llega por un anuncio. El resto se descarta ANTES de crear contacto o
+     * conversación: en el número general de una empresa escriben clientes, proveedores y
+     * conocidos, y nada de eso tiene que quedar en el CRM.
+     */
+    const abreLeads = numero.abrirLeads || Boolean(mensaje.referral);
+    if (!abreLeads && !(await leadConocido(numero, waId, conNumero))) {
+        logLine(`wa: mensaje de un contacto sin lead en un número que no abre leads, descartado (${mensaje.id})`);
+        return;
+    }
     const conversacion = await conversacionDe(numero, waId, conNumero, perfil?.profile?.name);
     /**
      * ¿Este mensaje abre un lead?
@@ -114,7 +125,11 @@ async function recibirUno(numero, valor, mensaje) {
     let leadId = leadActivo?.id ?? null;
     // Si este mensaje crea un lead, el aviso de «lead nuevo» ya sale desde captureLead.
     let leadNuevo = false;
-    if (mensaje.referral || !leadId) {
+    if (!abreLeads && !leadId) {
+        // Ya es lead pero ninguno activo: el chat se cuelga del último, sin abrir otro.
+        leadId = (await leadConocido(numero, waId, conNumero))?.id ?? null;
+    }
+    else if (mensaje.referral || !leadId) {
         const resultado = await captureLead({
             idempotencyKey: `wa-${mensaje.id}`,
             values: limpiar({
@@ -564,6 +579,38 @@ async function cargarConversacion(id) {
     if (!conv)
         throw Object.assign(new Error('Conversación no encontrada'), { statusCode: 404 });
     return conv;
+}
+/**
+ * Lead más reciente (activo primero) de quien escribe, si ya existe en la organización.
+ * No crea nada. Lo usan los números que no abren leads y los ecos del teléfono.
+ */
+export async function leadConocido(numero, waId, conNumero) {
+    const conv = await prisma.waConversation.findUnique({
+        where: { waNumberId_waId: { waNumberId: numero.id, waId } },
+        select: { contactId: true },
+    });
+    let contactId = conv?.contactId ?? null;
+    if (!contactId && conNumero) {
+        const telefono = normalizePhonePE(`+${waId}`) ?? `+${waId}`;
+        contactId =
+            (await prisma.contact.findFirst({
+                where: { organizationId: numero.organizationId, phone: telefono },
+                select: { id: true },
+            }))?.id ?? null;
+    }
+    if (!contactId)
+        return null;
+    const sel = { id: true, firstContactAt: true };
+    return ((await prisma.lead.findFirst({
+        where: { organizationId: numero.organizationId, contactId, status: 'activo' },
+        orderBy: { createdAt: 'desc' },
+        select: sel,
+    })) ??
+        (await prisma.lead.findFirst({
+            where: { organizationId: numero.organizationId, contactId },
+            orderBy: { createdAt: 'desc' },
+            select: sel,
+        })));
 }
 /**
  * Conversación del contacto con este número, creándola si hace falta.

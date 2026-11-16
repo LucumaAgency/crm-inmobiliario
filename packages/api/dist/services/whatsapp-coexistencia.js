@@ -20,7 +20,7 @@ import { prisma } from '../db.js';
 import { logError, logLine } from '../lib/log.js';
 import { enqueue } from '../lib/jobs.js';
 import { partirNombre } from '../lib/nombres.js';
-import { conversacionDe, interpretar } from './whatsapp.js';
+import { conversacionDe, interpretar, leadConocido } from './whatsapp.js';
 /** Nombres que pone el CRM cuando no sabe cómo se llama alguien. */
 const NOMBRES_GENERICOS = new Set(['Contacto de WhatsApp', 'Sin nombre']);
 const ESTADO_HISTORIAL = {
@@ -105,6 +105,11 @@ async function recibirEco(numero, eco) {
     const waId = eco.to ?? eco.to_user_id;
     if (!waId) {
         logLine(`wa: eco sin destinatario, ignorado (${eco.id})`);
+        return;
+    }
+    // Número que no abre leads: lo que el asesor escribe a quien no es lead no se guarda.
+    if (!numero.abrirLeads && !(await leadConocido(numero, waId, Boolean(eco.to)))) {
+        logLine(`wa: eco a un contacto sin lead en un número que no abre leads, descartado (${eco.id})`);
         return;
     }
     const conversacion = await conversacionDe(numero, waId, Boolean(eco.to));

@@ -172,19 +172,19 @@ export declare function ventanaAbierta(conv: {
  */
 export declare function enviarTexto(datos: EnvioTexto): Promise<{
     error: string | null;
+    body: string | null;
+    via: string | null;
     id: string;
     createdAt: Date;
+    userId: string | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
-    waMessageId: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
-    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -200,19 +200,19 @@ export declare function enviarDocumento(datos: {
     caption?: string;
 }): Promise<{
     error: string | null;
+    body: string | null;
+    via: string | null;
     id: string;
     createdAt: Date;
+    userId: string | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
-    waMessageId: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
-    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -233,36 +233,36 @@ export declare function enviarAdjunto(datos: {
     caption?: string;
 }): Promise<{
     error: string | null;
+    body: string | null;
+    via: string | null;
     id: string;
     createdAt: Date;
+    userId: string | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
-    waMessageId: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
-    via: string | null;
     sentAt: Date | null;
 }>;
 export declare function enviarPlantilla(datos: EnvioPlantilla): Promise<{
     error: string | null;
+    body: string | null;
+    via: string | null;
     id: string;
     createdAt: Date;
+    userId: string | null;
     status: import(".prisma/client").$Enums.WaMessageStatus;
-    raw: import("@prisma/client/runtime/library").JsonValue | null;
     type: string;
-    waMessageId: string | null;
+    raw: import("@prisma/client/runtime/library").JsonValue | null;
     conversationId: string;
     direction: import(".prisma/client").$Enums.WaDirection;
-    body: string | null;
+    waMessageId: string | null;
     media: import("@prisma/client/runtime/library").JsonValue | null;
     templateName: string | null;
-    userId: string | null;
-    via: string | null;
     sentAt: Date | null;
 }>;
 /**
@@ -291,6 +291,17 @@ export declare function plantillasDe(phoneNumberId: string): Promise<{
     error?: undefined;
 }>;
 /**
+ * Lead más reciente (activo primero) de quien escribe, si ya existe en la organización.
+ * No crea nada. Lo usan los números que no abren leads y los ecos del teléfono.
+ */
+export declare function leadConocido(numero: {
+    id: string;
+    organizationId: string;
+}, waId: string, conNumero: boolean): Promise<{
+    id: string;
+    firstContactAt: Date | null;
+} | null>;
+/**
  * Conversación del contacto con este número, creándola si hace falta.
  *
  * El contacto se busca por teléfono normalizado, la misma llave que usa `captureLead`:
@@ -302,13 +313,13 @@ export declare function conversacionDe(numero: {
     organizationId: string;
 }, waId: string, conNumero: boolean, nombre?: string): Promise<{
     id: string;
+    organizationId: string;
     createdAt: Date;
     updatedAt: Date;
     leadId: string | null;
-    organizationId: string;
     lastInboundAt: Date | null;
-    waNumberId: string;
     contactId: string;
+    waNumberId: string;
     waId: string;
     windowExpiresAt: Date | null;
     lastOutboundAt: Date | null;

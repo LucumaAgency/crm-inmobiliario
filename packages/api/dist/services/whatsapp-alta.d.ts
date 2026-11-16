@@ -12,6 +12,7 @@ export declare function crearPase(datos: {
     organizationId: string;
     userId: string;
     modo: ModoAlta;
+    abrirLeads: boolean;
     ownerUserId: string | null;
     projectId: string | null;
     volverA: string;
@@ -26,17 +27,18 @@ export declare function verPase(token: string): Promise<({
     };
 } & {
     id: string;
-    createdAt: Date;
-    projectId: string | null;
     organizationId: string;
-    ownerUserId: string | null;
+    createdAt: Date;
     userId: string;
+    projectId: string | null;
+    abrirLeads: boolean;
+    ownerUserId: string | null;
     tokenHash: string;
-    modo: string;
-    volverA: string;
     expiresAt: Date;
     usedAt: Date | null;
     resultado: import("@prisma/client/runtime/library").JsonValue | null;
+    modo: string;
+    volverA: string;
 }) | null>;
 /** Estado de coexistencia que reporta Meta. Lo usan «Probar conexión» y el diagnóstico. */
 export declare function estadoEnMeta(waNumberId: string): Promise<{

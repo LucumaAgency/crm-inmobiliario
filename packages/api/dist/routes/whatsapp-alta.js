@@ -11,6 +11,7 @@ export default async function whatsappAltaRoutes(app) {
         privado.get('/estado', async () => ({ disponible: altaDisponible() }));
         const cuerpoPase = z.object({
             modo: z.enum(['coexistencia', 'nuevo']),
+            abrirLeads: z.boolean().optional(),
             ownerUserId: z.string().nullable().optional(),
             projectId: z.string().nullable().optional(),
         });
@@ -22,7 +23,7 @@ export default async function whatsappAltaRoutes(app) {
             if (!parsed.success)
                 return reply.code(400).send({ error: 'Datos inválidos' });
             const u = req.user;
-            const { modo, ownerUserId, projectId } = parsed.data;
+            const { modo, abrirLeads, ownerUserId, projectId } = parsed.data;
             if (ownerUserId) {
                 const ok = await prisma.user.findFirst({
                     where: { id: ownerUserId, organizationId: u.organizationId, active: true },
@@ -40,6 +41,7 @@ export default async function whatsappAltaRoutes(app) {
                 organizationId: u.organizationId,
                 userId: u.id,
                 modo,
+                abrirLeads: abrirLeads ?? true,
                 ownerUserId: ownerUserId ?? null,
                 projectId: projectId ?? null,
                 volverA: baseUrlDePeticion(req),
