@@ -1,6 +1,7 @@
 /**
- * Importa el catálogo de servicios de Lucuma (propuestas/paquetes/servicios.json) a una
- * organización de vertical agencia: cada servicio es un Project y cada paquete una Unit.
+ * Importa un catálogo de servicios a una organización de vertical agencia: cada servicio es un
+ * Project y cada paquete una Unit, en la moneda de la organización. Por defecto el de Lucuma
+ * (propuestas/paquetes/servicios.json); Heavy Listing usa `data/catalogo-heavylisting.json`.
  *
  *   npm run catalogo:prod -- <slug> [ruta-al-json]
  *
@@ -57,8 +58,8 @@ for (const s of servicios) {
         };
         await prisma.unit.upsert({
             where: { projectId_code: { projectId: project.id, code: p.nombre } },
-            update: { price: precio, currency: 'PEN', kind: 'otro', status: 'disponible', extra: extra },
-            create: { projectId: project.id, code: p.nombre, price: precio, currency: 'PEN', kind: 'otro', status: 'disponible', extra: extra },
+            update: { price: precio, currency: org.currency, kind: 'otro', status: 'disponible', extra: extra },
+            create: { projectId: project.id, code: p.nombre, price: precio, currency: org.currency, kind: 'otro', status: 'disponible', extra: extra },
         });
         paquetes++;
     }

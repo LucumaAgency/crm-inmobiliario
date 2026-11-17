@@ -40,9 +40,9 @@ export declare function topeDescuento(userId: string, organizationId: string): P
 export declare function emitirProforma(input: EmitirProformaInput): Promise<{
     number: string;
     id: string;
+    currency: string;
     createdAt: Date;
     projectId: string;
-    currency: string;
     leadId: string;
     organizationId: string;
     year: number;
