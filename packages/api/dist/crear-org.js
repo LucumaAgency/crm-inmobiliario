@@ -1,7 +1,7 @@
 /**
  * Crea una organización nueva con sus etapas por defecto y su primer administrador.
  *
- *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia|clinica] [--moneda USD]
+ *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia|clinica] [--moneda USD] [--etapas captacion]
  *   npm run org:prod -- lucuma "Lucuma Agency" dev@lucumaagency.com MiClave123
  *
  * El slug es el subdominio (`lucuma.<CRM_BASE_DOMAIN>`): minúsculas, números y guiones.
@@ -35,6 +35,18 @@ const ETAPAS_CLINICA = [
     { slug: 'atendido', name: 'Atendido', position: 4, color: '#059669', isWon: true },
     { slug: 'perdido', name: 'Perdido', position: 5, color: '#ef4444', isLost: true },
 ];
+/**
+ * Captación de clientes con mes de prueba (Heavy Listing, docs/33): se gana con el primer pago,
+ * no al empezar la prueba.
+ */
+const ETAPAS_CAPTACION = [
+    { slug: 'nuevo', name: 'Nuevo', position: 1, color: '#94a3b8' },
+    { slug: 'contactado', name: 'Contactado', position: 2, color: '#3b82f6' },
+    { slug: 'llamada-demo', name: 'Llamada/demo', position: 3, color: '#8b5cf6' },
+    { slug: 'mes-gratis', name: 'Mes gratis', position: 4, color: '#f59e0b' },
+    { slug: 'pagando', name: 'Pagando', position: 5, color: '#059669', isWon: true },
+    { slug: 'perdido', name: 'Perdido', position: 6, color: '#ef4444', isLost: true },
+];
 async function main() {
     const args = process.argv.slice(2);
     const iv = args.indexOf('--vertical');
@@ -43,6 +55,12 @@ async function main() {
     const moneda = (im >= 0 ? args.splice(im, 2)[1] : 'PEN')?.toUpperCase();
     if (moneda !== 'PEN' && moneda !== 'USD') {
         console.error('--moneda debe ser PEN o USD');
+        process.exit(1);
+    }
+    const ie = args.indexOf('--etapas');
+    const etapas = ie >= 0 ? args.splice(ie, 2)[1] : null;
+    if (etapas !== null && etapas !== 'captacion') {
+        console.error('--etapas solo admite captacion');
         process.exit(1);
     }
     const [slug, nombre, correo, dada] = args;
@@ -63,7 +81,7 @@ async function main() {
         process.exit(1);
     }
     const password = dada || generarPassword();
-    const ETAPAS = vertical === 'clinica' ? ETAPAS_CLINICA : ETAPAS_COMERCIAL;
+    const ETAPAS = etapas === 'captacion' ? ETAPAS_CAPTACION : vertical === 'clinica' ? ETAPAS_CLINICA : ETAPAS_COMERCIAL;
     const org = await prisma.organization.create({
         data: {
             name: nombre,
