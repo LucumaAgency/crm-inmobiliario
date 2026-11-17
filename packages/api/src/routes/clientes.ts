@@ -86,7 +86,22 @@ export default async function clientesRoutes(app: FastifyInstance) {
    * Servidor web y alianza comercial son servicios que no se venden por paquetes, pero tienen que
    * estar en el catálogo para elegirlos y para que Ingresos los separe. Se crean si faltan.
    */
+  /**
+   * Moneda de la organización. En una organización en dólares (Heavy Listing) no hay IGV: todo
+   * monto se guarda «sin IGV» y en USD, venga lo que venga del formulario.
+   */
+  async function monedaDe(organizationId: string): Promise<'PEN' | 'USD'> {
+    const o = await prisma.organization.findUnique({ where: { id: organizationId }, select: { currency: true } });
+    return o?.currency === 'USD' ? 'USD' : 'PEN';
+  }
+  function sinIgvSiUsd<T extends { currency?: string; igvIncluido?: boolean; sinIgv?: boolean }>(d: T, moneda: 'PEN' | 'USD'): T {
+    if (moneda !== 'USD') return d;
+    return { ...d, ...('currency' in d ? { currency: 'USD' } : {}), igvIncluido: false, sinIgv: true };
+  }
+
+  /** Servicios que Lucuma carga a mano a sus clientes (Perú). No aplican a una organización en dólares. */
   async function catalogoBase(organizationId: string) {
+    if ((await monedaDe(organizationId)) === 'USD') return;
     for (const [slug, name] of [['servidor-web', 'Servidor web'], ['alianza-comercial', 'Alianza comercial']]) {
       await prisma.project.upsert({
         where: { organizationId_slug: { organizationId, slug } },
@@ -159,6 +174,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
     const prop = lead.proformas[0];
     const items = (prop?.items ?? []) as { code: string; price: number; service?: string; billing?: string | null }[];
     const factor = prop ? 1 - Number(prop.discountPct) / 100 : 1;
+    const usd = (await monedaDe(org(req))) === 'USD';
 
     const c = await prisma.cliente.create({
       data: {
@@ -175,6 +191,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
             name: [it.service, it.code].filter(Boolean).join(' · '),
             amount: Math.round(it.price * factor * 100) / 100,
             currency: prop!.currency,
+            ...(usd ? { igvIncluido: false, sinIgv: true } : {}),
             periodicidad: /mes/i.test(it.billing ?? '') ? 'mensual' : 'unico',
             inicio: fecha(inicio),
             cobrarDesde: mesDe(fecha(inicio)),
@@ -231,7 +248,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
     if (p.data.periodicidad === 'comision' && !p.data.comisionPct) return reply.code(400).send({ error: 'Falta el porcentaje de comisión' });
     const cliente = await prisma.cliente.findFirst({ where: { id: req.params.id, organizationId: org(req) }, select: { id: true } });
     if (!cliente) return reply.code(404).send({ error: 'Cliente no encontrado' });
-    const { inicio, fin, projectId, ...resto } = p.data;
+    const { inicio, fin, projectId, ...resto } = sinIgvSiUsd(p.data, await monedaDe(org(req)));
     const s = await prisma.clienteServicio.create({
       data: {
         ...resto,
@@ -260,7 +277,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
     if (!p.success) return reply.code(400).send({ error: p.error.issues[0]?.message ?? 'Datos inválidos' });
     const actual = await prisma.clienteServicio.findFirst({ where: { id: req.params.sid, organizationId: org(req) } });
     if (!actual) return reply.code(404).send({ error: 'Servicio no encontrado' });
-    const { inicio, fin, projectId, ...resto } = p.data;
+    const { inicio, fin, projectId, ...resto } = sinIgvSiUsd(p.data, await monedaDe(org(req)));
     const s = await prisma.clienteServicio.update({
       where: { id: actual.id },
       data: {
@@ -368,19 +385,20 @@ export default async function clientesRoutes(app: FastifyInstance) {
     if (servicioId && (await prisma.cobro.findFirst({ where: { servicioId, periodo: p.data.periodo }, select: { id: true } }))) {
       return reply.code(409).send({ error: 'Ese servicio ya tiene un cobro en ese mes. Edítalo.' });
     }
-    const { base, total } = importes(p.data.amount, p.data.igvIncluido, p.data.sinIgv);
+    const d = sinIgvSiUsd(p.data, await monedaDe(org(req)));
+    const { base, total } = importes(d.amount, d.igvIncluido, d.sinIgv);
     const c = await prisma.cobro.create({
       data: {
         organizationId: org(req),
         clienteId: cliente.id,
         servicioId,
-        periodo: p.data.periodo,
-        concepto: p.data.concepto,
+        periodo: d.periodo,
+        concepto: d.concepto,
         base,
         total,
-        currency: p.data.currency,
-        vence: fecha(p.data.vence),
-        notes: p.data.notes ?? null,
+        currency: d.currency,
+        vence: fecha(d.vence),
+        notes: d.notes ?? null,
       },
     });
     await audit(org(req), req.user!.id, 'cobro.create', { entity: 'cobro', entityId: c.id, meta: { cliente: cliente.id, total } });
@@ -443,7 +461,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
     if (!p.success) return reply.code(400).send({ error: p.error.issues[0]?.message ?? 'Datos inválidos' });
     const c = await prisma.cobro.findFirst({ where: { id: req.params.id, organizationId: org(req) } });
     if (!c) return reply.code(404).send({ error: 'Cobro no encontrado' });
-    const { amount, igvIncluido, sinIgv, pagadoEl, vence, ...resto } = p.data;
+    const { amount, igvIncluido, sinIgv, pagadoEl, vence, ...resto } = sinIgvSiUsd(p.data, await monedaDe(org(req)));
     const data: Record<string, unknown> = { ...resto };
     if (amount !== undefined) Object.assign(data, importes(amount, igvIncluido ?? false, sinIgv ?? false));
     if (vence) data.vence = fecha(vence);
@@ -458,9 +476,12 @@ export default async function clientesRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------ ingresos
   /**
    * Últimos 12 meses: facturado (cobros no anulados del mes) y cobrado (pagados), sin IGV, en
-   * soles; y el desglose por servicio del catálogo. Los cobros en dólares van aparte.
+   * la moneda de la organización; y el desglose por servicio del catálogo. Los cobros en la otra
+   * moneda van aparte (`enDolares`).
    */
   app.get('/ingresos', { preHandler: pre }, async (req) => {
+    const moneda = await monedaDe(org(req));
+    const otra = moneda === 'USD' ? 'PEN' : 'USD';
     const actual = mesActual();
     const desde = sumarMeses(actual, -11);
     const cobros = await prisma.cobro.findMany({
@@ -469,7 +490,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
     });
     const meses = Array.from({ length: 12 }, (_, i) => sumarMeses(desde, i));
     const porMes = meses.map((m) => {
-      const del = cobros.filter((c) => c.periodo === m && c.currency === 'PEN');
+      const del = cobros.filter((c) => c.periodo === m && c.currency === moneda);
       return {
         mes: m,
         facturado: del.reduce((t, c) => t + Number(c.base), 0),
@@ -477,7 +498,7 @@ export default async function clientesRoutes(app: FastifyInstance) {
       };
     });
     const grupos = new Map<string, number>();
-    for (const c of cobros.filter((c) => c.currency === 'PEN')) {
+    for (const c of cobros.filter((c) => c.currency === moneda)) {
       const k = c.servicio?.project?.name ?? 'Otros';
       grupos.set(k, (grupos.get(k) ?? 0) + Number(c.base));
     }
@@ -488,8 +509,10 @@ export default async function clientesRoutes(app: FastifyInstance) {
     return {
       meses: porMes,
       porServicio: [...grupos].map(([servicio, total]) => ({ servicio, total })).sort((a, b) => b.total - a.total),
-      mensualActual: servicios.filter((s) => s.currency === 'PEN').reduce((t, s) => t + alMes(s), 0),
-      enDolares: cobros.filter((c) => c.currency === 'USD').reduce((t, c) => t + Number(c.base), 0),
+      moneda,
+      mensualActual: servicios.filter((s) => s.currency === moneda).reduce((t, s) => t + alMes(s), 0),
+      // Lo cobrado en la otra moneda, que no entra en los totales (el nombre viene de cuando solo había soles).
+      enDolares: cobros.filter((c) => c.currency === otra).reduce((t, c) => t + Number(c.base), 0),
     };
   });
 }

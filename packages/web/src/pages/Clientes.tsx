@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import Kpi from '../components/Kpi.js';
+import { simbolo, useMoneda } from '../lib/vertical.js';
 
 /**
  * Clientes activos y cobranza de la agencia (docs/22-VERTICAL-AGENCIA.md). Solo la cuenta de
@@ -84,7 +85,7 @@ const dinero = (n: number | string, mon = 'PEN') =>
 /** El IGV de un monto en un solo desplegable: se suma, ya está incluido, o no hay (sin factura). */
 const modoIgv = (f: { igvIncluido: boolean; sinIgv: boolean }) => (f.sinIgv ? 'sin' : f.igvIncluido ? 'si' : 'no');
 const deModoIgv = (v: string) => ({ igvIncluido: v === 'si', sinIgv: v === 'sin' });
-const corto = (n: number) => `S/ ${Math.round(n).toLocaleString('es-PE')}`;
+const cortoEn = (n: number, mon: string) => `${simbolo(mon)} ${Math.round(n).toLocaleString('es-PE')}`;
 const dia = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
 const nombreMes = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 const hoyIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
@@ -134,6 +135,9 @@ export default function Clientes() {
 // ------------------------------------------------------------------ clientes
 
 function ListaClientes() {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
+  const corto = (n: number) => cortoEn(n, moneda);
   const qc = useQueryClient();
   const clientes = useQuery({ queryKey: ['clientes'], queryFn: () => api.get<Cliente[]>('/clientes') });
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -157,8 +161,8 @@ function ListaClientes() {
     <>
       <div className="kpis">
         <Kpi titulo="Clientes activos" icono="cuenta" tono="solido" valor={clientes.data ? String(activos.length) : '—'} />
-        <Kpi titulo="Ingreso mensual" icono="reportes" valor={clientes.data ? corto(mensual) : '—'} nota="mensuales + anuales ÷ 12, sin IGV" />
-        <Kpi titulo="Vencido" icono="alerta" valor={clientes.data ? corto(vencido) : '—'} nota="con IGV" />
+        <Kpi titulo="Ingreso mensual" icono="reportes" valor={clientes.data ? corto(mensual) : '—'} nota={igv ? 'mensuales + anuales ÷ 12, sin IGV' : 'mensuales + anuales ÷ 12'} />
+        <Kpi titulo="Vencido" icono="alerta" valor={clientes.data ? corto(vencido) : '—'} nota={igv ? 'con IGV' : undefined} />
         <Kpi titulo="Servicios activos" icono="catalogo" valor={clientes.data ? String(activos.flatMap((c) => c.servicios).filter((s) => s.estado === 'activo').length) : '—'} />
       </div>
 
@@ -305,6 +309,8 @@ function aCuerpo(f: FormServicio) {
 }
 
 function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio) => void; id: string }) {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
   const catalogo = useQuery({ queryKey: ['projects'], queryFn: () => api.get<{ id: string; name: string }[]>('/projects') });
   const comision = f.periodicidad === 'comision';
   const atajos = useQuery({ queryKey: ['servicios-frecuentes'], queryFn: () => api.get<Atajo[]>('/clientes/servicios/frecuentes') });
@@ -378,6 +384,8 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
             <input id={`${id}-monto`} inputMode="decimal" value={f.amount} onChange={(e) => set({ ...f, amount: e.target.value })} />
           </div>
         )}
+        {igv && (
+          <>
         <div>
           <label htmlFor={`${id}-mon`}>Moneda</label>
           <select id={`${id}-mon`} value={f.currency} onChange={(e) => set({ ...f, currency: e.target.value })}>
@@ -393,6 +401,8 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
             <option value="sin">Sin IGV (sin factura)</option>
           </select>
         </div>
+          </>
+        )}
         <div>
           <label htmlFor={`${id}-per`}>Cobro</label>
           <select id={`${id}-per`} value={f.periodicidad} onChange={(e) => set({ ...f, periodicidad: e.target.value as Servicio['periodicidad'] })}>
@@ -433,6 +443,8 @@ function CamposServicio({ f, set, id }: { f: FormServicio; set: (f: FormServicio
 }
 
 function FilaServicio({ servicio: s }: { servicio: Servicio }) {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
   const qc = useQueryClient();
   const [editando, setEditando] = useState(false);
   const [venta, setVenta] = useState(false);
@@ -476,7 +488,7 @@ function FilaServicio({ servicio: s }: { servicio: Servicio }) {
           <span className="meta">
             {s.periodicidad === 'comision'
               ? `${Number(s.comisionPct ?? 0)} % de cada venta ${s.sinIgv ? 'sin IGV' : '+ IGV'}`
-              : `${dinero(s.amount, s.currency)} ${s.sinIgv ? 'sin IGV' : s.igvIncluido ? 'IGV incl.' : '+ IGV'} · ${PERIODICIDAD[s.periodicidad]}`}
+              : `${dinero(s.amount, s.currency)}${igv ? ` ${s.sinIgv ? 'sin IGV' : s.igvIncluido ? 'IGV incl.' : '+ IGV'}` : ''} · ${PERIODICIDAD[s.periodicidad]}`}
             {s.periodicidad === 'mensual' && ` · paga el día ${s.diaPago ?? Number(s.inicio.slice(8, 10))}`}
             {s.periodicidad === 'anual' && ` · cada ${new Date(s.inicio.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-PE', { month: 'long', timeZone: 'UTC' })}`} · desde {dia(s.inicio)}
             {s.fin && ` · renueva ${dia(s.fin)}`}
@@ -562,8 +574,10 @@ function RegistrarVenta({ servicio: s, alTerminar }: { servicio: Servicio; alTer
 }
 
 function NuevoServicio({ clienteId }: { clienteId: string }) {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
   const qc = useQueryClient();
-  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: 'PEN', igvIncluido: false, sinIgv: false, periodicidad: 'mensual', comisionPct: '', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
+  const vacio: FormServicio = { projectId: '', name: '', amount: '', currency: moneda, igvIncluido: false, sinIgv: !igv, periodicidad: 'mensual', comisionPct: '', diaPago: '', inicio: hoyIso(), fin: '', estado: 'activo' };
   const [abierto, setAbierto] = useState(false);
   const [f, setF] = useState<FormServicio>(vacio);
   const crear = useMutation({
@@ -602,6 +616,9 @@ function NuevoServicio({ clienteId }: { clienteId: string }) {
 // ------------------------------------------------------------------ cobranza
 
 function VistaCobranza() {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
+  const corto = (n: number) => cortoEn(n, moneda);
   const [mes, setMes] = useState(() => hoyIso().slice(0, 7));
   const datos = useQuery({ queryKey: ['cobranza', mes], queryFn: () => api.get<Cobranza>(`/clientes/cobranza?mes=${mes}`) });
   const d = datos.data;
@@ -613,7 +630,7 @@ function VistaCobranza() {
         <button type="button" className="btn btn-sec" onClick={() => setMes(mover(mes, 1))} aria-label="Mes siguiente">›</button>
       </div>
       <div className="kpis">
-        <Kpi titulo="Por cobrar en el mes" icono="calendario" tono="solido" valor={d ? corto(d.totales.esperado) : '—'} nota="con IGV" />
+        <Kpi titulo="Por cobrar en el mes" icono="calendario" tono="solido" valor={d ? corto(d.totales.esperado) : '—'} nota={igv ? 'con IGV' : undefined} />
         <Kpi titulo="Cobrado" icono="check" valor={d ? corto(d.totales.cobrado) : '—'} />
         <Kpi titulo="Pendiente" icono="reloj" valor={d ? corto(d.totales.pendiente) : '—'} nota="aún no vence" />
         <Kpi titulo="Vencido" icono="alerta" valor={d ? corto(d.totales.vencido) : '—'} nota="incluye meses anteriores" />
@@ -662,6 +679,8 @@ function TablaCobros({ cobros, hoy }: { cobros: Cobro[]; hoy: string }) {
 }
 
 function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: string; pagando: boolean; setPagando: (v: boolean) => void }) {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
   const qc = useQueryClient();
   const [pago, setPago] = useState({ pagadoEl: hoyIso(), medio: '', comprobante: '' });
   const [monto, setMonto] = useState('');
@@ -724,15 +743,15 @@ function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: 
               </div>
               <div>
                 <label htmlFor={`${c.id}-m`}>Medio</label>
-                <input id={`${c.id}-m`} placeholder="Transferencia, Yape…" value={pago.medio} onChange={(e) => setPago({ ...pago, medio: e.target.value })} />
+                <input id={`${c.id}-m`} placeholder={igv ? 'Transferencia, Yape…' : 'ACH, Wise…'} value={pago.medio} onChange={(e) => setPago({ ...pago, medio: e.target.value })} />
               </div>
               <div>
-                <label htmlFor={`${c.id}-c`}>N.° de factura o boleta</label>
-                <input id={`${c.id}-c`} placeholder="F001-123" value={pago.comprobante} onChange={(e) => setPago({ ...pago, comprobante: e.target.value })} />
+                <label htmlFor={`${c.id}-c`}>{igv ? 'N.° de factura o boleta' : 'N.° de factura'}</label>
+                <input id={`${c.id}-c`} placeholder={igv ? 'F001-123' : 'INV-0001'} value={pago.comprobante} onChange={(e) => setPago({ ...pago, comprobante: e.target.value })} />
               </div>
               {variable && (
                 <div style={{ width: 130 }}>
-                  <label htmlFor={`${c.id}-a`}>Monto final ({Number(c.base) === Number(c.total) ? 'sin IGV' : '+ IGV'})</label>
+                  <label htmlFor={`${c.id}-a`}>Monto final{igv ? ` (${Number(c.base) === Number(c.total) ? 'sin IGV' : '+ IGV'})` : ''}</label>
                   <input id={`${c.id}-a`} inputMode="decimal" placeholder={String(Number(c.base))} value={monto} onChange={(e) => setMonto(e.target.value)} />
                 </div>
               )}
@@ -761,9 +780,11 @@ function FilaCobro({ cobro: c, hoy, pagando, setPagando }: { cobro: Cobro; hoy: 
 }
 
 function NuevoCobro({ mes }: { mes: string }) {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
   const qc = useQueryClient();
   const clientes = useQuery({ queryKey: ['clientes'], queryFn: () => api.get<Cliente[]>('/clientes') });
-  const vacio = { clienteId: '', servicioId: '', concepto: '', amount: '', igvIncluido: false, sinIgv: false, vence: `${mes}-${hoyIso().slice(8, 10)}` };
+  const vacio = { clienteId: '', servicioId: '', concepto: '', amount: '', igvIncluido: false, sinIgv: !igv, vence: `${mes}-${hoyIso().slice(8, 10)}` };
   const [abierto, setAbierto] = useState(false);
   const [f, setF] = useState(vacio);
   const cliente = clientes.data?.find((c) => c.id === f.clienteId);
@@ -834,7 +855,8 @@ function NuevoCobro({ mes }: { mes: string }) {
           <label htmlFor="nc-monto">Monto</label>
           <input id="nc-monto" inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
         </div>
-        <div>
+        {igv && (
+          <div>
           <label htmlFor="nc-igv">IGV</label>
           <select id="nc-igv" value={modoIgv(f)} onChange={(e) => setF({ ...f, ...deModoIgv(e.target.value) })}>
             <option value="no">+ IGV</option>
@@ -842,6 +864,7 @@ function NuevoCobro({ mes }: { mes: string }) {
             <option value="sin">Sin IGV</option>
           </select>
         </div>
+        )}
         <div>
           <label htmlFor="nc-vence">Vence</label>
           <input id="nc-vence" type="date" value={f.vence} onChange={(e) => setF({ ...f, vence: e.target.value })} />
@@ -859,6 +882,9 @@ function NuevoCobro({ mes }: { mes: string }) {
 // ------------------------------------------------------------------ ingresos
 
 function VistaIngresos() {
+  const moneda = useMoneda();
+  const igv = moneda === 'PEN';
+  const corto = (n: number) => cortoEn(n, moneda);
   const datos = useQuery({ queryKey: ['ingresos'], queryFn: () => api.get<Ingresos>('/clientes/ingresos') });
   const d = datos.data;
   const tope = Math.max(1, ...(d?.meses ?? []).map((m) => m.facturado));
@@ -866,15 +892,15 @@ function VistaIngresos() {
   return (
     <>
       <div className="kpis">
-        <Kpi titulo="Ingreso mensual recurrente" icono="reportes" tono="solido" valor={d ? corto(d.mensualActual) : '—'} nota="mensuales + anuales ÷ 12, sin IGV" />
-        <Kpi titulo="Facturado este mes" icono="calendario" valor={actual ? corto(actual.facturado) : '—'} nota="sin IGV" />
-        <Kpi titulo="Cobrado este mes" icono="check" valor={actual ? corto(actual.cobrado) : '—'} nota="sin IGV" />
-        <Kpi titulo="Últimos 12 meses" icono="resumen" valor={d ? corto(d.meses.reduce((t, m) => t + m.facturado, 0)) : '—'} nota="facturado, sin IGV" />
+        <Kpi titulo="Ingreso mensual recurrente" icono="reportes" tono="solido" valor={d ? corto(d.mensualActual) : '—'} nota={igv ? 'mensuales + anuales ÷ 12, sin IGV' : 'mensuales + anuales ÷ 12'} />
+        <Kpi titulo="Facturado este mes" icono="calendario" valor={actual ? corto(actual.facturado) : '—'} nota={igv ? 'sin IGV' : undefined} />
+        <Kpi titulo="Cobrado este mes" icono="check" valor={actual ? corto(actual.cobrado) : '—'} nota={igv ? 'sin IGV' : undefined} />
+        <Kpi titulo="Últimos 12 meses" icono="resumen" valor={d ? corto(d.meses.reduce((t, m) => t + m.facturado, 0)) : '—'} nota={igv ? 'facturado, sin IGV' : 'facturado'} />
       </div>
 
       <div className="card">
         <strong>Facturado y cobrado por mes</strong>
-        <p className="meta">Sin IGV, en soles. Barra clara: facturado; oscura: cobrado.</p>
+        <p className="meta">{igv ? 'Sin IGV, en soles.' : 'En dólares.'} Barra clara: facturado; oscura: cobrado.</p>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, marginTop: 12 }}>
           {d?.meses.map((m) => (
             <div key={m.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }} title={`${nombreMes(m.mes)}: facturado ${corto(m.facturado)}, cobrado ${corto(m.cobrado)}`}>
@@ -902,7 +928,7 @@ function VistaIngresos() {
             </tbody>
           </table>
         )}
-        {d && d.enDolares > 0 && <p className="meta" style={{ marginTop: 8 }}>Además, en dólares: {dinero(d.enDolares, 'USD')} (no sumado arriba).</p>}
+        {d && d.enDolares > 0 && <p className="meta" style={{ marginTop: 8 }}>Además, en {igv ? 'dólares' : 'soles'}: {dinero(d.enDolares, igv ? 'USD' : 'PEN')} (no sumado arriba).</p>}
       </div>
     </>
   );

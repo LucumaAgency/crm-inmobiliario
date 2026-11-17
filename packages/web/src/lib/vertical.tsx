@@ -16,3 +16,19 @@ export function useVertical(): Vertical {
 export function useEtiquetas(): Etiquetas {
   return etiquetas(useContext(VerticalContext));
 }
+
+/**
+ * Moneda de la organización (`PEN` o `USD`). Decide la moneda de los paquetes nuevos, en qué
+ * moneda se muestran los totales de Clientes y si aparece el IGV (solo en soles).
+ */
+export type Moneda = 'PEN' | 'USD';
+export const MonedaContext = createContext<Moneda>('PEN');
+
+export function useMoneda(): Moneda {
+  return useContext(MonedaContext);
+}
+
+/** «S/» o «US$». */
+export function simbolo(moneda: string | null | undefined): string {
+  return moneda === 'USD' ? 'US$' : 'S/';
+}

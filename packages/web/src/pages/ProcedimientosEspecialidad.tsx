@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { simbolo, useMoneda } from '../lib/vertical.js';
 import Icono from '../components/Icono.js';
 
 interface Procedimiento {
@@ -29,6 +30,7 @@ export default function ProcedimientosEspecialidad({ projectId }: { projectId: s
     qc.invalidateQueries({ queryKey: ['catalogo-unidades'] });
   };
 
+  const moneda = useMoneda();
   const [nombre, setNombre] = useState('');
   const [precioN, setPrecioN] = useState('');
   const [desde, setDesde] = useState(false);
@@ -42,7 +44,7 @@ export default function ProcedimientosEspecialidad({ projectId }: { projectId: s
         kind: 'otro',
         status: 'disponible',
         price: aNumero(precioN) ?? undefined,
-        currency: 'PEN',
+        currency: moneda,
         extra: { desde, cirugia, nota: nota.trim() || null, orden: (procs.data?.length ?? 0) + 1 },
       }),
     onSuccess: () => { setNombre(''); setPrecioN(''); setDesde(false); setCirugia(false); setNota(''); refrescar(); },
@@ -66,12 +68,12 @@ export default function ProcedimientosEspecialidad({ projectId }: { projectId: s
         {procs.data?.length === 0 && <div className="vacio">Sin procedimientos. Crea el primero abajo.</div>}
         {lista.length > 0 && (
           <table className="tabla tabla-movil" style={{ marginTop: 10 }}>
-            <thead><tr><th>Procedimiento</th><th>Precio (S/)</th><th>Desde</th><th>Cirugía</th><th>Qué incluye</th></tr></thead>
+            <thead><tr><th>Procedimiento</th><th>Precio ({simbolo(moneda)})</th><th>Desde</th><th>Cirugía</th><th>Qué incluye</th></tr></thead>
             <tbody>
               {lista.map((p) => (
                 <tr key={p.id}>
                   <td className="t-titulo">{p.code}</td>
-                  <td data-label="Precio (S/)">
+                  <td data-label={`Precio (${simbolo(moneda)})`}>
                     <input
                       inputMode="decimal"
                       defaultValue={p.price ? String(Number(p.price)) : ''}
@@ -117,7 +119,7 @@ export default function ProcedimientosEspecialidad({ projectId }: { projectId: s
         <form onSubmit={(e) => { e.preventDefault(); if (nombre.trim()) crear.mutate(); }}>
           <div className="rejilla-2">
             <div><label htmlFor="pr-nombre">Nombre *</label><input id="pr-nombre" value={nombre} placeholder="Tiroidectomía total" onChange={(e) => setNombre(e.target.value)} /></div>
-            <div><label htmlFor="pr-precio">Precio (S/)</label><input id="pr-precio" inputMode="decimal" value={precioN} placeholder="8500" onChange={(e) => setPrecioN(e.target.value)} /></div>
+            <div><label htmlFor="pr-precio">Precio ({simbolo(moneda)})</label><input id="pr-precio" inputMode="decimal" value={precioN} placeholder="8500" onChange={(e) => setPrecioN(e.target.value)} /></div>
           </div>
           <div className="rejilla-2">
             <label className="casilla" style={{ margin: 0 }}><input type="checkbox" checked={cirugia} onChange={(e) => setCirugia(e.target.checked)} /><span><strong>Es cirugía</strong><span className="meta">no marcar en consultas ni controles</span></span></label>

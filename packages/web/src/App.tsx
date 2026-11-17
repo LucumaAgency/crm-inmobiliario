@@ -22,13 +22,13 @@ import Cuenta from './pages/Cuenta.js';
 import Clientes from './pages/Clientes.js';
 import { ProveedorGuia, useAbrirGuia } from './components/PrimerosPasos.js';
 import { CuentaLucumaContext, PermisosContext, VerClientesContext, NotasVozContext } from './lib/permisos.js';
-import { VerticalContext } from './lib/vertical.js';
+import { MonedaContext, VerticalContext } from './lib/vertical.js';
 import { etiquetas, type Vertical } from '@lucuma-crm/shared';
 import type { Permiso } from '@lucuma-crm/shared';
 
 interface Me {
   user: { id: string; name: string; email: string; role: string; organizationId: string; permissions: Permiso[]; roleName: string; cuentaLucuma?: boolean; verClientes?: boolean; notasVoz?: boolean };
-  organization: { id: string; name: string; vertical?: string } | null;
+  organization: { id: string; name: string; vertical?: string; currency?: string } | null;
   tienePassword: boolean;
 }
 
@@ -163,6 +163,7 @@ export default function App() {
 
   const permisos = data.user.permissions ?? [];
   const vertical = (data.organization?.vertical ?? 'inmobiliaria') as Vertical;
+  const moneda = data.organization?.currency === 'USD' ? 'USD' : 'PEN';
   const L = etiquetas(vertical);
   const puede = (...p: Permiso[]) => p.some((x) => permisos.includes(x));
   const puedeGestionar = puede('embudo.configurar', 'usuarios.gestionar', 'canales.configurar', 'leads.exportar');
@@ -189,6 +190,7 @@ export default function App() {
     <VerClientesContext.Provider value={verClientes}>
     <NotasVozContext.Provider value={!!data.user.notasVoz}>
     <VerticalContext.Provider value={vertical}>
+    <MonedaContext.Provider value={moneda}>
     <ProveedorGuia>
     <div className="app">
       <aside className={`lateral${menuAbierto ? ' abierto' : ''}`}>
@@ -336,6 +338,7 @@ export default function App() {
       </div>
     </div>
     </ProveedorGuia>
+    </MonedaContext.Provider>
     </VerticalContext.Provider>
     </NotasVozContext.Provider>
     </VerClientesContext.Provider>

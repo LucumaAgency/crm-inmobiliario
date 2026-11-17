@@ -21,6 +21,10 @@ model Organization {
   /// Qué vende: `inmobiliaria` (proyectos → unidades, proformas) o `agencia` (servicios →
   /// paquetes, propuestas). Lo común no sabe de verticales; esto decide qué módulo ve.
   vertical  String   @default("inmobiliaria")
+  /// Moneda de la organización: `PEN` o `USD` (Heavy Listing). Decide la moneda por defecto de
+  /// paquetes y servicios, en qué moneda se suman los totales de Clientes y si se muestra el IGV
+  /// (solo en PEN).
+  currency  String   @default("PEN")
   createdAt DateTime @default(now())
 
   users            User[]

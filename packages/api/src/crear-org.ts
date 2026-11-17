@@ -1,7 +1,7 @@
 /**
  * Crea una organización nueva con sus etapas por defecto y su primer administrador.
  *
- *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia|clinica]
+ *   npm run org:prod -- <slug> "<Nombre>" <correo-admin> [contraseña] [--vertical agencia|clinica] [--moneda USD]
  *   npm run org:prod -- lucuma "Lucuma Agency" dev@lucumaagency.com MiClave123
  *
  * El slug es el subdominio (`lucuma.<CRM_BASE_DOMAIN>`): minúsculas, números y guiones.
@@ -42,6 +42,9 @@ async function main() {
   const args = process.argv.slice(2);
   const iv = args.indexOf('--vertical');
   const vertical = iv >= 0 ? args.splice(iv, 2)[1] : 'inmobiliaria';
+  const im = args.indexOf('--moneda');
+  const moneda = (im >= 0 ? args.splice(im, 2)[1] : 'PEN')?.toUpperCase();
+  if (moneda !== 'PEN' && moneda !== 'USD') { console.error('--moneda debe ser PEN o USD'); process.exit(1); }
   const [slug, nombre, correo, dada] = args;
   if (!esVertical(vertical ?? '')) { console.error('--vertical debe ser inmobiliaria, agencia o clinica'); process.exit(1); }
   if (!slug || !nombre || !correo) {
@@ -64,6 +67,7 @@ async function main() {
       name: nombre,
       slug,
       vertical,
+      currency: moneda,
       ...(vertical === 'clinica' ? { settings: { motivosPerdida: MOTIVOS_PERDIDA_CLINICA } } : {}),
     },
   });
@@ -83,7 +87,7 @@ async function main() {
     data: { organizationId: org.id, action: 'org.create', entity: 'organization', entityId: org.id, meta: { slug, via: 'cli', admin: admin.email } },
   });
 
-  console.log(`Organización «${nombre}» creada (slug ${slug}) con ${ETAPAS.length} etapas.`);
+  console.log(`Organización «${nombre}» creada (slug ${slug}, ${moneda}) con ${ETAPAS.length} etapas.`);
   console.log(`Admin: ${admin.email}${dada ? '' : `\nContraseña: ${password}`}`);
   console.log(`Entra por https://${slug}.<CRM_BASE_DOMAIN> (o por el dominio único si no hay base configurada).`);
 }

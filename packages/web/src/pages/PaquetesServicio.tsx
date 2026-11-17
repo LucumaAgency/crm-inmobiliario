@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { simbolo, useMoneda } from '../lib/vertical.js';
 import { precio } from '../lib/format.js';
 import Icono from '../components/Icono.js';
 
@@ -27,6 +28,7 @@ export default function PaquetesServicio({ projectId }: { projectId: string }) {
   const refrescar = () => qc.invalidateQueries({ queryKey: ['units', projectId] });
 
   const [abierto, setAbierto] = useState<string | null>(null);
+  const moneda = useMoneda();
   const [nombre, setNombre] = useState('');
   const [precioN, setPrecioN] = useState('');
   const [cobro, setCobro] = useState('/ mes');
@@ -40,7 +42,7 @@ export default function PaquetesServicio({ projectId }: { projectId: string }) {
         kind: 'otro',
         status: 'disponible',
         price: precioN.trim() ? Number(precioN.replace(/\./g, '').replace(',', '.')) : undefined,
-        currency: 'PEN',
+        currency: moneda,
         extra: { cobro: cobro.trim() || null, desde, paraQuien: paraQuien.trim() || null, orden: (paquetes.data?.length ?? 0) + 1 },
       }),
     onSuccess: () => { setNombre(''); setPrecioN(''); setParaQuien(''); setDesde(false); refrescar(); },
@@ -125,7 +127,7 @@ export default function PaquetesServicio({ projectId }: { projectId: string }) {
         <form onSubmit={(e) => { e.preventDefault(); if (nombre.trim()) crear.mutate(); }}>
           <div className="rejilla-2">
             <div><label htmlFor="pq-nombre">Nombre *</label><input id="pq-nombre" value={nombre} placeholder="Crecimiento" onChange={(e) => setNombre(e.target.value)} /></div>
-            <div><label htmlFor="pq-precio">Precio (S/)</label><input id="pq-precio" inputMode="decimal" value={precioN} placeholder="1200" onChange={(e) => setPrecioN(e.target.value)} /></div>
+            <div><label htmlFor="pq-precio">Precio ({simbolo(moneda)})</label><input id="pq-precio" inputMode="decimal" value={precioN} placeholder="1200" onChange={(e) => setPrecioN(e.target.value)} /></div>
           </div>
           <div className="rejilla-2">
             <div><label htmlFor="pq-cobro">Cobro</label><input id="pq-cobro" value={cobro} placeholder="/ mes · proyecto · por web" onChange={(e) => setCobro(e.target.value)} /></div>

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "plan-dealer",
+    "orden": 1,
+    "modalidad": "recurrente",
+    "nombre": "Plan para dealers",
+    "lede": "Inventario publicado en heavylisting.com y gestionado en Yard. Primer mes gratis; luego factura mensual por ACH.",
+    "nota": "Precios de heavylisting.com/pricing/. Un dealer que hace remates va a Medium.",
+    "packs": [
+      { "n": "Plan 1", "nombre": "Small", "precio": "US$ 149", "unidad": "/ mes", "destacado": false, "para_quien": "Hasta 25 máquinas. Lotes chicos y dealers especializados.", "bloques": [] },
+      { "n": "Plan 2", "nombre": "Medium", "precio": "US$ 299", "unidad": "/ mes", "destacado": true, "para_quien": "Hasta 100 máquinas. Incluye el Auction plan.", "bloques": [] },
+      { "n": "Plan 3", "nombre": "Large", "precio": "US$ 499", "unidad": "/ mes", "destacado": false, "para_quien": "Máquinas ilimitadas. Incluye el Auction plan. Dealers grandes o con varias sedes.", "bloques": [] }
+    ]
+  },
+  {
+    "id": "plan-remates",
+    "orden": 2,
+    "modalidad": "recurrente",
+    "nombre": "Plan para rematadores",
+    "lede": "Remates en el calendario de heavylisting.com/auctions/.",
+    "nota": "Máximo 3 remates destacados por semana.",
+    "packs": [
+      { "n": "Plan 1", "nombre": "Basic", "precio": "US$ 0", "unidad": "/ mes", "destacado": false, "para_quien": "Remate publicado en el calendario, sin destacar.", "bloques": [] },
+      { "n": "Plan 2", "nombre": "Auction plan", "precio": "US$ 199", "unidad": "/ mes", "destacado": true, "para_quien": "Todos sus remates destacados: primeros en su semana, con logo y en la portada. Reporte mensual.", "bloques": [] }
+    ]
+  },
+  {
+    "id": "venta-particulares",
+    "orden": 3,
+    "modalidad": "a medida",
+    "nombre": "Particulares que venden",
+    "lede": "Personas que quieren vender una máquina (formulario Sell your equipment). Se atienden y se derivan a un dealer o rematador de la red.",
+    "nota": "Sin precio por ahora.",
+    "packs": [
+      { "n": "Opción 1", "nombre": "Venta asistida", "precio": "a medida", "destacado": false, "para_quien": "Particular con una o pocas máquinas.", "bloques": [] }
+    ]
+  }
+]
