@@ -28,6 +28,9 @@ export async function captureLead(input, schema, ctx) {
     const email = normalizeEmail(campos.email);
     const phone = normalizePhonePE(campos.phone);
     const document = normalizeDocument(campos.document);
+    // Un campo con clave `company` (formularios B2B como los de Heavy Listing) llena la Empresa del
+    // contacto. Sigue apareciendo también en el mensaje, como cualquier campo propio.
+    const company = String(input.values.company ?? '').trim().slice(0, 191) || undefined;
     // 3) Contacto: identidad por documento → email → teléfono.
     const contacto = ctx.contactId
         ? await prisma.contact.findUniqueOrThrow({ where: { id: ctx.contactId } })
@@ -37,6 +40,7 @@ export async function captureLead(input, schema, ctx) {
             email,
             phone,
             document,
+            company,
         });
     if (contacto.organizationId !== ctx.organizationId) {
         throw new Error('captureLead: el contacto no pertenece a esta organización');
@@ -292,6 +296,7 @@ export async function upsertContacto(organizationId, d) {
                 email: existente.email ?? d.email,
                 phone: existente.phone ?? d.phone,
                 document: existente.document ?? d.document,
+                company: existente.company ?? d.company,
             },
         });
     }
@@ -304,6 +309,7 @@ export async function upsertContacto(organizationId, d) {
                 email: d.email,
                 phone: d.phone,
                 document: d.document,
+                company: d.company,
             },
         });
     }

@@ -37,6 +37,7 @@ export type DatosContacto = {
     email: string | null;
     phone: string | null;
     document: string | null;
+    company?: string;
 };
 /** Busca por documento → email → teléfono. Null nunca identifica a nadie. */
 export declare function buscarContacto(organizationId: string, d: DatosContacto): Promise<{
