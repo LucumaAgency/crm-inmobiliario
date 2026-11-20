@@ -6,7 +6,7 @@
  * avisos y el CRM sigue respondiendo 200, pero ningún lead llega. De ahí el botón de
  * probar y la lista de últimos avisos con su estado.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
@@ -109,6 +109,19 @@ export default function MetaLeadAds() {
     onSuccess: (datos, id) => setDiagnostico({ id, datos }),
   });
 
+  // «Avisar a» arranca con el correo de quien conecta (editable). Una cuenta de Lucuma en el
+  // CRM de un cliente no se pone a sí misma: los avisos son datos del cliente.
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get<{ user: { email: string; cuentaLucuma?: boolean }; organization: { slug: string } | null }>('/auth/me'),
+  });
+  const correoPropio = me.data?.user?.email && !(me.data.user.cuentaLucuma && me.data.organization?.slug !== 'lucuma')
+    ? me.data.user.email
+    : '';
+  useEffect(() => {
+    if (correoPropio) setCorreos((actual) => actual || correoPropio);
+  }, [correoPropio]);
+
   const paginas = useQuery({ queryKey: ['meta-pages'], queryFn: () => api.get<Pagina[]>('/meta/pages') });
   const proyectos = useQuery({
     queryKey: ['projects'],
@@ -122,7 +135,7 @@ export default function MetaLeadAds() {
   });
 
   const limpiar = () => {
-    setPageId(''); setPageName(''); setToken(''); setProjectId(''); setCorreos('');
+    setPageId(''); setPageName(''); setToken(''); setProjectId(''); setCorreos(correoPropio);
   };
 
   const conectar = useMutation({

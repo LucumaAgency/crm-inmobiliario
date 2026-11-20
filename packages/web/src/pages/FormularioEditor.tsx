@@ -68,6 +68,20 @@ export default function FormularioEditor() {
     enabled: !nuevo,
   });
 
+  // Formulario nuevo: «Avisar a» arranca con el correo de quien lo crea (editable). Una cuenta
+  // de Lucuma en el CRM de un cliente no se pone a sí misma: los avisos son datos del cliente.
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get<{ user: { email: string; cuentaLucuma?: boolean }; organization: { slug: string } | null }>('/auth/me'),
+    enabled: nuevo,
+  });
+  useEffect(() => {
+    const u = me.data?.user;
+    if (!nuevo || !u?.email) return;
+    if (u.cuentaLucuma && me.data?.organization?.slug !== 'lucuma') return;
+    setNotify((actual) => actual || u.email);
+  }, [nuevo, me.data]);
+
   useEffect(() => {
     if (existente.data) {
       setSchema(existente.data.schema);

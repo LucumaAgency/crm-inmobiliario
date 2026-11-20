@@ -17,6 +17,7 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { cifrar, redactarSecretos } from '../lib/secretos.js';
 import { logLine } from '../lib/log.js';
+import { correosAvisoPorDefecto, sinCorreos } from '../lib/avisos.js';
 import { llamarGraph, suscribirAppAPagina } from './meta.js';
 export function oauthDisponible() {
     return !!(env.meta.appId && env.meta.appSecret && env.meta.loginConfigId);
@@ -158,8 +159,14 @@ export async function conectarPaginas(estado, paginas) {
             active: true,
             lastError: errorSuscripcion ? `No se pudo suscribir la app a la página: ${errorSuscripcion}` : null,
         };
+        // «Avisar a» vacío: se llena con quien conecta (ver lib/avisos.ts). Si ya tenía correos,
+        // reconectar para renovar el token no los toca.
+        const avisar = !existente || sinCorreos(existente.notifyEmails)
+            ? await correosAvisoPorDefecto(estado.userId)
+            : [];
+        const conAvisos = avisar.length ? { ...datos, notifyEmails: avisar } : datos;
         if (existente) {
-            await prisma.metaPage.update({ where: { id: existente.id }, data: datos });
+            await prisma.metaPage.update({ where: { id: existente.id }, data: conAvisos });
         }
         else {
             await prisma.metaPage.create({
@@ -167,7 +174,7 @@ export async function conectarPaginas(estado, paginas) {
                     organizationId: estado.organizationId,
                     pageId: p.id,
                     projectId: estado.projectId,
-                    ...datos,
+                    ...conAvisos,
                 },
             });
         }

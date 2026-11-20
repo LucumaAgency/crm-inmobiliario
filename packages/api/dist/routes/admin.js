@@ -10,6 +10,7 @@ import { cifrar, pista } from '../lib/secretos.js';
 import { hashPassword } from '../lib/password.js';
 import { guardarAjustes, leerAjustes } from '../lib/ajustes.js';
 import { env } from '../env.js';
+import { correosAvisoPorDefecto } from '../lib/avisos.js';
 /** Gestión: proyectos, unidades, formularios, sitios, usuarios, etapas. */
 export default async function adminRoutes(app) {
     app.addHook('preHandler', requireAuth);
@@ -969,7 +970,9 @@ export default async function adminRoutes(app) {
                 accessTokenEnc: cifrar(tokenPagina),
                 lastError: errorSuscripcion ? `No se pudo suscribir la app a la página: ${errorSuscripcion}` : null,
                 formMap: (resto.formMap ?? undefined),
-                notifyEmails: (resto.notifyEmails ?? undefined),
+                // Sin el campo en la petición (API directa), avisa a quien conecta. Si la pantalla
+                // manda la lista vacía a propósito, se respeta.
+                notifyEmails: (resto.notifyEmails ?? (await correosAvisoPorDefecto(req.user.id))),
             },
         });
         await audit(req.user.organizationId, req.user.id, 'meta.page.connect', {
