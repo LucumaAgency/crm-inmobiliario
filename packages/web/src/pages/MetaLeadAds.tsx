@@ -103,6 +103,9 @@ export default function MetaLeadAds() {
   const [prueba, setPrueba] = useState<{ id: string; resultado: Prueba } | null>(null);
   /** Token nuevo escrito por página, hasta que se guarda explícitamente. */
   const [tokenNuevo, setTokenNuevo] = useState<Record<string, string>>({});
+  /** «Avisar a» editado por página, hasta que se guarda. */
+  const [correosNuevos, setCorreosNuevos] = useState<Record<string, string>>({});
+  const [errorCorreos, setErrorCorreos] = useState<Record<string, string>>({});
   const [diagnostico, setDiagnostico] = useState<{ id: string; datos: Diagnostico } | null>(null);
   const diagnosticar = useMutation({
     mutationFn: (id: string) => api.get<Diagnostico>(`/meta/pages/${id}/token`),
@@ -320,6 +323,55 @@ export default function MetaLeadAds() {
                 <option key={pr.id} value={pr.id}>{pr.name}</option>
               ))}
             </select>
+
+            <label htmlFor={`avisar-${p.id}`}>Avisar a (correos separados por coma)</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                id={`avisar-${p.id}`}
+                style={{ flex: '1 1 260px' }}
+                placeholder="ventas@cliente.com, gerencia@cliente.com"
+                value={correosNuevos[p.id] ?? (p.notifyEmails ?? []).join(', ')}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  setCorreosNuevos((c) => ({ ...c, [p.id]: valor }));
+                  setErrorCorreos((er) => ({ ...er, [p.id]: '' }));
+                }}
+              />
+              {/* Botón y no onBlur: mismo motivo que el token (ver «Guardar token y probar»). */}
+              <button
+                className="btn btn-sec"
+                disabled={correosNuevos[p.id] === undefined || actualizar.isPending}
+                onClick={() =>
+                  actualizar.mutate(
+                    {
+                      id: p.id,
+                      datos: {
+                        notifyEmails: (correosNuevos[p.id] ?? '').split(',').map((c) => c.trim()).filter(Boolean),
+                      },
+                    },
+                    {
+                      onSuccess: () =>
+                        setCorreosNuevos((c) => {
+                          const { [p.id]: _, ...resto } = c;
+                          return resto;
+                        }),
+                      onError: () =>
+                        setErrorCorreos((er) => ({ ...er, [p.id]: 'Revisa los correos: alguno no es válido.' })),
+                    }
+                  )
+                }
+              >
+                Guardar correos
+              </button>
+            </div>
+            {errorCorreos[p.id] ? (
+              <p className="error">{errorCorreos[p.id]}</p>
+            ) : (
+              <p className="meta">
+                Reciben el aviso de cada lead nuevo de esta página, además del asesor asignado.
+                {!(p.notifyEmails ?? []).length && ' Sin correos aquí, si el lead no tiene asesor no se avisa a nadie.'}
+              </p>
+            )}
 
             <label htmlFor={`token-${p.id}`}>Reemplazar el token</label>
             <input
